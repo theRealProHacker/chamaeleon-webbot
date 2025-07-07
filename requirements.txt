@@ -1,0 +1,9 @@
+flask
+requests
+beautifulsoup4
+python-dotenv
+langchain
+langchain-openai
+langchain-community
+langchain-google-genai
+openai
