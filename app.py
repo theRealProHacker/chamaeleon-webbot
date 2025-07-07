@@ -21,8 +21,7 @@ def chat():
     try:
        response = call(messages, endpoint)
     except Exception as e:
-        print(f"Error calling agent: {str(e)}")
-        abort(500)
+        raise e
     
     return jsonify(response)
 # --- End Chatbot API Endpoint ---

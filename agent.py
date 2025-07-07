@@ -1,5 +1,6 @@
 
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -11,6 +12,9 @@ import datetime
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from langchain.agents import initialize_agent, AgentType
+
+from langgraph.prebuilt import create_react_agent
 
 locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
 
@@ -40,17 +44,8 @@ with open("sitemap.txt", "r", encoding="utf-8") as f:
             all_sites.append(line)
 
 
-
-model = ChatOpenAI(
-    model_name="gpt-4-0613",
-    temperature=0.3,
-    openai_api_key=OPENAI_API_KEY
-)
-
-# model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", google_api_key=GEMINI_API_KEY)
-
 website_tool_description=f"""
-Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten.
+Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.
 
 Verfügbare Seiten:
 {sitemap}
@@ -115,8 +110,8 @@ def chamaeleon_website_tool(url_path: str) -> dict:
             'status': 'error'
         }
 
-def recommend_trip_maker(container: set[str]):
-    @tool(description="Schlage eine oder mehrere Reise vor (z.B. ). ")
+def make_recommend_trip(container: set[str]):
+    @tool(description="Schlage eine oder mehrere Reise vor (z.B. recommend_trip('Nofretete')). ")
     def recommend_trip(trip_id: str|list[str]):
         try: 
             for id in trip_id:
@@ -127,16 +122,26 @@ def recommend_trip_maker(container: set[str]):
 
     return recommend_trip
 
+def make_recommend_human_support(container: list[str]):
+    @tool(description="Empfehle den menschlichen Kundenberater anzurufen. ")
+    def recommend_human_support():
+        container.append(True)
 
-model = model.bind_tools([
-    # GenAITool(google_search={}),
-    chamaeleon_website_tool
-])
+    return recommend_human_support
+
+
+# model = ChatOpenAI(
+#     model_name="gpt-4.1-2025-04-14",
+#     temperature=0.3,
+#     openai_api_key=OPENAI_API_KEY
+# )
+
+model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", google_api_key=GEMINI_API_KEY)
 
 system_prompt = """
 Du bist ein professioneller Kundenbetreuer für das deutsche Reiseunternehmen Chamäleon (https://chamaeleon-reisen.de) mit über 10 Jahren Erfahrung.
 Du weißt fast alles über die Firma und kannst auf die interne Webseiten-API zugreifen.
-Deine Hauptaufgabe ist es, Kund*innen in einem Chat freundlich, kompetent und im typischen Chamäleon‑Stil zu beraten.
+Deine Hauptaufgabe ist es, Kund*innen in einem Chat freundlich, kompetent und im typischen Chamäleon‑Stil zu beraten und Reisen zu empfehlen.
 
 Spezialisiert auf Erlebnis- und Abenteuerreisen in kleinen Gruppen (maximal 12 Teilnehmende), legt Chamäleon Wert auf:
 - Nachhaltigkeit: 60% lokaler Verdienst, aktive Projekte wie Regenwaldschutz und soziale Initiativen vor Ort.
@@ -163,11 +168,20 @@ Dieser ist telefonisch erreichbar:
 - Mo–Fr: 09:00–18:00 Uhr
 - Sa: 09:00–13:00 Uhr
 
-Halte deine Antworten möglichst präzise, kurz und hilfreich.
+Gebe so oft wie möglich Links zu den relevanten Seiten auf chamaeleon-reisen.de an, damit der Kunde die Informationen auch selbst nachlesen kann.
+Du kannst dafür auch einfach die relativen URLs verwenden, z.B. "/Impressum".
+
+Empfehle Reisen, indem du das entsprechende Tool benutzt, z.B. `recommend_trip("Nofretete")`. 
+Mache dies auch, wenn die Reise von dir oder dem Kunden erwähnt wird. 
 
 TODO: Ganz viele Beispiele und FAQs.
+
+Halte deine Antworten möglichst präzise, kurz und hilfreich.
 """.strip()
 
+site_link_pattern = re.compile(r'\s(/[a-zA-Z\-\_]+)+')
+assert all(site_link_pattern.match(url) for url in all_sites)
+url_pattern = re.compile(r'https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)')
 
 def call(messages: list, endpoint: str):
     now = datetime.datetime.now()
@@ -176,15 +190,12 @@ def call(messages: list, endpoint: str):
     weekday = now.strftime("%A")
 
     chat_history = [
-        (
-            "system",
-            system_prompt.format(
-                date=date,
-                time=time,
-                weekday=weekday,
-                endpoint=endpoint
-            )
-        ),
+        SystemMessage(content=system_prompt.format(
+            date=date,
+            time=time,
+            weekday=weekday,
+            endpoint=endpoint
+        ))
     ]
     for msg in messages:
         if msg['role'] == 'user':
@@ -193,14 +204,35 @@ def call(messages: list, endpoint: str):
             chat_history.append(AIMessage(content=msg['content']))
 
     recommendations = set[str]()
-    response = model.invoke(
-        chat_history,
+    
+    agent_executor = create_react_agent(
+        model,
         tools=[
-            recommend_trip_maker(recommendations)
-        ]
+            chamaeleon_website_tool,
+            make_recommend_trip(recommendations)
+        ],
     )
     
-    reply = response.content
-    return {'reply': reply, 'recommendations': recommendations}
+    response = agent_executor.invoke({"messages": chat_history})
+
+    for message in response["messages"]:
+        message.pretty_print()
+
+    reply = response["messages"][-1].content
+
+    # Make links:
+    reply = site_link_pattern.sub(
+        lambda match: f'<a href="{match.group(0)}" target="_blank">{match.group(0)}</a>', 
+        reply
+    )
+
+    reply = url_pattern.sub(
+        lambda match: f'<a href="{match.group(0)}" target="_blank">{match.group(0)}</a>', 
+        reply
+    )
+
+    print({'reply': reply, 'recommendations': list(recommendations)})
+    
+    return {'reply': reply, 'recommendations': list(recommendations)}
 
 

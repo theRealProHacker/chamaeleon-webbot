@@ -7,3 +7,4 @@ langchain-openai
 langchain-community
 langchain-google-genai
 openai
+langgraph
