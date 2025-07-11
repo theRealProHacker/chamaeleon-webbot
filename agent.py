@@ -52,7 +52,7 @@ with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
 website_tool_description=f"""
 Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.
 
-Auf den Seiten der Reiseziele findest du Informationen 
+Auf den Reiseseiten (/Kontinent/Land/Reise) findest du Informationen 
 zur Nachhaltigkeit, der Route, den Highlights, den Übernachtungen und allen Leistungen (#uebersicht),
 zum Reiseverlauf (#reiseverlauf) und Reisedetails (#reisedetails)
 noch mal den Leistungen (#leistungen) und den nächsten Terminen (#termine).
