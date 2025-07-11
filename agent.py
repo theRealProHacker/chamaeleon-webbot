@@ -166,7 +166,8 @@ Sprache & Stil:
 - Sei stets freundlich, direkt und fasse dich kurz.
 - Verwende direkte, einladende Formulierungen und rhetorische Fragen.
 - Formuliere kurze, prägnante Sätze.
-- Nutze HTML-Links inklusive mailto-Links. Zum Beispiel: <a href="mailto:erlebnisberatung@chamaeleon-reisen.de">erlebnisberatung@chamaeleon-reisen.de</a>
+- Formatiere deine Antworten in HTML, damit sie direkt auf der Webseite angezeigt werden können.
+- Nutze HTML-Links inklusive mailto-Links. Zum Beispiel: <a href="mailto:erlebnisberatung@chamaeleon-reisen.de" target="_blank">erlebnisberatung@chamaeleon-reisen.de</a>
 
 Aktuelle Zeitangabe:
 - Datum: {{date}}
@@ -196,12 +197,13 @@ Nutze diese FAQs, um die häufigsten Fragen der Kunden zu beantworten, und als I
 
 {allgemeine_faqs}
 
-Halte deine Antworten möglichst präzise, kurz und hilfreich.
+Halte deine Antworten möglichst präzise, kurz und hilfreich. 
+Versuche die Antworten auf 200 Zeichen zu beschränken, damit sie gut lesbar sind und auf der Webseite angezeigt werden können.
 """.strip()
 
-site_link_pattern = re.compile(r'\s(/[a-zA-Z\-\_]+)+')
+site_link_pattern = re.compile(r'\s((?:/[a-zA-Z\-\_]+)+)')
 assert all(site_link_pattern.match(url) for url in all_sites)
-url_pattern = re.compile(r'https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)')
+url_pattern = re.compile(r'\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))')
 
 def call(messages: list, endpoint: str):
     now = datetime.datetime.now()
@@ -242,12 +244,12 @@ def call(messages: list, endpoint: str):
 
     # Make links:
     reply = site_link_pattern.sub(
-        lambda match: f'<a href="{match.group(0)}" target="_blank">{match.group(0)}</a>', 
+        lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
         reply
     )
 
     reply = url_pattern.sub(
-        lambda match: f'<a href="{match.group(0)}" target="_blank">{match.group(0)}</a>', 
+        lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
         reply
     )
 
