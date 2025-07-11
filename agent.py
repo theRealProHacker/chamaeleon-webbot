@@ -8,6 +8,7 @@ import locale
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
 import datetime
+from functools import cache
 # from google.ai.generativelanguage_v1beta.types import Tool as GenAITool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
@@ -43,9 +44,19 @@ with open("sitemap.txt", "r", encoding="utf-8") as f:
         if line and not line.startswith('#'):
             all_sites.append(line)
 
+# general FAQs
+with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
+    allgemeine_faqs = f.read().strip()
+
 
 website_tool_description=f"""
 Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.
+
+Auf den Seiten der Reiseziele findest du Informationen 
+zur Nachhaltigkeit, der Route, den Highlights, den Übernachtungen und allen Leistungen (#uebersicht),
+zum Reiseverlauf (#reiseverlauf) und Reisedetails (#reisedetails)
+noch mal den Leistungen (#leistungen) und den nächsten Terminen (#termine).
+Außerdem gibt es Informationen zu den Unterkünften (#unterkuenfte) und möglichen Verlägerungen (#zusatzprogramme)
 
 Verfügbare Seiten:
 {sitemap}
@@ -58,6 +69,7 @@ Returns:
 """.strip()
 
 @tool(description=website_tool_description)
+@cache
 def chamaeleon_website_tool(url_path: str) -> dict:
     base_url = "https://www.chamaeleon-reisen.de"
     full_url = base_url + url_path
@@ -138,7 +150,7 @@ def make_recommend_human_support(container: list[str]):
 
 model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", google_api_key=GEMINI_API_KEY)
 
-system_prompt = """
+system_prompt = f"""
 Du bist ein professioneller Kundenbetreuer für das deutsche Reiseunternehmen Chamäleon (https://chamaeleon-reisen.de) mit über 10 Jahren Erfahrung.
 Du weißt fast alles über die Firma und kannst auf die interne Webseiten-API zugreifen.
 Deine Hauptaufgabe ist es, Kund*innen in einem Chat freundlich, kompetent und im typischen Chamäleon‑Stil zu beraten und Reisen zu empfehlen.
@@ -154,13 +166,16 @@ Sprache & Stil:
 - Sei stets freundlich, direkt und fasse dich kurz.
 - Verwende direkte, einladende Formulierungen und rhetorische Fragen.
 - Formuliere kurze, prägnante Sätze.
+- Nutze HTML-Links inklusive mailto-Links. Zum Beispiel: <a href="mailto:erlebnisberatung@chamaeleon-reisen.de">erlebnisberatung@chamaeleon-reisen.de</a>
 
 Aktuelle Zeitangabe:
-- Datum: {date}
-- Uhrzeit: {time}
-- Wochentag: {weekday}
+- Datum: {{date}}
+- Uhrzeit: {{time}}
+- Wochentag: {{weekday}}
 
-Der Kunde befindet sich gerade auf folgender Webseite: {endpoint}
+Der Kunde befindet sich gerade auf folgender Webseite: {{endpoint}}. Gehe davon aus, dass sich Fragen auf diese Seite beziehen.
+
+Du kannst mit dem Tool chamaeleon_website_tool() auf die Webseite zugreifen, um Informationen zu erhalten.
 
 Wichtiger Hinweis:
 Falls du eine Frage nicht sicher beantworten kannst oder die Antwort zu komplex ist, verweise bitte auf den menschlichen Kundenberater. 
@@ -174,7 +189,12 @@ Du kannst dafür auch einfach die relativen URLs verwenden, z.B. "/Impressum".
 Empfehle Reisen, indem du das entsprechende Tool benutzt, z.B. `recommend_trip("Nofretete")`. 
 Mache dies auch, wenn die Reise von dir oder dem Kunden erwähnt wird. 
 
-TODO: Ganz viele Beispiele und FAQs.
+HÄUFIG GESTELLTE FRAGEN (FAQs):
+Nutze diese FAQs, um die häufigsten Fragen der Kunden zu beantworten, und als Inspiration für deine eigenen Antworten.
+
+# Allgemeine FAQs
+
+{allgemeine_faqs}
 
 Halte deine Antworten möglichst präzise, kurz und hilfreich.
 """.strip()
