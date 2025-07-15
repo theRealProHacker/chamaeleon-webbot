@@ -20,6 +20,7 @@ def make_recommendation_preview(recommendation: str):
     try:
         site = [site for site in all_sites if recommendation in site][0]
     except IndexError:
+       return None  # No site found for the recommendation
        raise ValueError(f"No site found for trip recommendation: {recommendation}")
 
     html = get_chamaeleon_website_html(site)
@@ -55,7 +56,7 @@ def chat():
     if response.get('recommendations'):
         recommendations = response['recommendations']
         response['recommendation_previews'] = [
-            make_recommendation_preview(rec) for rec in recommendations
+            preview for rec in recommendations if (preview := make_recommendation_preview(rec))
         ]
 
     return jsonify(response)
