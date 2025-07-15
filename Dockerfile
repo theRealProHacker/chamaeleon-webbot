@@ -5,6 +5,13 @@ FROM python:3
 # Run in unbuffered mode
 ENV PYTHONUNBUFFERED=1 
 
+# Install German locale
+RUN apt-get update && \
+    apt-get install -y locales && \
+    locale-gen de_DE && \
+    locale-gen de_DE.UTF-8 && \
+    update-locale
+
 # Create and change to the app directory.
 WORKDIR /app
 
@@ -13,8 +20,10 @@ COPY . ./
 
 # Install project dependencies
 RUN python3 -m venv venv
-RUN . venv/bin/activate
-RUN pip install --no-cache-dir -r requirements.txt
+RUN . venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir gunicorn && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Run the web service on container startup.
 CMD ["/bin/bash", "-c", ". venv/bin/activate && exec gunicorn app:app"]

@@ -15,5 +15,3 @@ langgraph
 smolagents[litellm,gradio]
 # testing
 pytest
-# deployment
-gunicorn
