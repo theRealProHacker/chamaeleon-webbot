@@ -10,7 +10,10 @@ import datetime
 from functools import cache
 
 # Set German locale
-locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
+if os.name == 'nt':  # Windows
+    locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
+else:  # Unix-like systems
+    locale.setlocale(locale.LC_ALL, 'de_DE')
 
 # Load environment variables
 load_dotenv()
