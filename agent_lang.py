@@ -20,7 +20,7 @@ from agent_base import (
 # Initialize the model
 model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", google_api_key=GEMINI_API_KEY)
 
-# Alternative OpenAI model (commented out)
+# Alternative OpenAI model
 # model = ChatOpenAI(
 #     model_name="gpt-4.1-2025-04-14",
 #     temperature=0.3,

@@ -1,10 +1,17 @@
 flask
 requests
 beautifulsoup4
+markdownify
+# secret keys
 python-dotenv
+# langchain
 langchain
 langchain-openai
 langchain-community
 langchain-google-genai
 openai
 langgraph
+# smolagents
+smolagents[litellm,gradio]
+# testing
+pytest

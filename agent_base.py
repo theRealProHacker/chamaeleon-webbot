@@ -1,7 +1,9 @@
 import os
 import re
+import markdownify
 import requests
 from bs4 import BeautifulSoup
+from markdownify import markdownify as md
 from dotenv import load_dotenv
 import locale
 import datetime
@@ -56,7 +58,7 @@ Args:
     url_path: Der Pfad zur gewünschten Seite (z.B. "/Vision", "/Afrika/Namibia")
     
 Returns:
-    dict: Enthält 'main_content' und 'title'
+    dict: Enthält 'main_content' (als Markdown) und 'title'
 """.strip()
 
 # Base website tool (without decorator)
@@ -86,9 +88,15 @@ def chamaeleon_website_tool_base(url_path: str) -> dict:
         title = soup.find('title')
         title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
         
+        # Convert main content to markdown
+        markdown_content = markdownify.markdownify(response.text).strip()
+
+        # Remove multiple line breaks
+        markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+        
         return {
             'title': title_text,
-            'main_content': str(main),
+            'main_content': markdown_content,
             'status': 'success'
         }
         
