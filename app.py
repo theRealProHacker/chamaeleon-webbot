@@ -1,11 +1,40 @@
 from functools import cache
+from bs4 import BeautifulSoup
 from flask import Flask, request, Response, jsonify, abort
 import requests
 import re
 
+from agent_base import all_sites, get_chamaeleon_website_html, BASE_URL
 from agent import call
 
 app = Flask(__name__)
+
+def make_recommendation_preview(recommendation: str):
+    """
+    This is where we gather the preview information that is necessary for the preview. 
+    The frontend is still responsible for displaying the preview with nice HTML.  
+
+    The information we need is the trip title and the head image URL.
+    """
+
+    try:
+        site = [site for site in all_sites if recommendation in site][0]
+    except IndexError:
+       raise ValueError(f"No site found for trip recommendation: {recommendation}")
+
+    html = get_chamaeleon_website_html(site)
+    soup = BeautifulSoup(html, 'html.parser')
+
+    title_text = soup.find('title').get_text(strip=True).split('-')[0].strip()
+    if len(title_text.split()) > 5:
+        title_text = recommendation.split("/")[-1].replace("-ALL", "")
+    image_url = soup.find('meta', property='og:image')['content']
+
+    return {
+        'url': BASE_URL+site,
+        'title': title_text,
+        'image': image_url
+    }
 
 
 # --- Chatbot API Endpoint ---
@@ -13,7 +42,7 @@ app = Flask(__name__)
 def chat():
     data = request.get_json()
     messages = data.get('messages', [])
-    endpoint = data.get('current_url', 'N/A')
+    endpoint = data.get('current_url', '/')
     
     if not messages:
         abort(400, 'No messages provided')
@@ -23,6 +52,12 @@ def chat():
     except Exception as e:
         raise e
     
+    if response.get('recommendations'):
+        recommendations = response['recommendations']
+        response['recommendation_previews'] = [
+            make_recommendation_preview(rec) for rec in recommendations
+        ]
+
     return jsonify(response)
 # --- End Chatbot API Endpoint ---
 
