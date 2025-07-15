@@ -17,4 +17,4 @@ RUN . venv/bin/activate
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Run the web service on container startup.
-CMD ["venv/bin/gunicorn", "app:app"]
+["/bin/bash", "-c", ". venv/bin/activate && exec gunicorn app:app"]
