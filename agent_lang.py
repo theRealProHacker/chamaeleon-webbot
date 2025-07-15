@@ -43,8 +43,8 @@ def country_faq_tool(continent: str, country: str) -> str:
 def make_recommend_trip(container: set[str]):
     """Create a LangChain tool for trip recommendations."""
     base_func = make_recommend_trip_base(container)
-    
-    @tool(description="Schlage eine oder mehrere Reise vor (z.B. recommend_trip('Nofretete')). ")
+
+    @tool(description="Schlage eine oder mehrere Reise vor. Beispielsweise recommend_trip('Nofretete') oder recommend_trip(['/Nofretete-ALL', '/Botswana-Namibia/Okavango']). ")
     def recommend_trip(trip_id: str|list[str]):
         return base_func(trip_id)
     
