@@ -21,9 +21,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in environment variables")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY not found in environment variables")
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# if not OPENAI_API_KEY:
+#     raise ValueError("OPENAI_API_KEY not found in environment variables")
 
 TOURONE_API_KEY = os.getenv("TOURONE_BEARER_TOKEN")
 if not TOURONE_API_KEY:
