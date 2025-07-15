@@ -18,7 +18,7 @@ from agent_base import (
 )
 
 # Initialize the model
-model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", google_api_key=GEMINI_API_KEY)
+model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY)
 
 # Alternative OpenAI model
 # model = ChatOpenAI(
