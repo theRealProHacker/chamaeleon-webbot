@@ -31,12 +31,35 @@ if not TOURONE_API_KEY:
 
 # Load sitemap URLs
 all_sites: list[str] = []
+trip_sites: list[str] = []
 with open("sitemap.txt", "r", encoding="utf-8") as f:
     sitemap = f.read()
+    recording_trip_sites = False
     for line in sitemap.splitlines():
         line = line.strip()
         if line and not line.startswith('#'):
             all_sites.append(line)
+            if recording_trip_sites and line.count('/') >= 3:
+                trip_sites.append(line)
+        elif line == "## Reiseziele":
+            recording_trip_sites = True
+        elif line == "## Nachhaltigkeit":
+            recording_trip_sites = False
+
+# print(len(all_sites), "total URLs found in sitemap")
+# print(len(trip_sites), "trip URLs found in sitemap")
+
+def find_trip_site(recommendation: str) -> str:
+    """
+    Find a trip site based on the recommendation.
+    """
+    if not recommendation:
+        raise ValueError("Recommendation cannot be empty")
+    
+    try:
+        return [site for site in trip_sites if recommendation in site][0]
+    except IndexError:
+       raise ValueError(f"No site found for trip recommendation: {recommendation}")
 
 # Load general FAQs
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
@@ -179,7 +202,7 @@ Sprache & Stil:
 - Formuliere kurze, prägnante Sätze.
 
 Formatierung:
-- Formatiere deine Antworten in HTML, damit sie direkt auf der Webseite angezeigt werden können. Vermeide Markdown-Formatierung, wie zum Beispiel **fett** oder _kursiv_.
+- Formatiere deine Antworten in HTML, damit sie direkt auf der Webseite angezeigt werden können. Vermeide Markdown-Formatierung, wie zum Beispiel **fett**, _kursiv_ oder * Listeneintrag 1 \n * Listeneintrag 2!
 - Nutze HTML-Links inklusive mailto-Links. Zum Beispiel: <a href="mailto:erlebnisberatung@chamaeleon-reisen.de">erlebnisberatung@chamaeleon-reisen.de</a>
 - Achte darauf, dass du immer target="_blank" für externe Links verwendest, damit sie in einem neuen Tab geöffnet werden.
 
@@ -228,25 +251,36 @@ Empfehle Reisen, sooft wie möglich, indem du das `recommend_trip()`-Tool benutz
 """.strip()
 
 # URL patterns for link processing
-site_link_pattern = re.compile(r'\s((?:/[a-zA-Z\-\_]+)+)')
-# assert all(site_link_pattern.match(url) for url in all_sites)
+site_link_pattern = re.compile(r'(?:/[a-zA-Z\-\_]+)*')
+assert all(site_link_pattern.match(url) for url in all_sites)
 url_pattern = re.compile(r'\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))')
 
-def process_links_in_reply(reply: str) -> str:
-    """Process and convert URLs in the reply to HTML links."""
-    # Make site links
-    reply = site_link_pattern.sub(
-        lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
-        reply
-    )
+# def process_links_in_reply(reply: str) -> str:
+#     """Process and convert URLs in the reply to HTML links."""
+#     # Make site links
+#     reply = site_link_pattern.sub(
+#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
+#         reply
+#     )
     
-    # Make external URLs
-    reply = url_pattern.sub(
-        lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
-        reply
-    )
+#     # Make external URLs
+#     reply = url_pattern.sub(
+#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
+#         reply
+#     )
     
-    return reply
+#     return reply
+
+def detect_recommendation_links(reply: str) -> set[str]:
+    """
+    Detect and return a set of recommendation links from the reply.
+    """
+    links = set()
+    for match in site_link_pattern.finditer(reply):
+        link = match.group(0)
+        if link in trip_sites:
+            links.add(link)
+    return links
 
 def get_current_time_info() -> dict:
     """Get current date, time, and weekday formatted for German locale."""

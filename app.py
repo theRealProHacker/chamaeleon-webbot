@@ -4,7 +4,7 @@ from flask import Flask, request, Response, jsonify, abort
 import requests
 import re
 
-from agent_base import all_sites, get_chamaeleon_website_html, BASE_URL
+from agent_base import all_sites, find_trip_site, get_chamaeleon_website_html, BASE_URL
 from agent import call
 
 app = Flask(__name__)
@@ -18,10 +18,10 @@ def make_recommendation_preview(recommendation: str):
     """
 
     try:
-        site = [site for site in all_sites if recommendation in site][0]
-    except IndexError:
-       return None  # No site found for the recommendation
-       raise ValueError(f"No site found for trip recommendation: {recommendation}")
+        site = find_trip_site(recommendation)
+    except ValueError:
+        print(f"Warning: No site found for recommendation '{recommendation}'")
+        return None  # No site found for the recommendation
 
     html = get_chamaeleon_website_html(site)
     soup = BeautifulSoup(html, 'html.parser')

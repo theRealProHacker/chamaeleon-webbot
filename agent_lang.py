@@ -10,13 +10,13 @@ from agent_base import (
     GEMINI_API_KEY, 
     OPENAI_API_KEY,
     chamaeleon_website_tool_base,
+    detect_recommendation_links,
     website_tool_description,
     country_faq_tool_base,
     country_faq_tool_description,
     make_recommend_trip_base,
     make_recommend_human_support_base,
-    format_system_prompt,
-    process_links_in_reply
+    format_system_prompt
 )
 
 # Initialize the model
@@ -111,7 +111,10 @@ def call(messages: list, endpoint: str) -> dict:
     reply = response["messages"][-1].content
 
     # Process links in reply
-    reply = process_links_in_reply(reply)
+    # reply = process_links_in_reply(reply)
+
+    # Extract recommendations
+    recommendations.update(detect_recommendation_links(reply))
 
     # Debug output
     result = {'reply': reply, 'recommendations': list(recommendations)}
