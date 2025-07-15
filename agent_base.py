@@ -61,21 +61,25 @@ Returns:
     dict: Enthält 'main_content' (als Markdown) und 'title'
 """.strip()
 
-# Base website tool (without decorator)
 @cache
-def chamaeleon_website_tool_base(url_path: str) -> dict:
-    """Base website tool function without framework-specific decorators."""
+def get_chamaeleon_website_html(url_path: str) -> str:
     base_url = "https://www.chamaeleon-reisen.de"
     full_url = base_url + url_path
     
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    response = requests.get(full_url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    return response.text
+# Base website tool (without decorator)
+def chamaeleon_website_tool_base(url_path: str) -> str:
+    """Base website tool function without framework-specific decorators."""
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        response = requests.get(full_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        content = get_chamaeleon_website_html(url_path)
         
-        soup = BeautifulSoup(response.content, 'html.parser')
+        soup = BeautifulSoup(content, 'html.parser')
         
         # Main Content extrahieren
         main = soup.find('main') or soup.find('div', class_='main') or soup.find('body')
@@ -89,29 +93,21 @@ def chamaeleon_website_tool_base(url_path: str) -> dict:
         title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
         
         # Convert main content to markdown
-        markdown_content = markdownify.markdownify(response.text).strip()
+        markdown_content = markdownify.markdownify(content).strip()
 
         # Remove multiple line breaks
         markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
-        
-        return {
-            'title': title_text,
-            'main_content': markdown_content,
-            'status': 'success'
-        }
+
+        return f"""
+        # {title_text}
+
+        {markdown_content}
+        """.strip()
         
     except requests.RequestException as e:
-        return {
-            'url': full_url,
-            'error': f"Fehler beim Abrufen der Seite: {str(e)}",
-            'status': 'error'
-        }
+        return f"Fehler beim Abrufen der Seite: {str(e)}"
     except Exception as e:
-        return {
-            'url': full_url,
-            'error': f"Unerwarteter Fehler: {str(e)}",
-            'status': 'error'
-        }
+        return f"Unerwarteter Fehler: {str(e)}"
 
 # Base tool factory functions (without decorators)
 def make_recommend_trip_base(container: set[str]):
