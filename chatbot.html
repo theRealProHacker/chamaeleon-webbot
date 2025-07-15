@@ -185,6 +185,87 @@
     height: 20px;
 }
 
+#recommendations-container {
+    position: absolute;
+    bottom: 0;
+    right: 370px;
+    width: 160px;
+    height: 450px;
+    display: none;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0;
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+#recommendations-container::before {
+    content: '';
+    position: sticky;
+    top: 0;
+    height: 20px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.8), transparent);
+    pointer-events: none;
+    z-index: 10;
+}
+
+#recommendations-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#recommendations-container.active {
+    display: flex;
+}
+
+.recommendation-preview {
+    width: 140px;
+    height: 143px;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+.recommendation-preview:last-child {
+    margin-bottom: 0;
+}
+
+.recommendation-preview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.recommendation-preview img {
+    width: 100%;
+    height: 95px;
+    object-fit: cover;
+    border-radius: 6px 6px 0 0;
+}
+
+.recommendation-preview .title {
+    padding: 10px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1.3;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    font-family: 'Generis Simple', sans-serif;
+}
+
 @media (max-width: 480px) {
     #chatbot-dialog {
         width: 300px;
@@ -206,10 +287,25 @@
         width: 25px;
         height: 25px;
     }
+    
+    #recommendations-container {
+        display: none !important; /* Hide recommendations on mobile */
+    }
+}
+
+@media (max-width: 768px) {
+    #recommendations-container {
+        right: 320px; /* Adjust for smaller screens */
+        width: 140px;
+    }
 }
 </style>
 
 <div id="chatbot-container">
+    <div id="recommendations-container">
+        <!-- Recommendation previews will be dynamically added here -->
+    </div>
+    
     <div id="chatbot-button">
         <svg id="chatbot-icon" viewBox="0 0 24 24" width="24" height="24">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
@@ -246,17 +342,26 @@
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
     const chatbotMessages = document.getElementById('chatbot-messages');
+    const recommendationsContainer = document.getElementById('recommendations-container');
 
     // Toggle chatbot dialog
     chatbotButton.addEventListener('click', function() {
         chatbotDialog.classList.toggle('active');
         chatbotButton.classList.toggle('hidden');
+        
+        // Show/hide recommendations container along with chatbot
+        if (chatbotDialog.classList.contains('active')) {
+            recommendationsContainer.classList.add('active');
+        } else {
+            recommendationsContainer.classList.remove('active');
+        }
     });
 
     // Close chatbot dialog
     closeButton.addEventListener('click', function() {
         chatbotDialog.classList.remove('active');
         chatbotButton.classList.remove('hidden');
+        recommendationsContainer.classList.remove('active');
     });
 
     // Send message function
@@ -288,6 +393,11 @@
             .then(response => response.json())
             .then(data => {
                 addMessage(data.reply, 'bot-message');
+                
+                // Update recommendations if available
+                if (data.recommendation_previews && data.recommendation_previews.length > 0) {
+                    updateRecommendations(data.recommendation_previews);
+                }
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -309,6 +419,39 @@
         
         // Scroll to bottom of messages
         chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+    }
+
+    // Update recommendations display
+    function updateRecommendations(recommendationPreviews) {
+        // Add new recommendations (don't clear existing ones)
+        recommendationPreviews.forEach(preview => {
+            // Check if this recommendation already exists
+            const existingRecommendation = Array.from(recommendationsContainer.children)
+                .find(element => element.href === preview.url);
+            
+            if (existingRecommendation) {
+                // Move existing recommendation to the bottom
+                recommendationsContainer.removeChild(existingRecommendation);
+                recommendationsContainer.appendChild(existingRecommendation);
+            } else {
+                // Create new recommendation element
+                const recommendationElement = document.createElement('a');
+                recommendationElement.className = 'recommendation-preview';
+                recommendationElement.href = preview.url;
+                recommendationElement.target = '_blank';
+                
+                recommendationElement.innerHTML = `
+                    <img src="${preview.image}" alt="${preview.title}" onerror="this.style.display='none'">
+                    <div class="title">${preview.title}</div>
+                `;
+                
+                // Add new recommendation at the end (bottom)
+                recommendationsContainer.appendChild(recommendationElement);
+            }
+        });
+        
+        // Scroll to show the latest recommendations
+        recommendationsContainer.scrollTop = recommendationsContainer.scrollHeight;
     }
 
     // Send message on button click
