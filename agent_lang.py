@@ -11,6 +11,8 @@ from agent_base import (
     OPENAI_API_KEY,
     chamaeleon_website_tool_base,
     website_tool_description,
+    country_faq_tool_base,
+    country_faq_tool_description,
     make_recommend_trip_base,
     make_recommend_human_support_base,
     format_system_prompt,
@@ -29,9 +31,14 @@ model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=GEMINI_A
 
 # Create LangChain tools by decorating base functions
 @tool(description=website_tool_description)
-def chamaeleon_website_tool(url_path: str) -> dict:
+def chamaeleon_website_tool(url_path: str) -> str:
     """LangChain tool wrapper for the base website tool."""
     return chamaeleon_website_tool_base(url_path)
+
+@tool(description=country_faq_tool_description)
+def country_faq_tool(continent: str, country: str) -> str:
+    """LangChain tool wrapper for the country FAQ tool."""
+    return country_faq_tool_base(continent, country)
 
 def make_recommend_trip(container: set[str]):
     """Create a LangChain tool for trip recommendations."""
@@ -88,6 +95,7 @@ def call(messages: list, endpoint: str) -> dict:
         model,
         tools=[
             chamaeleon_website_tool,
+            country_faq_tool,
             make_recommend_trip(recommendations)
         ],
     )
