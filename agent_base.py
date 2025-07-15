@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import markdownify
@@ -41,6 +42,13 @@ with open("sitemap.txt", "r", encoding="utf-8") as f:
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
     allgemeine_faqs = f.read().strip()
 
+# Load country-specific FAQs
+with open("faqs/laender.json", "r", encoding="utf-8") as f:
+    laender_faqs = json.load(f)
+
+faq_continents = list(laender_faqs.keys())
+faq_countries = {continent: list(laender_faqs[continent].keys()) for continent in faq_continents}
+
 # Website tool description
 website_tool_description = f"""
 Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.
@@ -74,6 +82,7 @@ def get_chamaeleon_website_html(url_path: str) -> str:
     response.raise_for_status()
 
     return response.text
+
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators."""
@@ -109,6 +118,29 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         return f"Fehler beim Abrufen der Seite: {str(e)}"
     except Exception as e:
         return f"Unerwarteter Fehler: {str(e)}"
+    
+country_faq_tool_description = f"""
+Tool für den Zugriff auf länderspezifische FAQs von Chamäleon Reisen.
+Verfügbare Kontinente: {', '.join(faq_continents)}
+Verfügbare Länder:
+{', '.join([f"{continent}: {', '.join(faq_countries[continent])}" for continent in faq_continents])}
+Args:
+    continent (str): Der Kontinent, für den die FAQs abgerufen werden sollen.
+    country (str): Das Land, für das die FAQs abgerufen werden sollen.
+Returns:
+    str: Die FAQs für das angegebene Land im Markdown-Format.
+Raises:
+    ValueError: Wenn der Kontinent oder das Land unbekannt ist.
+""".strip()
+
+def country_faq_tool_base(continent: str, country: str) -> str:
+    if continent not in laender_faqs:
+        raise ValueError(f"Unbekannter Kontinent: {continent}. Verfügbare Kontinente: {', '.join(faq_continents)}")
+    if country not in laender_faqs[continent]:
+        raise ValueError(f"Unbekanntes Land: {country} im Kontinent {continent}. Verfügbare Länder: {', '.join(faq_countries[continent])}")
+    faqs = laender_faqs[continent][country]
+    return faqs
+
 
 # Base tool factory functions (without decorators)
 def make_recommend_trip_base(container: set[str]):
