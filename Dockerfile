@@ -8,9 +8,14 @@ ENV PYTHONUNBUFFERED=1
 # Install German locale
 RUN apt-get update && \
     apt-get install -y locales && \
-    locale-gen de_DE && \
-    locale-gen de_DE.UTF-8 && \
-    update-locale
+    sed -i '/de_DE.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    update-locale LANG=de_DE.UTF-8
+
+# Set locale environment variables
+ENV LANG=de_DE.UTF-8 \
+    LANGUAGE=de_DE:de \
+    LC_ALL=de_DE.UTF-8
 
 # Create and change to the app directory.
 WORKDIR /app
