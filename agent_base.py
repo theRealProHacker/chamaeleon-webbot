@@ -116,17 +116,13 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         
         # Main Content extrahieren
         main = soup.find('main') or soup.find('div', class_='main') or soup.find('body')
-        for tag in main.find_all(True):  # True gibt alle Tags zurück
-            # Speichere nur die erlaubten Attribute (id und class)
-            allowed_attrs = {k: v for k, v in tag.attrs.items() if k in ['id', 'class']}
-            tag.attrs = allowed_attrs
         
         # Title extrahieren
         title = soup.find('title')
         title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
         
         # Convert main content to markdown
-        markdown_content = markdownify.markdownify(content).strip()
+        markdown_content = markdownify.markdownify(str(main)).strip()
 
         # Remove multiple line breaks
         markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
