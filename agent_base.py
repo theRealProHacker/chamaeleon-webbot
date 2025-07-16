@@ -72,6 +72,63 @@ with open("faqs/laender.json", "r", encoding="utf-8") as f:
 faq_continents = list(laender_faqs.keys())
 faq_countries = {continent: list(laender_faqs[continent].keys()) for continent in faq_continents}
 
+with open("visa_labels.json", "r", encoding="utf-8") as f:
+    visa_labels: dict[str, str] = json.load(f)
+
+# Visum.de tool
+
+visa_tool_description = f"""
+Tool für den Zugriff auf Visum-Informationen von visum.de.
+
+Args:
+    country (str): Das Land, für das die Visum-Informationen abgerufen werden
+
+Returns:
+    str: Die Visum-Informationen für das angegebene Land.
+
+Beispiel:
+visa_tool('AUT') # für Österreich
+
+Verfügbare Länder:
+{'\n'.join(': '.join(item) for item in visa_labels.items())}
+""".strip()
+
+@cache
+def visa_tool_base(country: str) -> str:
+    land_id = country.upper()
+    if land_id not in visa_labels:
+        raise ValueError(f"Unbekanntes Land: {land_id}. Verfügbare Länder: {', '.join(visa_labels.keys())}")
+
+    url = f"https://www.visum.de/Visum-beantragen/Visumbeschaffung-beauftragen/apply_visa.php?land_id={land_id}&bundesland_id=AUSLAND"
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        content = soup.find('div', attrs={'id': 'content_box'})
+            
+        # Convert main content to markdown
+        markdown_content = markdownify.markdownify(str(content)).strip()
+
+        # Remove multiple line breaks
+        markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+        return f"""
+        # Visum-Informationen für {visa_labels[land_id]}
+
+        {markdown_content}
+        """.strip()
+
+    except requests.RequestException as e:
+        return f"Fehler beim Abrufen der Seite: {str(e)}"
+    except Exception as e:
+        return f"Unerwarteter Fehler: {str(e)}"
+
 # Website tool description
 website_tool_description = f"""
 Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.

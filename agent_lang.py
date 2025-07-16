@@ -9,6 +9,8 @@ from langgraph.prebuilt import create_react_agent
 from agent_base import (
     GEMINI_API_KEY, 
     OPENAI_API_KEY,
+    visa_tool_base,
+    visa_tool_description,
     chamaeleon_website_tool_base,
     detect_recommendation_links,
     website_tool_description,
@@ -29,7 +31,11 @@ model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=GEMINI_A
 #     openai_api_key=OPENAI_API_KEY
 # )
 
-# Create LangChain tools by decorating base functions
+@tool(description=visa_tool_description)
+def visa_tool(country: str) -> str:
+    """LangChain tool wrapper for the visa tool."""
+    return visa_tool_base(country)
+
 @tool(description=website_tool_description)
 def chamaeleon_website_tool(url_path: str) -> str:
     """LangChain tool wrapper for the base website tool."""
@@ -94,6 +100,7 @@ def call(messages: list, endpoint: str) -> dict:
     agent_executor = create_react_agent(
         model,
         tools=[
+            visa_tool,
             chamaeleon_website_tool,
             country_faq_tool,
             make_recommend_trip(recommendations)
