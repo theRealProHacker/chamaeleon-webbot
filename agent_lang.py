@@ -124,8 +124,7 @@ def call(messages: list, endpoint: str) -> dict:
     # Extract recommendations
     recommendations.update(detect_recommendation_links(reply))
 
-    print(reply)
-    reply = mistune.markdown(reply)  # Convert markdown to HTML if needed
+    reply = mistune.markdown(reply, escape=False)  # Convert markdown to HTML if needed
 
     # Debug output
     result = {'reply': reply, 'recommendations': list(recommendations)}

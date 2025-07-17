@@ -13,5 +13,7 @@ openai
 langgraph
 # smolagents
 smolagents[litellm,gradio]
+# mistune for markdown processing
+mistune
 # testing
 pytest
