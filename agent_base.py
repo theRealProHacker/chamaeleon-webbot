@@ -2,6 +2,7 @@ import json
 import os
 import re
 import markdownify
+import pytz
 import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
@@ -339,7 +340,8 @@ def detect_recommendation_links(reply: str) -> set[str]:
 
 def get_current_time_info() -> dict:
     """Get current date, time, and weekday formatted for German locale."""
-    now = datetime.datetime.now()
+
+    now = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
     return {
         'date': now.strftime("%d. %B %Y"),
         'time': now.strftime("%H:%M"),
@@ -350,8 +352,6 @@ def format_system_prompt(endpoint: str) -> str:
     """Format the system prompt with current time information and endpoint."""
     time_info = get_current_time_info()
     return system_prompt_template.format(
-        date=time_info['date'],
-        time=time_info['time'],
-        weekday=time_info['weekday'],
+        **time_info,
         endpoint=endpoint
     )
