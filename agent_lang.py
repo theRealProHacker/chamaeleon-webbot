@@ -77,19 +77,21 @@ def convert_messages_to_langchain(messages: list) -> list:
             chat_history.append(AIMessage(content=msg['content']))
     return chat_history
 
-def call(messages: list, endpoint: str) -> dict:
+def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> dict:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
     
     Args:
         messages: List of message dictionaries with 'role' and 'content' keys
         endpoint: Current website endpoint the user is on
+        kundenberater_name: Name of the customer advisor for this trip/page
+        kundenberater_telefon: Phone number of the customer advisor for this trip/page
         
     Returns:
         dict: Contains 'reply' and 'recommendations' keys
     """
     # Format system prompt with current time and endpoint
-    system_prompt = format_system_prompt(endpoint)
+    system_prompt = format_system_prompt(endpoint, kundenberater_name, kundenberater_telefon)
     
     # Convert messages to LangChain format
     chat_history = [SystemMessage(content=system_prompt)] + convert_messages_to_langchain(messages)

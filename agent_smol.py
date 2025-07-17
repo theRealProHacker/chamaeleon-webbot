@@ -79,19 +79,21 @@ def convert_messages_to_smolagents(messages: list) -> str:
             conversation += f"Assistant: {content}\n"
     return conversation.strip()
 
-def call(messages: list, endpoint: str) -> dict:
+def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> dict:
     """
     Main function to process messages and generate responses using smolagents.CodeAgent.
     
     Args:
         messages: List of message dictionaries with 'role' and 'content' keys
         endpoint: Current website endpoint the user is on
+        kundenberater_name: Name of the customer advisor for this trip/page
+        kundenberater_telefon: Phone number of the customer advisor for this trip/page
         
     Returns:
         dict: Contains 'reply' and 'recommendations' keys
     """
     # Format system prompt with current time and endpoint
-    system_prompt = format_system_prompt(endpoint)
+    system_prompt = format_system_prompt(endpoint, kundenberater_name, kundenberater_telefon)
     
     # Initialize recommendation containers
     recommendations = set[str]()

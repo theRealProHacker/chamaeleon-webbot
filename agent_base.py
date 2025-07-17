@@ -275,8 +275,12 @@ TODO
 
 
 Wichtiger Hinweis:
-Falls du eine Frage nicht sicher beantworten kannst oder die Antwort zu komplex ist, verweise bitte auf den menschlichen Kundenberater. 
-Dieser ist telefonisch erreichbar:
+Falls du eine Frage nicht sicher beantworten kannst oder die Antwort zu komplex ist, verweise bitte auf den menschlichen Erlebnisberater. 
+Jede Reise/Seite, hat einen eigenen Erlebnisberater, der sich um die Fragen zu dieser Reise kümmert. 
+{{kundenberater_name}}
+{{kundenberater_telefon}}
+
+Die Chamäleon ist generell telefonisch erreichbar:
 - Mo–Fr: 09:00–18:00 Uhr
 - Sa: 09:00–13:00 Uhr
 
@@ -349,10 +353,12 @@ def get_current_time_info() -> dict:
         'weekday': now.strftime("%A")
     }
 
-def format_system_prompt(endpoint: str) -> str:
+def format_system_prompt(endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> str:
     """Format the system prompt with current time information and endpoint."""
     time_info = get_current_time_info()
     return system_prompt_template.format(
         **time_info,
-        endpoint=endpoint
+        endpoint=endpoint,
+        kundenberater_name=('Bei dieser Reise heißt der Erlebnisberater ' + kundenberater_name + '. ') if kundenberater_name else '',
+        kundenberater_telefon=('Die Telefonnummer des Erlebnisberaters ist ' + kundenberater_telefon + '. ') if kundenberater_telefon else ''
     )

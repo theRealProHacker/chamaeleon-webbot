@@ -44,12 +44,14 @@ def chat():
     data = request.get_json()
     messages = data.get('messages', [])
     endpoint = data.get('current_url', '/')
+    kundenberater_name = data.get('kundenberater_name', '')
+    kundenberater_telefon = data.get('kundenberater_telefon', '')
     
     if not messages:
         abort(400, 'No messages provided')
 
     try:
-       response = call(messages, endpoint)
+       response = call(messages, endpoint, kundenberater_name, kundenberater_telefon)
     except Exception as e:
         raise e
     

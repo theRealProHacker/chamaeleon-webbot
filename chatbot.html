@@ -330,6 +330,11 @@
     const chatbotMessages = document.getElementById('chatbot-messages');
     const recommendationsContainer = document.getElementById('recommendations-container');
 
+    // Get erlebnisberater info
+    const berater_box = document.querySelector('.beraterbox__contact');
+    const kundenberater_name = berater_box?.querySelector('.tos-font-h4')?.textContent || '';
+    const kundenberater_telefon = berater_box?.querySelector('a.tos-font-h5')?.textContent || '';
+
     // Toggle chatbot dialog
     chatbotButton.addEventListener('click', function() {
         chatbotDialog.classList.toggle('active');
@@ -374,6 +379,8 @@
                 body: JSON.stringify({ 
                     messages: messages,
                     current_url: window.location.pathname,
+                    kundenberater_name: kundenberater_name,
+                    kundenberater_telefon: kundenberater_telefon,
                 })
             })
             .then(response => response.json())
