@@ -112,7 +112,7 @@ def call(messages: list, endpoint: str) -> dict:
     response = agent_executor.invoke({"messages": chat_history})
 
     # Debug output
-    for message in response["messages"]:
+    for message in response["messages"][1:]:  # Skip the system message
         message.pretty_print()
 
     # Extract reply from response
