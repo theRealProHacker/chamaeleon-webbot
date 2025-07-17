@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from langgraph.prebuilt import create_react_agent
+import mistune
 
 from agent_base import (
     GEMINI_API_KEY, 
@@ -122,6 +123,9 @@ def call(messages: list, endpoint: str) -> dict:
 
     # Extract recommendations
     recommendations.update(detect_recommendation_links(reply))
+
+    print(reply)
+    reply = mistune.markdown(reply)  # Convert markdown to HTML if needed
 
     # Debug output
     result = {'reply': reply, 'recommendations': list(recommendations)}
