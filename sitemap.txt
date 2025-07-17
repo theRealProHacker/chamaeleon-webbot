@@ -2,40 +2,33 @@
 
 /
 
+### Rechtliches
 /AGB
-
-/Abenteuer-Reisen
-
-/Bestellung
-
 /Datenschutz
-
-/Erlebnis-Reisen
-/Erlebnistage
-
-/Geniesser-Reisen
-
 /Impressum
 
+### About
+/das-Besondere
 /Infos
-
 /Ingo-Lies
-
 /Jobs
-
 /Kontakt
-
 /Meilensteine
 /Mission
-
-/Reisebuero-finden
 /Reiseleiter
-
 /Team
-
 /Vision
+
+### Marketing & Sales
+/Bestellung
+/Erlebnistage
+/Reisebuero-finden
 /Vorbestellung
-/das-Besondere
+
+### Reisen
+/Abenteuer-Reisen
+/Erlebnis-Reisen
+/Geniesser-Reisen
 
 ## Kurzfristige Abfahrten
 
