@@ -1,38 +1,65 @@
 from smolagents import CodeAgent, LiteLLMModel
 from smolagents.tools import Tool
+import mistune
 
 from agent_base import (
     GEMINI_API_KEY, 
     OPENAI_API_KEY,
+    visa_tool_base,
+    visa_tool_description,
     chamaeleon_website_tool_base,
+    detect_recommendation_links,
     website_tool_description,
+    country_faq_tool_base,
+    country_faq_tool_description,
     make_recommend_trip_base,
-    make_recommend_human_support_base,
-    format_system_prompt,
-    process_links_in_reply
+    format_system_prompt
 )
 
 # Initialize the model for smolagents using Gemini via LiteLLMModel
 model = LiteLLMModel(
-    model_id="gemini/gemini-pro",
+    model_id="gemini/gemini-2.5-flash",
     api_key=GEMINI_API_KEY,
 )
 
 # Create smolagents tools by wrapping base functions
+class VisaTool(Tool):
+    name = "visa_tool"
+    description = visa_tool_description
+    inputs = {"country": {"type": "string", "description": "Das Land für das Visa-Informationen benötigt werden"}}
+    output_type = "string"
+
+    def forward(self, country: str) -> str:
+        """Smolagents tool wrapper for the visa tool."""
+        return visa_tool_base(country)
+
 class ChamaeleonWebsiteTool(Tool):
     name = "chamaeleon_website_tool"
     description = website_tool_description
     inputs = {"url_path": {"type": "string", "description": "Der Pfad zur gewünschten Seite (z.B. '/Vision', '/Afrika/Namibia')"}}
-    output_type = "object"
+    output_type = "str"
 
-    def forward(self, url_path: str) -> dict:
+    def forward(self, url_path: str) -> str:
         """Smolagents tool wrapper for the base website tool."""
         return chamaeleon_website_tool_base(url_path)
 
+class CountryFaqTool(Tool):
+    name = "country_faq_tool"
+    description = country_faq_tool_description
+    inputs = {
+        "continent": {"type": "string", "description": "Der Kontinent des Landes"},
+        "country": {"type": "string", "description": "Das Land für das FAQ-Informationen benötigt werden"}
+    }
+    output_type = "string"
+
+    def forward(self, continent: str, country: str) -> str:
+        """Smolagents tool wrapper for the country FAQ tool."""
+        return country_faq_tool_base(continent, country)
+
 class RecommendTripTool(Tool):
     name = "recommend_trip"
-    description = "Schlage eine oder mehrere Reise vor (z.B. recommend_trip('Nofretete'))"
-    inputs = {"trip_id": {"type": "string", "description": "ID der zu empfehlenden Reise"}}
+    description = "Schlage eine oder mehrere Reise vor. Beispielsweise recommend_trip('Nofretete') oder recommend_trip(['/Nofretete-ALL', '/Botswana-Namibia/Okavango']). "
+    inputs = {"trip_id": {"type": "string", "description": "ID der zu empfehlenden Reise oder Liste von IDs"}}
     output_type = "string"
     
     def __init__(self, container: set[str]):
@@ -47,25 +74,6 @@ class RecommendTripTool(Tool):
             return f"Reise '{trip_id}' wurde zur Empfehlungsliste hinzugefügt."
         except Exception as e:
             return f"Fehler beim Hinzufügen der Reise: {str(e)}"
-
-class RecommendHumanSupportTool(Tool):
-    name = "recommend_human_support"
-    description = "Empfehle den menschlichen Kundenberater anzurufen"
-    inputs = {}
-    output_type = "string"
-    
-    def __init__(self, container: list[str]):
-        super().__init__()
-        self.container = container
-        self.base_func = make_recommend_human_support_base(container)
-
-    def forward(self) -> str:
-        """Smolagents tool wrapper for human support recommendations."""
-        try:
-            self.base_func()
-            return "Menschlicher Kundenberater wurde empfohlen."
-        except Exception as e:
-            return f"Fehler beim Empfehlen des Kundenberaters: {str(e)}"
 
 def convert_messages_to_smolagents(messages: list) -> str:
     """Convert generic message format to a conversation string for smolagents."""
@@ -97,13 +105,13 @@ def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenbera
     
     # Initialize recommendation containers
     recommendations = set[str]()
-    human_support_requests = []
     
     # Create tools
     tools = [
+        VisaTool(),
         ChamaeleonWebsiteTool(),
-        RecommendTripTool(recommendations),
-        RecommendHumanSupportTool(human_support_requests)
+        CountryFaqTool(),
+        RecommendTripTool(recommendations)
     ]
     
     # Create agent
@@ -147,7 +155,12 @@ def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenbera
         print(f"Error in smolagents call: {e}")
     
     # Process links in reply
-    reply = process_links_in_reply(reply)
+    # reply = process_links_in_reply(reply)
+
+    # Extract recommendations
+    recommendations.update(detect_recommendation_links(reply))
+
+    reply = mistune.markdown(reply, escape=False)  # Convert markdown to HTML if needed
     
     # Debug output
     result = {'reply': reply, 'recommendations': list(recommendations)}

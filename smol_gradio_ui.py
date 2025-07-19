@@ -1,7 +1,7 @@
 from smolagents import GradioUI, CodeAgent
 
 from agent_base import format_system_prompt
-from agent_smol import model, ChamaeleonWebsiteTool, RecommendHumanSupportTool, RecommendTripTool
+from agent_smol import model, ChamaeleonWebsiteTool, RecommendTripTool, VisaTool
 
 endpoint = "/"
 
@@ -15,7 +15,7 @@ human_support_requests = []
 tools = [
     ChamaeleonWebsiteTool(),
     RecommendTripTool(recommendations),
-    RecommendHumanSupportTool(human_support_requests),
+    VisaTool(),
 ]
 
 # Create agent
