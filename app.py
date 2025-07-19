@@ -1,11 +1,16 @@
 from functools import cache
 from bs4 import BeautifulSoup
-from flask import Flask, request, Response, jsonify, abort
+from flask import Flask, request, Response, jsonify, abort, stream_template
 import requests
 import re
+import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from agent_base import all_sites, find_trip_site, get_chamaeleon_website_html, BASE_URL
 from agent import call
+from agent_lang import call_stream
 
 app = Flask(__name__)
 
@@ -23,19 +28,46 @@ def make_recommendation_preview(recommendation: str):
         print(f"Warning: No site found for recommendation '{recommendation}'")
         return None  # No site found for the recommendation
 
-    html = get_chamaeleon_website_html(site)
-    soup = BeautifulSoup(html, 'html.parser')
+    try:
+        html = get_chamaeleon_website_html(site)
+        soup = BeautifulSoup(html, 'html.parser')
 
-    title_text = soup.find('title').get_text(strip=True).split('-')[0].strip()
-    if len(title_text.split()) > 5:
-        title_text = recommendation.split("/")[-1].replace("-ALL", "")
-    image_url = soup.find('meta', property='og:image')['content']
+        title_text = soup.find('title').get_text(strip=True).split('-')[0].strip()
+        if len(title_text.split()) > 5:
+            title_text = recommendation.split("/")[-1].replace("-ALL", "")
+        image_url = soup.find('meta', property='og:image')['content']
 
-    return {
-        'url': BASE_URL+site,
-        'title': title_text,
-        'image': image_url
-    }
+        return {
+            'url': BASE_URL+site,
+            'title': title_text,
+            'image': image_url
+        }
+    except Exception as e:
+        print(f"Error creating preview for {recommendation}: {e}")
+        return None
+
+def make_recommendation_previews_async(recommendations):
+    """
+    Create recommendation previews in parallel using ThreadPoolExecutor
+    """
+    if not recommendations:
+        return []
+    
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        # Submit all preview generation tasks
+        future_to_rec = {executor.submit(make_recommendation_preview, rec): rec for rec in recommendations}
+        
+        previews = []
+        for future in future_to_rec:
+            try:
+                preview = future.result(timeout=5)  # 5 second timeout per preview
+                if preview:
+                    previews.append(preview)
+            except Exception as e:
+                rec = future_to_rec[future]
+                print(f"Error creating preview for {rec}: {e}")
+        
+        return previews
 
 
 # --- Chatbot API Endpoint ---
@@ -57,12 +89,73 @@ def chat():
     
     if response.get('recommendations'):
         recommendations = response['recommendations']
-        response['recommendation_previews'] = [
-            preview for rec in recommendations if (preview := make_recommendation_preview(rec))
-        ]
+        
+        # Generate previews asynchronously
+        try:
+            response['recommendation_previews'] = make_recommendation_previews_async(recommendations)
+        except Exception as e:
+            print(f"Error generating recommendation previews: {e}")
+            response['recommendation_previews'] = []
 
     return jsonify(response)
 # --- End Chatbot API Endpoint ---
+
+# --- Streaming Chatbot API Endpoint ---
+@app.route('/chat/stream', methods=['POST'])
+def chat_stream():
+    data = request.get_json()
+    messages = data.get('messages', [])
+    endpoint = data.get('current_url', '/')
+    kundenberater_name = data.get('kundenberater_name', '')
+    kundenberater_telefon = data.get('kundenberater_telefon', '')
+    
+    if not messages:
+        abort(400, 'No messages provided')
+
+    def generate():
+        try:
+            for event in call_stream(messages, endpoint, kundenberater_name, kundenberater_telefon):
+                # Handle recommendation previews for final response
+                if event.get('type') == 'response' and event.get('data', {}).get('recommendations'):
+                    recommendations = event['data']['recommendations']
+                    
+                    # Send the response first without previews
+                    event_json = json.dumps(event, ensure_ascii=False)
+                    yield f"data: {event_json}\n\n"
+                    
+                    # Generate previews asynchronously and send them separately
+                    if recommendations:
+                        try:
+                            previews = make_recommendation_previews_async(recommendations)
+                            if previews:
+                                preview_event = {
+                                    "type": "recommendation_previews", 
+                                    "data": {"recommendation_previews": previews}
+                                }
+                                preview_json = json.dumps(preview_event, ensure_ascii=False)
+                                yield f"data: {preview_json}\n\n"
+                        except Exception as e:
+                            print(f"Error generating recommendation previews: {e}")
+                else:
+                    # Regular event - send as-is
+                    event_json = json.dumps(event, ensure_ascii=False)
+                    yield f"data: {event_json}\n\n"
+                
+        except Exception as e:
+            print(f"Error in streaming: {e}")
+            import traceback
+            traceback.print_exc()
+            error_event = {"type": "error", "data": str(e)}
+            yield f"data: {json.dumps(error_event)}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST',
+        'Access-Control-Allow-Headers': 'Content-Type'
+    })
+# --- End Streaming Chatbot API Endpoint ---
 
 
 # --- Proxy Setup ---
