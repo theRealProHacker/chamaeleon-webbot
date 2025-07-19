@@ -68,10 +68,13 @@ with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
 
 # Load country-specific FAQs
 with open("faqs/laender.json", "r", encoding="utf-8") as f:
-    laender_faqs = json.load(f)
 
-faq_continents = list(laender_faqs.keys())
-faq_countries = {continent: list(laender_faqs[continent].keys()) for continent in faq_continents}
+    data: dict[str, dict[str, str]] = json.load(f)
+    laender_faqs: dict[str, str] = {
+        country: faq
+        for countries in data.values()
+        for country, faq in countries.items()
+    }
 
 with open("visa_labels.json", "r", encoding="utf-8") as f:
     visa_labels: dict[str, str] = json.load(f)
@@ -198,24 +201,22 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
     
 country_faq_tool_description = f"""
 Tool für den Zugriff auf länderspezifische FAQs von Chamäleon Reisen.
-Verfügbare Kontinente: {', '.join(faq_continents)}
+
 Verfügbare Länder:
-{', '.join([f"{continent}: {', '.join(faq_countries[continent])}" for continent in faq_continents])}
+{', '.join(laender_faqs)}
+
 Args:
-    continent (str): Der Kontinent, für den die FAQs abgerufen werden sollen.
     country (str): Das Land, für das die FAQs abgerufen werden sollen.
 Returns:
     str: Die FAQs für das angegebene Land im Markdown-Format.
 Raises:
-    ValueError: Wenn der Kontinent oder das Land unbekannt ist.
+    ValueError: Wenn das Land unbekannt ist.
 """.strip()
 
-def country_faq_tool_base(continent: str, country: str) -> str:
-    if continent not in laender_faqs:
-        raise ValueError(f"Unbekannter Kontinent: {continent}. Verfügbare Kontinente: {', '.join(faq_continents)}")
-    if country not in laender_faqs[continent]:
-        raise ValueError(f"Unbekanntes Land: {country} im Kontinent {continent}. Verfügbare Länder: {', '.join(faq_countries[continent])}")
-    faqs = laender_faqs[continent][country]
+def country_faq_tool_base(country: str) -> str:
+    if country not in laender_faqs:
+        raise ValueError(f"Unbekanntes Land: {country}. Verfügbare Länder: {', '.join(laender_faqs)}")
+    faqs = laender_faqs[country]
     return faqs
 
 
