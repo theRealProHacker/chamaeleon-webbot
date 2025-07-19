@@ -640,6 +640,9 @@
         }
     }
 
+    // Store the user message element for scrolling reference
+    let currentUserMessage = null;
+
     // Add message to chat
     function addMessage(text, className) {
         const messageDiv = document.createElement('div');
@@ -651,25 +654,25 @@
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
         
-        // Smart scrolling: for bot messages, scroll to show user's last message at top
-        if (className === 'bot-message') {
-            scrollToShowUserMessageAtTop();
+        // Store reference to user messages and scroll appropriately
+        if (className === 'user-message') {
+            currentUserMessage = messageDiv;
+            // Scroll to show the new user message
+            setTimeout(() => {
+                chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+            }, 0);
+        } else if (className === 'bot-message' && currentUserMessage) {
+            // For bot messages, scroll to show the current user message at top
+            setTimeout(() => {
+                const scrollPosition = currentUserMessage.offsetTop - 10;
+                chatbotMessages.scrollTop = scrollPosition;
+                console.log('Bot message scroll: user message offsetTop =', currentUserMessage.offsetTop, 'scrollPosition =', scrollPosition);
+            }, 0);
         } else {
-            // For user messages and other types, scroll to bottom as usual
-            chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
-        }
-    }
-
-    // Smart scroll function to show user's last message at the top
-    function scrollToShowUserMessageAtTop() {
-        const userMessages = chatbotMessages.querySelectorAll('.user-message');
-        if (userMessages.length > 0) {
-            const lastUserMessage = userMessages[userMessages.length - 1];
-            // Scroll so the last user message is at the top of the visible area
-            chatbotMessages.scrollTop = lastUserMessage.offsetTop - chatbotMessages.clientTop;
-        } else {
-            // Fallback: scroll to bottom if no user messages found
-            chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+            // For other message types, scroll to bottom
+            setTimeout(() => {
+                chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+            }, 0);
         }
     }
 
@@ -686,8 +689,18 @@
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
         
-        // Smart scrolling: for status messages, scroll to show user's last message at top
-        scrollToShowUserMessageAtTop();
+        // For status messages, keep current user message visible at top if it exists
+        if (currentUserMessage) {
+            setTimeout(() => {
+                const scrollPosition = currentUserMessage.offsetTop - 10;
+                chatbotMessages.scrollTop = scrollPosition;
+                console.log('Status message scroll: user message offsetTop =', currentUserMessage.offsetTop, 'scrollPosition =', scrollPosition);
+            }, 0);
+        } else {
+            setTimeout(() => {
+                chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+            }, 0);
+        }
         
         return messageId;
     }
@@ -733,8 +746,18 @@
         messageDiv.appendChild(retryButton);
         chatbotMessages.appendChild(messageDiv);
         
-        // Smart scrolling: for error messages, scroll to show user's last message at top
-        scrollToShowUserMessageAtTop();
+        // For error messages, keep current user message visible at top if it exists
+        if (currentUserMessage) {
+            setTimeout(() => {
+                const scrollPosition = currentUserMessage.offsetTop - 10;
+                chatbotMessages.scrollTop = scrollPosition;
+                console.log('Error message scroll: user message offsetTop =', currentUserMessage.offsetTop, 'scrollPosition =', scrollPosition);
+            }, 0);
+        } else {
+            setTimeout(() => {
+                chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+            }, 0);
+        }
     }
 
     // Update recommendations display
