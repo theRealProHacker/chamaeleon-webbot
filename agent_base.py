@@ -5,7 +5,6 @@ import markdownify
 import pytz
 import requests
 from bs4 import BeautifulSoup
-from markdownify import markdownify as md
 from dotenv import load_dotenv
 import locale
 import datetime
@@ -253,7 +252,6 @@ Spezialisiert auf Erlebnis- und Abenteuerreisen in kleinen Gruppen (maximal 12 T
 Sprache & Stil:
 - Sprich die Kunden bitte per DU an
 - Sei stets freundlich, direkt und fasse dich kurz.
-- Verwende direkte, einladende Formulierungen und rhetorische Fragen.
 - Formuliere kurze, prägnante Sätze.
 
 Formatierung:
@@ -304,8 +302,16 @@ Allgemeine FAQs:
 
 Länderspezifische FAQs:
 
-Um die länderspezifischen FAQs zu nutzen, rufe das Tool `country_faq_tool()` auf und übergib den Kontinent und das Land als Argumente.
+Um die länderspezifischen FAQs zu nutzen, rufe das Tool `country_faq_tool()` auf und übergib das Land als Argument.
 Du solltest diese länderspezifischen FAQs eigentlich immer nutzen, wenn der Kunde nach Informationen zu einem bestimmten Land fragt.
+Die länderspezifischen FAQs enthalten Informationen zu:
+- Einreisebestimmungen
+- Gesundheitshinweise
+- Sicherheitshinweise
+- Währung und Zahlungsmittel
+- Sprache und Kultur
+- Flügen
+- usw. 
 
 Wichtigste Hinweise:
 Halte deine Antworten möglichst präzise, kurz und hilfreich. 
