@@ -44,9 +44,9 @@ def chamaeleon_website_tool(url_path: str) -> str:
     return chamaeleon_website_tool_base(url_path)
 
 @tool(description=country_faq_tool_description)
-def country_faq_tool(continent: str, country: str) -> str:
+def country_faq_tool(country: str) -> str:
     """LangChain tool wrapper for the country FAQ tool."""
-    return country_faq_tool_base(continent, country)
+    return country_faq_tool_base(country)
 
 def make_recommend_trip(container: set[str]):
     """Create a LangChain tool for trip recommendations."""

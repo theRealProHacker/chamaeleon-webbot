@@ -47,14 +47,13 @@ class CountryFaqTool(Tool):
     name = "country_faq_tool"
     description = country_faq_tool_description
     inputs = {
-        "continent": {"type": "string", "description": "Der Kontinent des Landes"},
         "country": {"type": "string", "description": "Das Land für das FAQ-Informationen benötigt werden"}
     }
     output_type = "string"
 
-    def forward(self, continent: str, country: str) -> str:
+    def forward(self, country: str) -> str:
         """Smolagents tool wrapper for the country FAQ tool."""
-        return country_faq_tool_base(continent, country)
+        return country_faq_tool_base(country)
 
 class RecommendTripTool(Tool):
     name = "recommend_trip"
