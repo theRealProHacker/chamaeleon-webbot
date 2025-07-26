@@ -174,34 +174,27 @@ def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kun
     try:
         tool_used = False
         
-        # Try to use streaming if available
-        try:
-            # Stream the agent execution
-            for event in agent_executor.stream({"messages": chat_history}):
-                # Check if any tools are being used
-                if "agent" in event and not tool_used:
-                    # Look for tool calls in the agent's response
-                    if hasattr(event["agent"], "tool_calls") and event["agent"].tool_calls:
-                        tool_used = True
-                        yield {"type": "status", "data": "tool_usage"}
-                    elif "tool_calls" in str(event["agent"]):
-                        tool_used = True
-                        yield {"type": "status", "data": "tool_usage"}
-                
-                # Check for tool execution
-                if "tools" in event and not tool_used:
+        # Stream the agent execution
+        for event in agent_executor.stream({"messages": chat_history}, stream_mode="values"):
+            print(event)
+            print("#" * 30)
+            # # Check if any tools are being used
+            if "agent" in event and not tool_used:
+                # Look for tool calls in the agent's response
+                if hasattr(event["agent"], "tool_calls") and event["agent"].tool_calls:
                     tool_used = True
                     yield {"type": "status", "data": "tool_usage"}
-        except (AttributeError, TypeError):
-            # Streaming not available, fall back to simulated streaming
-            import time
+                elif "tool_calls" in str(event["agent"]):
+                    tool_used = True
+                    yield {"type": "status", "data": "tool_usage"}
             
-            # Execute normally but with simulated streaming
-            time.sleep(1)  # Brief delay to simulate thinking
-            yield {"type": "status", "data": "tool_usage"}
+            # # Check for tool execution
+            if "tools" in event and not tool_used:
+                tool_used = True
+                yield {"type": "status", "data": "tool_usage"}
         
         # Get the final response
-        response = agent_executor.invoke({"messages": chat_history})
+        response = event
 
         # Debug output
         for message in response["messages"][1:]:  # Skip the system message
