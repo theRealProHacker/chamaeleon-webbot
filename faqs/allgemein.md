@@ -11,6 +11,9 @@ A: Die Anzahlung beträgt in der Regel 20% des Reisepreises und die Restzahlung 
 **F: Wie löse ich einen Reisegutschein ein?**
 A: Sende uns am besten per Mail die Gutscheinnummer und den dazugehörigen Vorgang. Wir werden anschließend den Gutschein deiner Buchung anrechnen.
 
+**F: Ich muss meine Reise stornieren wie mache ich das?**
+A: Bitte sende eine E-Mail mit der Vorgangsnummer im Betreff an erlebnisberatung@chamaeleon-reisen.de
+
 ## Reiseunterlagen & Flüge
 **F: Wann erhalte ich meine Reiseunterlagen?**
 A: Deine Reiseunterlagen senden wir dir spätestens zwei Wochen vor Reisebeginn zu: Flugplan, aktualisierte Reisedetails und gegebenenfalls deine Rail&Fly-Gutscheincodes.

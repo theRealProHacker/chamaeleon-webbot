@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import re
@@ -64,6 +65,12 @@ def find_trip_site(recommendation: str) -> str:
 # Load general FAQs
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
     allgemeine_faqs = f.read().strip()
+
+with open("faqs/Häufig gestellte Fragen & Antworten(Allgemeine Fragen).csv", "r", encoding="utf-8") as f:
+    reader = csv.reader(f, delimiter=';')
+    for row in reader:
+        if row and len(row) >= 2 and (q:=row[1].strip()) and q != "Frage":
+            assert q in allgemeine_faqs, f"Frage '{q}' nicht in allgemeine FAQs gefunden"
 
 # Load country-specific FAQs
 with open("faqs/laender.json", "r", encoding="utf-8") as f:
