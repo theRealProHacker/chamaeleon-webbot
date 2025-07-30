@@ -1,3 +1,6 @@
 .env
 .gradio
 __pycache__/
+
+test_progress.json
+test_results_keywords.json

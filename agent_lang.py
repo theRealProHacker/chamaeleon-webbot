@@ -120,7 +120,6 @@ def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kun
         
         # Stream the agent execution
         for event in agent_executor.stream({"messages": chat_history}, stream_mode="values"):
-            print(event)
             print("#" * 30)
             # # Check if any tools are being used
             if "agent" in event and not tool_used:
@@ -160,7 +159,7 @@ def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kun
         
     except Exception as e:
         print(f"Error in agent processing: {e}")
-        yield {"type": "error", "data": str(e)}
+        yield {"type": "error", "data": str(e), "error": e}
 
 def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> dict:
     """
@@ -178,5 +177,7 @@ def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenbera
     for event in call_stream(messages, endpoint, kundenberater_name, kundenberater_telefon):
         if event["type"] == "response":
             return event["data"]["reply"]
+        elif event["type"] == "error":
+            raise event["error"]
         
     raise RuntimeError("No response received from the agent.")
