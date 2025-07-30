@@ -78,62 +78,6 @@ def convert_messages_to_langchain(messages: list) -> list:
             chat_history.append(AIMessage(content=msg['content']))
     return chat_history
 
-def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> dict:
-    """
-    Main function to process messages and generate responses using LangChain/LangGraph.
-    
-    Args:
-        messages: List of message dictionaries with 'role' and 'content' keys
-        endpoint: Current website endpoint the user is on
-        kundenberater_name: Name of the customer advisor for this trip/page
-        kundenberater_telefon: Phone number of the customer advisor for this trip/page
-        
-    Returns:
-        dict: Contains 'reply' and 'recommendations' keys
-    """
-    # Format system prompt with current time and endpoint
-    system_prompt = format_system_prompt(endpoint, kundenberater_name, kundenberater_telefon)
-    
-    # Convert messages to LangChain format
-    chat_history = [SystemMessage(content=system_prompt)] + convert_messages_to_langchain(messages)
-    
-    # Initialize recommendation containers
-    recommendations = set[str]()
-    
-    # Create agent with tools
-    agent_executor = create_react_agent(
-        model,
-        tools=[
-            visa_tool,
-            chamaeleon_website_tool,
-            country_faq_tool,
-            make_recommend_trip(recommendations)
-        ],
-    )
-    
-    # Get response from agent
-    response = agent_executor.invoke({"messages": chat_history})
-
-    # Debug output
-    for message in response["messages"][1:]:  # Skip the system message
-        message.pretty_print()
-
-    # Extract reply from response
-    reply = response["messages"][-1].content
-
-    # Process links in reply
-    # reply = process_links_in_reply(reply)
-
-    # Extract recommendations
-    recommendations.update(detect_recommendation_links(reply))
-
-    reply = mistune.markdown(reply, escape=False)  # Convert markdown to HTML if needed
-
-    # Debug output
-    result = {'reply': reply, 'recommendations': list(recommendations)}
-    print(result)
-    
-    return result
 
 def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = ""):
     """
@@ -217,3 +161,22 @@ def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kun
     except Exception as e:
         print(f"Error in agent processing: {e}")
         yield {"type": "error", "data": str(e)}
+
+def call(messages: list, endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> dict:
+    """
+    Main function to process messages and generate responses using LangChain/LangGraph.
+    
+    Args:
+        messages: List of message dictionaries with 'role' and 'content' keys
+        endpoint: Current website endpoint the user is on
+        kundenberater_name: Name of the customer advisor for this trip/page
+        kundenberater_telefon: Phone number of the customer advisor for this trip/page
+        
+    Returns:
+        dict: Contains 'reply' and 'recommendations' keys
+    """
+    for event in call_stream(messages, endpoint, kundenberater_name, kundenberater_telefon):
+        if event["type"] == "response":
+            return event["data"]["reply"]
+        
+    raise RuntimeError("No response received from the agent.")
