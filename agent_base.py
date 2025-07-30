@@ -66,21 +66,48 @@ def find_trip_site(recommendation: str) -> str:
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
     allgemeine_faqs = f.read().strip()
 
+general_faq_data: dict[str, str] = {}
+
 with open("faqs/Häufig gestellte Fragen & Antworten(Allgemeine Fragen).csv", "r", encoding="utf-8") as f:
     reader = csv.reader(f, delimiter=';')
     for row in reader:
-        if row and len(row) >= 2 and (q:=row[1].strip()) and q != "Frage":
+        row = [cell for _cell in row if (cell:=_cell.strip())]
+        if row and len(row) > 2 and all(row) and row[0].isalnum() and (q:=row[1].strip()):
             assert q in allgemeine_faqs, f"Frage '{q}' nicht in allgemeine FAQs gefunden"
+            general_faq_data[q] = row[2].strip()
 
 # Load country-specific FAQs
-with open("faqs/laender.json", "r", encoding="utf-8") as f:
+# with open("faqs/laender.json", "r", encoding="utf-8") as f:
 
-    data: dict[str, dict[str, str]] = json.load(f)
-    laender_faqs: dict[str, str] = {
-        country: faq
-        for countries in data.values()
-        for country, faq in countries.items()
-    }
+#     data: dict[str, dict[str, str]] = json.load(f)
+#     laender_faqs: dict[str, str] = {
+#         country: faq
+#         for countries in data.values()
+#         for country, faq in countries.items()
+#     }
+
+
+laender_faqs: dict[str, str] = {}
+laender_faq_data: dict[str, dict[str, str]] = {}
+
+for continent in ("Afrika", "Amerika", "Asien und Ozeanien", "Europa"):
+    with open(f"faqs/Häufig gestellte Fragen & Antworten({continent}).csv", "r", encoding="utf-8") as f:
+        reader = csv.reader(f, delimiter=';')
+        current_country = None
+        for row in reader:
+            row = [cell for _cell in row if (cell:=_cell.strip())]
+            if not row:
+                continue
+            if row[0].isdigit() and len(row) == 3:
+                laender_faqs[current_country] += f"\n\n## {row[1]}\n\n{row[2]}"
+                laender_faq_data[current_country][row[1]] = row[2]
+            elif not row[0].isdigit() and len(row) == 1 and row[0] not in ("Nr.",) and len(row[0]) < 50:
+                current_country = row[0]
+                # print(current_country)
+                laender_faqs[current_country] = f"# {current_country}"
+                laender_faq_data[current_country] = {}
+
+# print(len(laender_faqs), "countries with FAQs found")
 
 with open("visa_labels.json", "r", encoding="utf-8") as f:
     visa_labels: dict[str, str] = json.load(f)
