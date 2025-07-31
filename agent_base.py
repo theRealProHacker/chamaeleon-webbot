@@ -68,7 +68,7 @@ with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
 
 general_faq_data: dict[str, str] = {}
 
-with open("faqs/Häufig gestellte Fragen & Antworten(Allgemeine Fragen).csv", "r", encoding="utf-8") as f:
+with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
     reader = csv.reader(f, delimiter=';')
     for row in reader:
         row = [cell for _cell in row if (cell:=_cell.strip())]
@@ -90,8 +90,8 @@ with open("faqs/Häufig gestellte Fragen & Antworten(Allgemeine Fragen).csv", "
 laender_faqs: dict[str, str] = {}
 laender_faq_data: dict[str, dict[str, str]] = {}
 
-for continent in ("Afrika", "Amerika", "Asien und Ozeanien", "Europa"):
-    with open(f"faqs/Häufig gestellte Fragen & Antworten({continent}).csv", "r", encoding="utf-8") as f:
+for continent in ("Afrika", "Amerika", "Asien_und_Ozeanien", "Europa"):
+    with open(f"faqs/FAQ_{continent}.csv", "r", encoding="utf-8") as f:
         reader = csv.reader(f, delimiter=';')
         current_country = None
         for row in reader:
