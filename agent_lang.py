@@ -120,7 +120,6 @@ def call_stream(messages: list, endpoint: str, kundenberater_name: str = "", kun
         
         # Stream the agent execution
         for event in agent_executor.stream({"messages": chat_history}, stream_mode="values"):
-            print("#" * 30)
             # # Check if any tools are being used
             if "agent" in event and not tool_used:
                 # Look for tool calls in the agent's response
