@@ -69,6 +69,20 @@
     transform: scale(1) translate(0, 0);
 }
 
+/* Resize */
+#resize-handle {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 16px;
+    height: 16px;
+    background: rgba(0,0,0,0.3);
+    cursor: nwse-resize;
+    z-index: 1001; /* über dem Dialog */
+    border-radius: 4px;
+}
+
+
 #chatbot-header {
     background-color: rgba(255, 204, 0, 0.8);
     color: white;
@@ -368,6 +382,7 @@
     </div>
 
     <div id="chatbot-dialog">
+        <div id="resize-handle"></div>
         <div id="chatbot-header">
             <h3>Chatte mit uns</h3>
             <button id="close-button">×</button>
@@ -802,5 +817,55 @@
             sendMessage();
         }
     });
-// });
+
+    // Resize handle functionality (ChatGPT)
+    // Variablen für Resize-Startwerte
+    let startX, startY, startWidth, startHeight, startTop, startLeft;
+
+    const dialog = document.getElementById('chatbot-dialog');
+    const handle = document.getElementById('resize-handle');
+    const recs = document.getElementById('recommendations-container');
+
+    // Maus gedrückt auf Handle → Resize initialisieren
+    handle.addEventListener('mousedown', initResize);
+
+    function initResize(e) {
+        e.preventDefault();
+        // Start-Koordinaten und -Dimensionen merken
+        startX       = e.clientX;
+        startY       = e.clientY;
+        startWidth   = dialog.offsetWidth;
+        startHeight  = dialog.offsetHeight;
+        startTop     = dialog.offsetTop;
+        startLeft    = dialog.offsetLeft;
+
+        window.addEventListener('mousemove', doResize);
+        window.addEventListener('mouseup', stopResize);
+    }
+
+    function doResize(e) {
+        // wie weit bewegt
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        // neue Größe rechnet gegenläufig: wir ziehen an der oberen linken Ecke
+        const newWidth  = startWidth  - dx;
+        const newHeight = startHeight - dy;
+
+        // Mindestgrößen-Check (hier z.B. 200×200)
+        if (newWidth > 200 && newWidth < window.innerWidth - 40) {
+            dialog.style.width = newWidth + 'px';
+            recs.style.right = newWidth + 'px'
+        }
+        if (newHeight > 200 && newHeight < window.innerHeight - 40) {
+            dialog.style.height = newHeight + 'px';
+            recs.style.height = newHeight + 'px'; 
+        }
+    }
+
+    function stopResize() {
+        window.removeEventListener('mousemove', doResize);
+        window.removeEventListener('mouseup', stopResize);
+    }
+
 </script>
