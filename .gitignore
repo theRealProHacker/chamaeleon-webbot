@@ -4,3 +4,6 @@ __pycache__/
 
 test_progress.json
 test_results_keywords.json
+
+test_progress_countries.json
+test_results_countries.json
