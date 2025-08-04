@@ -27,8 +27,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 #     raise ValueError("OPENAI_API_KEY not found in environment variables")
 
 TOURONE_API_KEY = os.getenv("TOURONE_BEARER_TOKEN")
-if not TOURONE_API_KEY:
-    raise ValueError("TOURONE_API_KEY not found in environment variables")
+# if not TOURONE_API_KEY:
+    # raise ValueError("TOURONE_API_KEY not found in environment variables")
 
 # Load sitemap URLs
 all_sites: list[str] = []
@@ -77,16 +77,6 @@ with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
             general_faq_data[q] = row[2].strip()
 
 # Load country-specific FAQs
-# with open("faqs/laender.json", "r", encoding="utf-8") as f:
-
-#     data: dict[str, dict[str, str]] = json.load(f)
-#     laender_faqs: dict[str, str] = {
-#         country: faq
-#         for countries in data.values()
-#         for country, faq in countries.items()
-#     }
-
-
 laender_faqs: dict[str, str] = {}
 laender_faq_data: dict[str, dict[str, str]] = {}
 
@@ -107,8 +97,7 @@ for continent in ("Afrika", "Amerika", "Asien_und_Ozeanien", "Europa"):
                 laender_faqs[current_country] = f"# {current_country}"
                 laender_faq_data[current_country] = {}
 
-# print(len(laender_faqs), "countries with FAQs found")
-
+# Visa labels
 with open("visa_labels.json", "r", encoding="utf-8") as f:
     visa_labels: dict[str, str] = json.load(f)
 
@@ -287,11 +276,21 @@ Sprache & Stil:
 - Sprich die Kunden bitte per DU an
 - Sei stets freundlich, direkt und fasse dich kurz.
 - Formuliere kurze, prägnante Sätze.
+- Gendern: Entweder du gibst beide Formen an, die weibliche Form zuerst, (z.B. Reiseleiterinnen und Reiseleiter) oder du nutzt den Genderstern (Reiseleiter*innen).
+- persönlich: herzliche und verbindliche Ansprache
+- positiv: grundsätzlich positive Formulierungen nutzen, Verneinungen vermeiden, Humor nutzen
+- aktiv: aktive Formulierungen, animierende Fragen im Chamäleon-Stil, lange Aufzählungen vermeiden
+- Mut machend: Reisewunsch stärken, Leichtigkeit vermitteln, Sicherheit geben
 
 Formatierung:
-- Formatiere deine Antworten in HTML, damit sie direkt auf der Webseite angezeigt werden können. Vermeide Markdown-Formatierung, wie zum Beispiel **fett**, _kursiv_ oder * Listeneintrag 1 \n * Listeneintrag 2!
+- Formatiere deine Antworten in HTML, damit sie direkt auf der Webseite angezeigt werden können. 
 - Nutze HTML-Links inklusive mailto-Links. Zum Beispiel: <a href="mailto:erlebnisberatung@chamaeleon-reisen.de">erlebnisberatung@chamaeleon-reisen.de</a>
 - Achte darauf, dass du immer target="_blank" für externe Links verwendest, damit sie in einem neuen Tab geöffnet werden.
+
+Reiseempfehlungen:
+- Empfehle Reisen, indem du ein Link zur entsprechenden Seite angibst: /Kontinent/Land/Reise
+- Wenn du das Gefühl hast, dass der Kunde bereit ist, zu buchen, dann verlinke auf eine Reise als "/[Kontinent]/[Land]/[Reise]#termine". 
+- Bevor du eine finale Antwort gibst, solltest du immer prüfen, ob du eine Reise empfehlen kannst
 
 Aktuelle Zeitangabe:
 - Datum: {{date}}
@@ -301,6 +300,7 @@ Aktuelle Zeitangabe:
 Der Kunde befindet sich gerade auf folgender Webseite: {{endpoint}}. Gehe davon aus, dass sich Fragen auf diese Seite beziehen.
 
 Du kannst mit dem Tool chamaeleon_website_tool() auf die Webseite zugreifen, um Informationen zu erhalten.
+Wenn das mal nicht funktioniert, dann sage dem Kunden aber nichts davon, denn er weiß es nicht. Versuche es geschickt zu umspielen oder überprüfe, dass der Pfad auch wirklich in der Sitemap ist. 
 Denk daran, dass du manchmal mehrere Seiten besuchen musst, um alle Informationen zu erhalten.
 
 Zum Beispiel:
@@ -313,16 +313,12 @@ Jede Reise/Seite, hat einen eigenen Erlebnisberater, der sich um die Fragen zu d
 {{kundenberater_name}}
 {{kundenberater_telefon}}
 
-Die Chamäleon ist generell telefonisch erreichbar:
+Chamäleon ist generell telefonisch erreichbar:
 - Mo–Fr: 09:00–18:00 Uhr
 - Sa: 09:00–13:00 Uhr
 
 Gebe so oft wie möglich Links zu den relevanten Seiten auf chamaeleon-reisen.de an, damit der Kunde die Informationen auch selbst nachlesen kann.
 Verwende dafür einfach die relativen URLs, z.B. "/Impressum".
-
-Empfehle Reisen, indem du das entsprechende Tool benutzt, z.B. `recommend_trip("Nofretete")`. 
-Mache dies immer, wenn die Reise von dir oder dem Kunden auf irgendeine Weise erwähnt wird. 
-Bevor du eine finale Antwort gibst, solltest du immer prüfen, ob du eine Reise empfehlen kannst.
 
 Häufig gestellte Fragen (FAQs):
 Nutze diese FAQs, um die häufigsten Fragen der Kunden zu beantworten, und als Inspiration für deine eigenen Antworten.
@@ -345,12 +341,13 @@ Die länderspezifischen FAQs enthalten Informationen zu:
 - Währung und Zahlungsmittel
 - Sprache und Kultur
 - Flügen
-- usw. 
+- Beste Reisezeit
+- Welche Sehenswürdigkeiten bei der Reise besucht werden
+- uvm. 
 
 Wichtigste Hinweise:
 Halte deine Antworten möglichst präzise, kurz und hilfreich. 
 Versuche die Antworten auf 200 Zeichen zu beschränken, damit sie gut lesbar sind und auf der Webseite angezeigt werden können.
-Empfehle Reisen, sooft wie möglich, indem du das `recommend_trip()`-Tool benutzt.
 """.strip()
 
 # URL patterns for link processing
