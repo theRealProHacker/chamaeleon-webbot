@@ -1,23 +1,20 @@
-#!/usr/bin/env python3
 """
 Test script for the streaming chatbot functionality
 """
 
+import common as _
+
 import sys
 import os
 
-# Add the bot directory to the path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from agent_lang import call_stream
 
-def test_streaming():
+def test_streaming(message: str = ""):
     """Test the streaming functionality"""
     messages = [
-        {"role": "user", "content": "Hallo! Kannst du mir etwas über Namibia erzählen?"}
+        {"role": "user", "content": message or "Hallo! Kannst du mir etwas über Namibia erzählen?"}
     ]
     
-    print("Testing streaming functionality...")
     print("=" * 50)
     
     try:
@@ -25,10 +22,10 @@ def test_streaming():
             print(f"Event: {event['type']}")
             if event['type'] == 'status':
                 print(f"Status: {event['data']}")
-            elif event['type'] == 'response':
-                print(f"Response: {event['data']['reply'][:100]}...")
-                if event['data'].get('recommendations'):
-                    print(f"Recommendations: {event['data']['recommendations']}")
+            # elif event['type'] == 'response':
+            #     print(f"Response: {event['data']['reply'][:100]}...")
+            #     if event['data'].get('recommendations'):
+            #         print(f"Recommendations: {event['data']['recommendations']}")
             elif event['type'] == 'error':
                 print(f"Error: {event['data']}")
             print("-" * 30)
@@ -38,4 +35,8 @@ def test_streaming():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    test_streaming()
+    if len(sys.argv) > 1:
+        test_message = sys.argv[1]
+        test_streaming(test_message)
+    else:
+        test_streaming()
