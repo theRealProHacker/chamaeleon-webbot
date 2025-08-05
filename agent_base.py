@@ -12,7 +12,7 @@ import datetime
 from functools import cache
 
 # Set German locale
-locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
+locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
 
 # Load environment variables
 load_dotenv()
@@ -28,20 +28,32 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 TOURONE_API_KEY = os.getenv("TOURONE_BEARER_TOKEN")
 # if not TOURONE_API_KEY:
-    # raise ValueError("TOURONE_API_KEY not found in environment variables")
+# raise ValueError("TOURONE_API_KEY not found in environment variables")
 
 # Load sitemap URLs
 all_sites: list[str] = []
 trip_sites: list[str] = []
+# country in URL to country name
+all_countries: dict[str, str] = {}
+
 with open("sitemap.txt", "r", encoding="utf-8") as f:
     sitemap = f.read()
     recording_trip_sites = False
     for line in sitemap.splitlines():
         line = line.strip()
-        if line and not line.startswith('#'):
+        if line and not line.startswith("#"):
             all_sites.append(line)
-            if recording_trip_sites and line.count('/') >= 3:
+            if recording_trip_sites and line.count("/") >= 3:
                 trip_sites.append(line)
+            elif recording_trip_sites and line.count("/") == 2:
+                country = line.split("/")[-1]
+                all_countries[country] = (
+                    country.replace("ae", "ä")
+                    .replace("Ae", "Ä")
+                    .replace("ue", "ü")
+                    .replace("aü", "aue")
+                    .replace("oss", "oß")
+                )
         elif line == "## Reiseziele":
             recording_trip_sites = True
         elif line == "## Nachhaltigkeit":
@@ -49,6 +61,9 @@ with open("sitemap.txt", "r", encoding="utf-8") as f:
 
 # print(len(all_sites), "total URLs found in sitemap")
 # print(len(trip_sites), "trip URLs found in sitemap")
+# print([*all_countries.keys()])
+country_name2upper = {name.lower(): name for name in all_countries.values()}
+
 
 def find_trip_site(recommendation: str) -> str:
     """
@@ -56,11 +71,12 @@ def find_trip_site(recommendation: str) -> str:
     """
     if not recommendation:
         raise ValueError("Recommendation cannot be empty")
-    
+
     try:
         return [site for site in trip_sites if recommendation in site][0]
     except IndexError:
-       raise ValueError(f"No site found for trip recommendation: {recommendation}")
+        raise ValueError(f"No site found for trip recommendation: {recommendation}")
+
 
 # Load general FAQs
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
@@ -69,11 +85,19 @@ with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
 general_faq_data: dict[str, str] = {}
 
 with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
-    reader = csv.reader(f, delimiter=';')
+    reader = csv.reader(f, delimiter=";")
     for row in reader:
-        row = [cell for _cell in row if (cell:=_cell.strip())]
-        if row and len(row) > 2 and all(row) and row[0].isalnum() and (q:=row[1].strip()):
-            assert q in allgemeine_faqs, f"Frage '{q}' nicht in allgemeine FAQs gefunden"
+        row = [cell for _cell in row if (cell := _cell.strip())]
+        if (
+            row
+            and len(row) > 2
+            and all(row)
+            and row[0].isalnum()
+            and (q := row[1].strip())
+        ):
+            assert q in allgemeine_faqs, (
+                f"Frage '{q}' nicht in allgemeine FAQs gefunden"
+            )
             general_faq_data[q] = row[2].strip()
 
 # Load country-specific FAQs
@@ -82,27 +106,34 @@ laender_faq_data: dict[str, dict[str, str]] = {}
 
 for continent in ("Afrika", "Amerika", "Asien_und_Ozeanien", "Europa"):
     with open(f"faqs/FAQ_{continent}.csv", "r", encoding="utf-8") as f:
-        reader = csv.reader(f, delimiter=';')
-        current_country = None
+        reader = csv.reader(f, delimiter=";")
+        current_countries: list[str] = []
         for row in reader:
-            row = [cell for _cell in row if (cell:=_cell.strip())]
+            row = [cell for _cell in row if (cell := _cell.strip())]
             if not row:
                 continue
             if row[0].isdigit() and len(row) == 3:
-                laender_faqs[current_country] += f"\n\n## {row[1]}\n\n{row[2]}"
-                laender_faq_data[current_country][row[1]] = row[2]
-            elif not row[0].isdigit() and len(row) == 1 and row[0] not in ("Nr.",) and len(row[0]) < 50:
-                current_country = row[0]
-                # print(current_country)
-                laender_faqs[current_country] = f"# {current_country}"
-                laender_faq_data[current_country] = {}
+                for current_country in current_countries:
+                    laender_faqs[current_country] += f"\n\n## {row[1]}\n\n{row[2]}"
+                    laender_faq_data[current_country][row[1]] = row[2]
+            elif (
+                not row[0].isdigit()
+                and len(row) == 1
+                and row[0] not in ("Nr.",)
+                and len(row[0]) < 50
+            ):
+                current_countries = " ".join(
+                    part for part in row[0].split(" ") if "(" not in part
+                ).split("/")
+                for current_country in current_countries:
+                    laender_faqs[current_country] = f"# {current_country}"
+                    laender_faq_data[current_country] = {}
 
 # Visa labels
 with open("visa_labels.json", "r", encoding="utf-8") as f:
     visa_labels: dict[str, str] = json.load(f)
 
 # Visum.de tool
-
 visa_tool_description = f"""
 Tool für den Zugriff auf Visum-Informationen von visum.de.
 
@@ -116,28 +147,31 @@ Beispiel:
 visa_tool('AUT') # für Österreich
 
 Verfügbare Länder:
-{'\n'.join(': '.join(item) for item in visa_labels.items())}
+{"\n".join(": ".join(item) for item in visa_labels.items())}
 """.strip()
+
 
 @cache
 def visa_tool_base(country: str) -> str:
     land_id = country.upper()
     if land_id not in visa_labels:
-        raise ValueError(f"Unbekanntes Land: {land_id}. Verfügbare Länder: {', '.join(visa_labels.keys())}")
+        raise ValueError(
+            f"Unbekanntes Land: {land_id}. Verfügbare Länder: {', '.join(visa_labels.keys())}"
+        )
 
     url = f"https://www.visum.de/Visum-beantragen/Visumbeschaffung-beauftragen/apply_visa.php?land_id={land_id}&bundesland_id=AUSLAND"
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        content = soup.find('div', attrs={'id': 'content_box'})
-            
+        content = soup.find("div", attrs={"id": "content_box"})
+
         # Convert main content to markdown
         markdown_content = markdownify.markdownify(str(content)).strip()
 
@@ -154,6 +188,7 @@ def visa_tool_base(country: str) -> str:
         return f"Fehler beim Abrufen der Seite: {str(e)}"
     except Exception as e:
         return f"Unerwarteter Fehler: {str(e)}"
+
 
 # Website tool description
 website_tool_description = f"""
@@ -177,33 +212,35 @@ Returns:
 
 BASE_URL = "https://www.chamaeleon-reisen.de"
 
+
 @cache
 def get_chamaeleon_website_html(url_path: str) -> str:
     full_url = BASE_URL + url_path
-    
+
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     response = requests.get(full_url, headers=headers, timeout=10)
     response.raise_for_status()
 
     return response.text
 
+
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators."""
     try:
         content = get_chamaeleon_website_html(url_path)
-        
-        soup = BeautifulSoup(content, 'html.parser')
-        
+
+        soup = BeautifulSoup(content, "html.parser")
+
         # Main Content extrahieren
-        main = soup.find('main') or soup.find('div', class_='main') or soup.find('body')
-        
+        main = soup.find("main") or soup.find("div", class_="main") or soup.find("body")
+
         # Title extrahieren
-        title = soup.find('title')
+        title = soup.find("title")
         title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
-        
+
         # Convert main content to markdown
         markdown_content = markdownify.markdownify(str(main)).strip()
 
@@ -215,17 +252,18 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
 
         {markdown_content}
         """.strip()
-        
+
     except requests.RequestException as e:
         return f"Fehler beim Abrufen der Seite: {str(e)}"
     except Exception as e:
         return f"Unerwarteter Fehler: {str(e)}"
-    
+
+
 country_faq_tool_description = f"""
 Tool für den Zugriff auf länderspezifische FAQs von Chamäleon Reisen.
 
 Verfügbare Länder:
-{', '.join(laender_faqs)}
+{", ".join(laender_faqs)}
 
 Args:
     country (str): Das Land, für das die FAQs abgerufen werden sollen.
@@ -235,9 +273,12 @@ Raises:
     ValueError: Wenn das Land unbekannt ist.
 """.strip()
 
+
 def country_faq_tool_base(country: str) -> str:
     if country not in laender_faqs:
-        raise ValueError(f"Unbekanntes Land: {country}. Verfügbare Länder: {', '.join(laender_faqs)}")
+        raise ValueError(
+            f"Unbekanntes Land: {country}. Verfügbare Länder: {', '.join(laender_faqs)}"
+        )
     faqs = laender_faqs[country]
     return faqs
 
@@ -245,20 +286,26 @@ def country_faq_tool_base(country: str) -> str:
 # Base tool factory functions (without decorators)
 def make_recommend_trip_base(container: set[str]):
     """Create a trip recommendation function that stores results in the given container."""
-    def recommend_trip(trip_id: str|list[str]):
-        try: 
+
+    def recommend_trip(trip_id: str | list[str]):
+        try:
             for id in trip_id:
                 container.add(id)
         except TypeError:
             assert isinstance(trip_id, str)
             container.add(trip_id)
+
     return recommend_trip
+
 
 def make_recommend_human_support_base(container: list[str]):
     """Create a human support recommendation function that stores results in the given container."""
+
     def recommend_human_support():
         container.append(True)
+
     return recommend_human_support
+
 
 # System prompt template
 system_prompt_template = f"""
@@ -332,6 +379,8 @@ Allgemeine FAQs:
 
 Länderspezifische FAQs:
 
+{{laenderspezifische_faqs}}
+
 Um die länderspezifischen FAQs zu nutzen, rufe das Tool `country_faq_tool()` auf und übergib das Land als Argument.
 Du solltest diese länderspezifischen FAQs eigentlich immer nutzen, wenn der Kunde nach Informationen zu einem bestimmten Land fragt.
 Die länderspezifischen FAQs enthalten Informationen zu:
@@ -346,30 +395,33 @@ Die länderspezifischen FAQs enthalten Informationen zu:
 - uvm. 
 
 Wichtigste Hinweise:
-Halte deine Antworten möglichst präzise, kurz und hilfreich. 
+Halte deine Antworten möglichst präzise, kurz (200 Zeichen) und hilfreich. 
 Versuche die Antworten auf 200 Zeichen zu beschränken, damit sie gut lesbar sind und auf der Webseite angezeigt werden können.
 """.strip()
 
 # URL patterns for link processing
-site_link_pattern = re.compile(r'(?:/[a-zA-Z\-\_]+)*')
+site_link_pattern = re.compile(r"(?:/[a-zA-Z\-\_]+)*")
 assert all(site_link_pattern.match(url) for url in all_sites)
-url_pattern = re.compile(r'\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))')
+url_pattern = re.compile(
+    r"\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))"
+)
 
 # def process_links_in_reply(reply: str) -> str:
 #     """Process and convert URLs in the reply to HTML links."""
 #     # Make site links
 #     reply = site_link_pattern.sub(
-#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
+#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>',
 #         reply
 #     )
-    
+
 #     # Make external URLs
 #     reply = url_pattern.sub(
-#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>', 
+#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>',
 #         reply
 #     )
-    
+
 #     return reply
+
 
 def detect_recommendation_links(reply: str) -> set[str]:
     """
@@ -382,22 +434,47 @@ def detect_recommendation_links(reply: str) -> set[str]:
             links.add(link)
     return links
 
+
 def get_current_time_info() -> dict:
     """Get current date, time, and weekday formatted for German locale."""
 
-    now = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
+    now = datetime.datetime.now(pytz.timezone("Europe/Berlin"))
     return {
-        'date': now.strftime("%d. %B %Y"),
-        'time': now.strftime("%H:%M"),
-        'weekday': now.strftime("%A")
+        "date": now.strftime("%d. %B %Y"),
+        "time": now.strftime("%H:%M"),
+        "weekday": now.strftime("%A"),
     }
 
-def format_system_prompt(endpoint: str, kundenberater_name: str = "", kundenberater_telefon: str = "") -> str:
+
+def format_system_prompt(
+    endpoint: str,
+    countries: list[str],
+    kundenberater_name: str = "",
+    kundenberater_telefon: str = "",
+) -> str:
     """Format the system prompt with current time information and endpoint."""
     time_info = get_current_time_info()
+    laenderspezifische_faqs = ""
+    if countries:
+        laenderspezifische_faqs += (
+            "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
+        )
+
+    for country in countries:
+        laenderspezifische_faqs += laender_faqs[country] + "\n\n"
+
     return system_prompt_template.format(
         **time_info,
         endpoint=endpoint,
-        kundenberater_name=('Bei dieser Reise heißt der Erlebnisberater ' + kundenberater_name + '. ') if kundenberater_name else '',
-        kundenberater_telefon=('Die Telefonnummer des Erlebnisberaters ist ' + kundenberater_telefon + '. ') if kundenberater_telefon else ''
+        laenderspezifische_faqs=laenderspezifische_faqs,
+        kundenberater_name=(
+            "Bei dieser Reise heißt der Erlebnisberater " + kundenberater_name + ". "
+        )
+        if kundenberater_name
+        else "",
+        kundenberater_telefon=(
+            "Die Telefonnummer des Erlebnisberaters ist " + kundenberater_telefon + ". "
+        )
+        if kundenberater_telefon
+        else "",
     )
