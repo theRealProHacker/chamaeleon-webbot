@@ -21,7 +21,7 @@ from agent_base import (
     make_recommend_trip_base,
     make_recommend_human_support_base,
     format_system_prompt,
-    laender_faqs
+    laender_faqs,
 )
 
 # Initialize the model
@@ -111,7 +111,7 @@ def call_stream(
     # Detect countries
     detected_countries: list[str] = []
     for country in laender_faqs:
-        if any(country in msg['content'] for msg in messages):
+        if any(country in msg["content"] for msg in messages):
             detected_countries.append(country)
 
     # Format system prompt with current time and endpoint

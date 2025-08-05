@@ -6,7 +6,7 @@ from agent_smol import model, ChamaeleonWebsiteTool, RecommendTripTool, VisaTool
 endpoint = "/"
 
 system_prompt = format_system_prompt(endpoint)
-    
+
 # Initialize recommendation containers
 recommendations = set[str]()
 human_support_requests = []

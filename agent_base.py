@@ -456,9 +456,7 @@ def format_system_prompt(
     time_info = get_current_time_info()
     laenderspezifische_faqs = ""
     if countries:
-        laenderspezifische_faqs += (
-            "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
-        )
+        laenderspezifische_faqs += "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
 
     for country in countries:
         laenderspezifische_faqs += laender_faqs[country] + "\n\n"
