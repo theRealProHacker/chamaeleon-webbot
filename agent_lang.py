@@ -137,7 +137,7 @@ def call_stream(
             visa_tool,
             chamaeleon_website_tool,
             country_faq_tool,
-            make_recommend_trip(recommendations),
+            # make_recommend_trip(recommendations),
         ],
     )
 
@@ -148,7 +148,7 @@ def call_stream(
         for event in agent_executor.stream(
             {"messages": chat_history}, stream_mode="values"
         ):
-            # # Check if any tools are being used
+            # Check if any tools are being used
             if "agent" in event and not tool_used:
                 # Look for tool calls in the agent's response
                 if hasattr(event["agent"], "tool_calls") and event["agent"].tool_calls:

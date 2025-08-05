@@ -431,6 +431,10 @@ def detect_recommendation_links(reply: str) -> set[str]:
     for match in site_link_pattern.finditer(reply):
         link = match.group(0)
         if link in trip_sites:
+            # check if the link is to #termine
+            _, end = match.span(0)
+            if len(reply) > end + 9 and reply[end : end + 8] == "#termine":
+                link += "#termine"
             links.add(link)
     return links
 
