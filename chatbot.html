@@ -1,410 +1,512 @@
 <style>
-:root {
-    --col-primary: #FFCC00; /* Gelb */
-    --col-secondary: #C7C9CC; /* Grau */
-    --col-cerulean100: #01AAC9; /* Adventure Trios */
-    --col-apple100: #5A9E33; /* Genießer */
-    --col-claret100: #8E1D36; /* Individuell oder Selbstfahrer */
-    --col-gamboge100: #F59C00; /* Erlebnis */
-    --col-marigold100: #FFE580; /* Vor/Nachprogramme */
-}
-
-#chatbot-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
-}
-
-#chatbot-button {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    color: black;
-    background-color: var(--col-primary);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: all 0.3s ease;
-}
-
-#chatbot-button:hover {
-    transform: scale(1.05);
-    background-color: #eaad24;
-}
-
-#chatbot-button.hidden {
-    display: none;
-}
-
-#chatbot-icon {
-    fill: black;
-    width: 30px;
-    height: 30px;
-}
-
-#chatbot-dialog {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 350px;
-    height: 450px;
-    background-color: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    display: none;
-    flex-direction: column;
-    overflow: hidden;
-    transform: scale(0.3) translate(30%, 30%);
-    transform-origin: bottom right;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-#chatbot-dialog.active {
-    display: flex;
-    transform: scale(1) translate(0, 0);
-}
-
-/* Resize */
-#resize-handle {
-    position: absolute;
-    top: -8px;
-    left: -8px;
-    width: 16px;
-    height: 16px;
-    background: rgba(0,0,0,0.3);
-    cursor: nwse-resize;
-    z-index: 1001; /* über dem Dialog */
-    border-radius: 4px;
-}
-
-
-#chatbot-header {
-    background-color: rgba(255, 204, 0, 0.8);
-    color: white;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(5px);
-}
-
-#chatbot-header h3 {
-    margin: 0;
-    color: white;
-    font-size: 1.5rem;
-    font-family: 'Caveat', cursive;
-}
-
-#close-button {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-}
-
-#chatbot-messages {
-    flex: 1;
-    padding: 15px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.message {
-    max-width: 80%;
-    padding: 10px 15px;
-    border-radius: 18px;
-    margin-bottom: 5px;
-}
-
-.message p {
-    margin: 0;
-}
-
-.bot-message {
-    align-self: flex-start;
-    background-color: rgba(199, 201, 204, 0.7);
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-bottom-left-radius: 5px;
-}
-
-.user-message {
-    align-self: flex-end;
-    background-color: rgba(255, 204, 0, 0.7);
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: black;
-    border-bottom-right-radius: 5px;
-}
-
-.status-message {
-    align-self: flex-start;
-    background-color: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #666;
-    font-style: italic;
-    border-bottom-left-radius: 5px;
-}
-
-.typing-animation {
-    display: inline-block;
-}
-
-.typing-animation::after {
-    content: '';
-    animation: typing 1.5s infinite;
-}
-
-@keyframes typing {
-    0%, 20% { content: ''; }
-    40% { content: '.'; }
-    60% { content: '..'; }
-    80%, 100% { content: '...'; }
-}
-
-.error-message {
-    align-self: flex-start;
-    background-color: rgba(255, 248, 220, 0.8);
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 193, 7, 0.5);
-    color: #856404;
-    border-bottom-left-radius: 5px;
-}
-
-.retry-button {
-    background-color: rgba(255, 255, 255, 0.9);
-    color: #666;
-    border: 1px solid rgba(200, 200, 200, 0.8);
-    padding: 6px 12px;
-    border-radius: 12px;
-    cursor: pointer;
-    margin-top: 6px;
-    font-size: 12px;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(3px);
-}
-
-.retry-button:hover {
-    background-color: rgba(240, 240, 240, 0.9);
-    border-color: rgba(180, 180, 180, 0.8);
-    transform: translateY(-1px);
-}
-
-#chatbot-input {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.3);
-    background-color: rgba(255, 255, 255, 0.3);
-    backdrop-filter: blur(5px);
-}
-
-#chatbot-input input {
-    flex: 1;
-    padding: 10px 15px;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 20px;
-    font-size: 16px;
-    outline: none;
-    background-color: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(3px);
-    transition: all 0.3s ease;
-}
-
-#chatbot-input input:focus {
-    border-color: var(--col-primary);
-}
-
-#chatbot-input input:disabled {
-    background-color: rgba(200, 200, 200, 0.4);
-    color: #999;
-    cursor: not-allowed;
-}
-
-#chatbot-input button {
-    background-color: rgba(255, 204, 0, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    margin-left: 10px;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-#chatbot-input button:hover:not(:disabled) {
-    background-color: rgba(245, 156, 0, 0.8);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-#chatbot-input button:disabled {
-    background-color: rgba(200, 200, 200, 0.5);
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-#chatbot-input button svg {
-    fill: white;
-    width: 20px;
-    height: 20px;
-}
-
-#recommendations-container {
-    position: absolute;
-    bottom: 0;
-    right: 350px;
-    width: 160px;
-    height: 450px;
-    display: none;
-    flex-direction: column;
-    padding: 0;
-    overflow: hidden auto;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* Internet Explorer 10+ */
-}
-
-#recommendations-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
-}
-
-#recommendations-container.active {
-    display: flex;
-}
-
-.recommendation-preview {
-    width: 140px;
-    height: 142.2px;
-    background-color: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-decoration: none;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 10px;
-    flex-shrink: 0;
-}
-
-.recommendation-preview:first-child {
-    margin-top: 0;
-}
-
-.recommendation-preview:last-child {
-    margin-bottom: 0;
-}
-
-.recommendation-preview img {
-    width: 100%;
-    height: 100px;
-    object-fit: cover;
-    border-radius: 6px 6px 0 0;
-}
-
-.recommendation-preview .title {
-    padding: 10px;
-    font-weight: bold;
-    text-align: center;
-    line-height: 1.3;
-    color: #333;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-}
-
-@media (max-width: 480px) {
-    #chatbot-dialog {
-        width: 300px;
-        height: 400px;
-        bottom: 70px;
-        transform: scale(0.3) translate(30%, 30%);
+    :root {
+        --col-primary: #FFCC00;
+        /* Gelb */
+        --col-secondary: #C7C9CC;
+        /* Grau */
+        --col-cerulean100: #01AAC9;
+        /* Adventure Trios */
+        --col-apple100: #5A9E33;
+        /* Genießer */
+        --col-claret100: #8E1D36;
+        /* Individuell oder Selbstfahrer */
+        --col-gamboge100: #F59C00;
+        /* Erlebnis */
+        --col-marigold100: #FFE580;
+        /* Vor/Nachprogramme */
     }
-    
+
+    #chatbot-container {
+        position: fixed;
+        top: min(50vh - 60px + 200px, 100vh - 20px);
+        right: 0;
+        z-index: 1000;
+    }
+
+    #chatbot-button {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        color: black;
+        background-color: var(--col-primary);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease, opacity 0.1s linear;
+    }
+
+    /* 
+    #chatbot-button:hover {
+        transform: scale(1.05);
+        background-color: #eaad24;
+    } */
+
+    #chatbot-button.hidden {
+        display: none;
+    }
+
+    #chatbot-button.hidden #chatbot-label {
+        display: none;
+    }
+
+    #chatbot-icon {
+        fill: black;
+        width: 30px;
+        height: 30px;
+    }
+
+    #chatbot-label {
+        position: absolute;
+        right: 70px;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: white;
+        color: black;
+        padding: 2px 6px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease, opacity 0.1s linear;
+        display: block;
+    }
+
+    #chatbot-label::after {
+        content: '';
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        border: 8px solid transparent;
+        border-left-color: white;
+    }
+
+    #chatbot-dialog {
+        position: absolute;
+        bottom: 0;
+        right: 70px;
+        width: 350px;
+        height: 450px;
+        background-color: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        transform: scale(0.3) translate(30%, 30%);
+        transform-origin: bottom right;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        min-height: 300px;
+        max-height: calc(100vh - 100px);
+    }
+
     #chatbot-dialog.active {
+        display: flex;
         transform: scale(1) translate(0, 0);
     }
-    
-    #chatbot-button {
-        width: 50px;
-        height: 50px;
-    }
-    
-    #chatbot-icon {
-        width: 25px;
-        height: 25px;
-    }
-    
-    #recommendations-container {
-        display: none !important; /* Hide recommendations on mobile */
-    }
-}
 
-@media (max-width: 768px) {
-    #recommendations-container {
-        right: 320px; /* Adjust for smaller screens */
-        width: 140px;
+    #chatbot-dialog.active>#chatbot-dialog-arrow {
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        border: 8px solid transparent;
+        border-left-color: var(--col-primary);
+        z-index: 1002;
     }
-}
+
+    #chatbot-header {
+        background-color: var(--col-primary);
+        color: black;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    #chatbot-header h3 {
+        margin: 0;
+        padding: 0;
+        font-size: 1rem;
+    }
+
+    #close-button {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        padding-bottom: 5px;
+        line-height: 1;
+    }
+
+    #chatbot-messages {
+        flex: 1;
+        padding: 15px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .message {
+        max-width: 80%;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin-bottom: 5px;
+    }
+
+    .message p {
+        margin: 0;
+    }
+
+    .bot-message {
+        align-self: flex-start;
+        background-color: rgba(255, 204, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-bottom-left-radius: 0;
+    }
+
+    .user-message {
+        align-self: flex-end;
+        background-color: #D4D3D3;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: black;
+        border-bottom-right-radius: 0;
+    }
+
+    .status-message {
+        align-self: flex-start;
+        background-color: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #666;
+        font-style: italic;
+        border-bottom-left-radius: 5px;
+    }
+
+    .typing-animation {
+        display: inline-block;
+        position: relative;
+        width: 36px;
+        height: 12px;
+        margin-left: 4px;
+    }
+
+    .typing-animation::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: currentColor;
+        transform: translateY(-50%);
+        box-shadow:
+            12px 0 0 currentColor,
+            24px 0 0 currentColor;
+        animation: jumpingDots 1.4s infinite ease-in-out;
+    }
+
+    @keyframes jumpingDots {
+
+        0%,
+        80%,
+        100% {
+            transform: translateY(-50%);
+            opacity: 0.5;
+            box-shadow:
+                12px 0 0 currentColor,
+                24px 0 0 currentColor;
+        }
+
+        13.33% {
+            transform: translateY(-50%) translateY(-6px);
+            opacity: 1;
+            box-shadow:
+                12px 0 0 rgba(128, 128, 128, 0.5),
+                24px 0 0 rgba(128, 128, 128, 0.5);
+        }
+
+        26.66% {
+            transform: translateY(-50%);
+            opacity: 0.5;
+            box-shadow:
+                12px -6px 0 currentColor,
+                24px 0 0 rgba(128, 128, 128, 0.5);
+        }
+
+        40% {
+            transform: translateY(-50%);
+            opacity: 0.5;
+            box-shadow:
+                12px 0 0 rgba(128, 128, 128, 0.5),
+                24px -6px 0 currentColor;
+        }
+
+        53.33% {
+            transform: translateY(-50%);
+            opacity: 0.5;
+            box-shadow:
+                12px 0 0 currentColor,
+                24px 0 0 currentColor;
+        }
+    }
+
+    .error-message {
+        align-self: flex-start;
+        background-color: rgba(255, 248, 220, 0.8);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 193, 7, 0.5);
+        color: #856404;
+        border-bottom-left-radius: 5px;
+    }
+
+    .retry-button {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #666;
+        border: 1px solid rgba(200, 200, 200, 0.8);
+        padding: 6px 12px;
+        border-radius: 12px;
+        cursor: pointer;
+        margin-top: 6px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(3px);
+    }
+
+    .retry-button:hover {
+        background-color: rgba(240, 240, 240, 0.9);
+        border-color: rgba(180, 180, 180, 0.8);
+        transform: translateY(-1px);
+    }
+
+    #chatbot-input {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.3);
+        background-color: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(5px);
+    }
+
+    #chatbot-input input {
+        flex: 1;
+        padding: 10px 15px;
+        border: 1px solid rgba(160, 160, 160, 0.8);
+        border-right: none;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        outline: none;
+    }
+
+    #chatbot-input input:focus {
+        border-color: var(--col-primary);
+    }
+
+    #chatbot-input input:disabled {
+        background-color: rgba(200, 200, 200, 0.4);
+        color: #999;
+        cursor: not-allowed;
+    }
+
+    #chatbot-input button {
+        background-color: rgba(255, 204, 0, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    #chatbot-input button:hover:not(:disabled) {
+        background-color: rgba(245, 156, 0, 0.8);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    #chatbot-input button:disabled {
+        background-color: rgba(200, 200, 200, 0.5);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    #chatbot-input button svg {
+        fill: black;
+        width: 20px;
+        height: 20px;
+    }
+
+    #recommendations-container {
+        position: absolute;
+        bottom: 0;
+        right: 420px;
+        width: 160px;
+        height: 450px;
+        display: none;
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden auto;
+        scrollbar-width: none;
+        /* Firefox */
+        -ms-overflow-style: none;
+        /* Internet Explorer 10+ */
+    }
+
+    #recommendations-container::-webkit-scrollbar {
+        display: none;
+        /* Chrome, Safari, Opera */
+    }
+
+    #recommendations-container.active {
+        display: flex;
+    }
+
+    .recommendation-preview {
+        width: 140px;
+        height: 142.2px;
+        background-color: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 10px;
+        flex-shrink: 0;
+    }
+
+    .recommendation-preview:first-child {
+        margin-top: 0;
+    }
+
+    .recommendation-preview:last-child {
+        margin-bottom: 0;
+    }
+
+    .recommendation-preview img {
+        width: 100%;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .recommendation-preview .title {
+        padding: 10px;
+        font-weight: bold;
+        text-align: center;
+        line-height: 1.3;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+    }
+
+
+    /* mobile */
+    @media (max-width: 600px) {
+        #chatbot-container {
+            width: 100%;
+            height: 100%;
+            top: unset;
+            bottom: 0;
+            display: block;
+        }
+
+        #chatbot-button {
+            position: absolute;
+            bottom: 200px;
+            right: 0px;
+        }
+
+        #chatbot-button.mobile-hidden {
+            display: none;
+        }
+
+        #chatbot-label {
+            display: none;
+        }
+
+        #chatbot-dialog {
+            position: absolute;
+            width: 100vw;
+            height: calc(100vh - 140px);
+            bottom: 0;
+            left: 0;
+        }
+
+        #recommendations-container {
+            display: none;
+            position: relative;
+            bottom: unset;
+            right: unset;
+            flex-direction: row;
+            overflow: auto hidden;
+            width: 100vw;
+            height: 160px;
+        }
+
+        .recommendation-preview {
+            margin-right: 10px;
+        }
+
+        .recommendation-preview:last-child {
+            margin-right: 0;
+        }
+    }
 </style>
 
 <div id="chatbot-container">
     <div id="recommendations-container">
         <!-- Recommendation previews will be dynamically added here -->
     </div>
-    
+
     <div id="chatbot-button">
+        <div id="chatbot-label">Frag mich – ich helfe dir</div>
         <svg id="chatbot-icon" viewBox="0 0 24 24" width="24" height="24">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
-            <path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/>
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+            <path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z" />
         </svg>
     </div>
 
     <div id="chatbot-dialog">
-        <div id="resize-handle"></div>
         <div id="chatbot-header">
-            <h3>Chatte mit uns</h3>
+            <h3>Dein Chamäleon-Chat</h3>
             <button id="close-button">×</button>
         </div>
         <div id="chatbot-messages">
             <div class="message bot-message">
-                <p>Willkommen bei Chamäleon! <br> Was liegt dir auf dem Herzen?</p>
+                <p>Willkommen, ich bin Leon. Welche Frage kann ich dir beantworten?</p>
             </div>
         </div>
         <div id="chatbot-input">
-            <input type="text" id="user-input" placeholder="Schreibe deine Nachricht hier ...">
+            <input type="text" id="user-input" placeholder="Gib hier deine Nachricht ein">
             <button id="send-button">
                 <svg viewBox="0 0 24 24" width="24" height="24">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
             </button>
         </div>
+        <div id="chatbot-dialog-arrow"></div>
     </div>
 </div>
 
 <script>
-// document.addEventListener('DOMContentLoaded', function() {
+    // document.addEventListener('DOMContentLoaded', function() {
     const chatbotButton = document.getElementById('chatbot-button');
     const chatbotDialog = document.getElementById('chatbot-dialog');
     const closeButton = document.getElementById('close-button');
@@ -419,10 +521,10 @@
     const kundenberater_telefon = berater_box?.querySelector('a.tos-font-h5')?.textContent || '';
 
     // Toggle chatbot dialog
-    chatbotButton.addEventListener('click', function() {
+    chatbotButton.addEventListener('click', function () {
         chatbotDialog.classList.toggle('active');
-        chatbotButton.classList.toggle('hidden');
-        
+        chatbotButton.classList.toggle('mobile-hidden');
+
         // Show/hide recommendations container along with chatbot
         if (chatbotDialog.classList.contains('active')) {
             recommendationsContainer.classList.add('active');
@@ -432,9 +534,9 @@
     });
 
     // Close chatbot dialog
-    closeButton.addEventListener('click', function() {
+    closeButton.addEventListener('click', function () {
+        chatbotButton.classList.remove('mobile-hidden');
         chatbotDialog.classList.remove('active');
-        chatbotButton.classList.remove('hidden');
         recommendationsContainer.classList.remove('active');
     });
 
@@ -444,7 +546,7 @@
         if (messageText !== '') {
             addMessage(messageText, 'user-message');
             userInput.value = '';
-            
+
             // Start the request process
             processMessage(messageText);
         }
@@ -453,12 +555,12 @@
     // Process message with enhanced error handling and status updates
     function processMessage(messageText) {
         // Show typing animation
-        let typingMessageId = addStatusMessage('Ich denke nach<span class="typing-animation"></span>', 'status-message');
-        
+        let typingMessageId = addTypingMessage();
+
         // Disable input while processing
         userInput.disabled = true;
         sendButton.disabled = true;
-        
+
         // Gather message history
         const messages = [];
         chatbotMessages.querySelectorAll('.message').forEach(msgElement => {
@@ -484,171 +586,162 @@
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 messages: messages,
                 current_url: window.location.pathname,
                 kundenberater_name: kundenberater_name,
                 kundenberater_telefon: kundenberater_telefon,
             })
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            
-            function readStream() {
-                return reader.read().then(({ done, value }) => {
-                    if (done) {
-                        // Stream finished
-                        removeStatusMessage(typingMessageId);
-                        userInput.disabled = false;
-                        sendButton.disabled = false;
-                        userInput.focus();
-                        return;
-                    }
-                    
-                    // Process the streamed data
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const eventData = JSON.parse(line.slice(6));
-                                handleStreamEvent(eventData, typingMessageId, messageText);
-                            } catch (e) {
-                                console.error('Error parsing stream data:', e);
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                function readStream() {
+                    return reader.read().then(({ done, value }) => {
+                        if (done) {
+                            // Stream finished
+                            removeMessage(typingMessageId);
+                            userInput.disabled = false;
+                            sendButton.disabled = false;
+                            userInput.focus();
+                            return;
+                        }
+
+                        // Process the streamed data
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const eventData = JSON.parse(line.slice(6));
+                                    handleStreamEvent(eventData, typingMessageId, messageText);
+                                } catch (e) {
+                                    console.error('Error parsing stream data:', e);
+                                }
                             }
                         }
-                    }
-                    
-                    // Continue reading
-                    return readStream();
-                });
-            }
-            
-            return readStream();
-        })
-        .catch(error => {
-            console.error('Streaming failed, trying fallback:', error);
-            processMessageFallback(messageText, messages, typingMessageId);
-        });
+
+                        // Continue reading
+                        return readStream();
+                    });
+                }
+
+                return readStream();
+            })
+            .catch(error => {
+                console.error('Streaming failed, trying fallback:', error);
+                processMessageFallback(messageText, messages, typingMessageId);
+            });
     }
 
     // Fallback implementation (original approach)
     function processMessageFallback(messageText, messages, typingMessageId) {
-        // Simulate tool usage detection after 2 seconds
-        const toolUsageTimeout = setTimeout(() => {
-            updateStatusMessage(typingMessageId, 'Ich gucke nach<span class="typing-animation"></span>');
-        }, 2000);
+        // The typing animation will continue showing dots until removed
 
         fetch('/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 messages: messages,
                 current_url: window.location.pathname,
                 kundenberater_name: kundenberater_name,
                 kundenberater_telefon: kundenberater_telefon,
             })
         })
-        .then(response => {
-            clearTimeout(toolUsageTimeout);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return response.json();
-        })
-        .then(data => {
-            // Remove status message
-            removeStatusMessage(typingMessageId);
-            
-            // Re-enable input
-            userInput.disabled = false;
-            sendButton.disabled = false;
-            userInput.focus();
-            
-            addMessage(data.reply, 'bot-message');
-            
-            // Update recommendations if available
-            if (data.recommendation_previews && data.recommendation_previews.length > 0) {
-                updateRecommendations(data.recommendation_previews);
-            }
-        })
-        .catch(error => {
-            clearTimeout(toolUsageTimeout);
-            
-            // Remove status message
-            removeStatusMessage(typingMessageId);
-            
-            // Re-enable input
-            userInput.disabled = false;
-            sendButton.disabled = false;
-            userInput.focus();
-            
-            console.error('Error:', error);
-            
-            let errorMessage = '';
-            
-            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || !navigator.onLine) {
-                errorMessage = 'Wir haben zurzeit Verbindungsprobleme. Versuche es später wieder.';
-            } else if (error.message.includes('HTTP 5')) {
-                errorMessage = 'Es gab einen Serverfehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.';
-            } else {
-                errorMessage = 'Es gab einen Fehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.';
-            }
-            
-            addErrorMessage(errorMessage, messageText);
-        });
+            .then(response => {
+                clearTimeout(toolUsageTimeout);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                return response.json();
+            })
+            .then(data => {
+                // Remove typing message
+                removeMessage(typingMessageId);
+
+                // Re-enable input
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                userInput.focus();
+
+                addMessage(data.reply, 'bot-message');
+
+                // Update recommendations if available
+                if (data.recommendation_previews && data.recommendation_previews.length > 0) {
+                    updateRecommendations(data.recommendation_previews);
+                }
+            })
+            .catch(error => {
+                // Remove typing message
+                removeMessage(typingMessageId);
+
+                // Re-enable input
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                userInput.focus();
+
+                console.error('Error:', error);
+
+                let errorMessage = '';
+
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || !navigator.onLine) {
+                    errorMessage = 'Wir haben zurzeit Verbindungsprobleme. Versuche es später wieder.';
+                } else if (error.message.includes('HTTP 5')) {
+                    errorMessage = 'Es gab einen Serverfehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.';
+                } else {
+                    errorMessage = 'Es gab einen Fehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.';
+                }
+
+                addErrorMessage(errorMessage, messageText);
+            });
     }
 
     // Handle individual stream events
     function handleStreamEvent(event, typingMessageId, originalMessage) {
         switch (event.type) {
             case 'status':
-                if (event.data === 'thinking') {
-                    updateStatusMessage(typingMessageId, 'Ich denke nach<span class="typing-animation"></span>');
-                } else if (event.data === 'tool_usage') {
-                    updateStatusMessage(typingMessageId, 'Ich gucke nach<span class="typing-animation"></span>');
-                }
+                // Typing animation continues regardless of status
                 break;
-                
+
             case 'response':
-                // Remove status message
-                removeStatusMessage(typingMessageId);
-                
+                // Remove typing message
+                removeMessage(typingMessageId);
+
                 // Re-enable input
                 userInput.disabled = false;
                 sendButton.disabled = false;
                 userInput.focus();
-                
+
                 // Add the bot response
                 addMessage(event.data.reply, 'bot-message');
                 break;
-                
+
             case 'recommendation_previews':
                 // Handle recommendation previews separately (non-blocking)
                 if (event.data.recommendation_previews && event.data.recommendation_previews.length > 0) {
                     updateRecommendations(event.data.recommendation_previews);
                 }
                 break;
-                
+
             case 'error':
-                // Remove status message
-                removeStatusMessage(typingMessageId);
-                
+                // Remove typing message
+                removeMessage(typingMessageId);
+
                 // Re-enable input
                 userInput.disabled = false;
                 sendButton.disabled = false;
                 userInput.focus();
-                
+
                 // Show error message
                 addErrorMessage('Es gab einen Fehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.', originalMessage);
                 break;
@@ -662,13 +755,13 @@
     function addMessage(text, className) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${className}`;
-        
+
         const paragraph = document.createElement('p');
         paragraph.innerHTML = text;
-        
+
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
-        
+
         // Store reference to user messages and scroll appropriately
         if (className === 'user-message') {
             currentUserMessage = messageDiv;
@@ -691,48 +784,38 @@
         }
     }
 
-    // Add status message (returns ID for later removal/update)
-    function addStatusMessage(text, className) {
-        const messageId = 'status-' + Date.now();
+    // Add typing animation as a bot message (returns ID for later removal)
+    function addTypingMessage() {
+        const messageId = 'typing-' + Date.now();
         const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${className}`;
+        messageDiv.className = 'message bot-message';
         messageDiv.id = messageId;
-        
+
         const paragraph = document.createElement('p');
-        paragraph.innerHTML = text;
-        
+        paragraph.innerHTML = '<span class="typing-animation"></span>';
+
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
-        
-        // For status messages, keep current user message visible at top if it exists
+
+        // Scroll to show the current user message at top if it exists
         if (currentUserMessage) {
             setTimeout(() => {
                 const scrollPosition = currentUserMessage.offsetTop - 10;
                 chatbotMessages.scrollTop = scrollPosition;
-                console.log('Status message scroll: user message offsetTop =', currentUserMessage.offsetTop, 'scrollPosition =', scrollPosition);
+                console.log('Typing message scroll: user message offsetTop =', currentUserMessage.offsetTop, 'scrollPosition =', scrollPosition);
             }, 0);
         } else {
+            // If no user message, scroll to bottom
             setTimeout(() => {
                 chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
             }, 0);
         }
-        
+
         return messageId;
     }
 
-    // Update status message
-    function updateStatusMessage(messageId, newText) {
-        const messageDiv = document.getElementById(messageId);
-        if (messageDiv) {
-            const paragraph = messageDiv.querySelector('p');
-            if (paragraph) {
-                paragraph.innerHTML = newText;
-            }
-        }
-    }
-
-    // Remove status message
-    function removeStatusMessage(messageId) {
+    // Remove message by ID (works for both status and typing messages)
+    function removeMessage(messageId) {
         const messageDiv = document.getElementById(messageId);
         if (messageDiv) {
             messageDiv.remove();
@@ -743,24 +826,24 @@
     function addErrorMessage(errorText, originalMessage) {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message error-message';
-        
+
         const paragraph = document.createElement('p');
         paragraph.innerHTML = errorText;
-        
+
         const retryButton = document.createElement('button');
         retryButton.className = 'retry-button';
         retryButton.textContent = 'Nochmal versuchen';
-        retryButton.addEventListener('click', function() {
+        retryButton.addEventListener('click', function () {
             // Remove the error message
             messageDiv.remove();
             // Process the original message directly without adding it again
             processMessage(originalMessage);
         });
-        
+
         messageDiv.appendChild(paragraph);
         messageDiv.appendChild(retryButton);
         chatbotMessages.appendChild(messageDiv);
-        
+
         // For error messages, keep current user message visible at top if it exists
         if (currentUserMessage) {
             setTimeout(() => {
@@ -782,7 +865,7 @@
             // Check if this recommendation already exists
             const existingRecommendation = Array.from(recommendationsContainer.children)
                 .find(element => element.href === preview.url);
-            
+
             if (existingRecommendation) {
                 // Move existing recommendation to the bottom
                 recommendationsContainer.removeChild(existingRecommendation);
@@ -793,17 +876,17 @@
                 recommendationElement.className = 'recommendation-preview';
                 recommendationElement.href = preview.url;
                 recommendationElement.target = '_blank';
-                
+
                 recommendationElement.innerHTML = `
                     <img src="${preview.image}" alt="${preview.title}" onerror="this.style.display='none'">
                     <div class="title">${preview.title}</div>
                 `;
-                
+
                 // Add new recommendation at the end (bottom)
                 recommendationsContainer.appendChild(recommendationElement);
             }
         });
-        
+
         // Scroll to show the latest recommendations
         recommendationsContainer.scrollTop = recommendationsContainer.scrollHeight;
     }
@@ -812,60 +895,21 @@
     sendButton.addEventListener('click', sendMessage);
 
     // Send message on Enter key
-    userInput.addEventListener('keypress', function(e) {
+    userInput.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             sendMessage();
         }
     });
 
-    // Resize handle functionality (ChatGPT)
-    // Variablen für Resize-Startwerte
-    let startX, startY, startWidth, startHeight, startTop, startLeft;
+    // Fade on scroll functionality
+    const chatbotButtonLabel = document.getElementById('chatbot-label');
 
-    const dialog = document.getElementById('chatbot-dialog');
-    const handle = document.getElementById('resize-handle');
-    const recs = document.getElementById('recommendations-container');
+    window.addEventListener('scroll', function () {
+        let scrollY = window.scrollY;
+        let opacity = 1 - scrollY / 100; // Fade out from 0px to 100px scroll
+        if (opacity < 0) opacity = 0; // Prevent negative opacity
 
-    // Maus gedrückt auf Handle → Resize initialisieren
-    handle.addEventListener('mousedown', initResize);
-
-    function initResize(e) {
-        e.preventDefault();
-        // Start-Koordinaten und -Dimensionen merken
-        startX       = e.clientX;
-        startY       = e.clientY;
-        startWidth   = dialog.offsetWidth;
-        startHeight  = dialog.offsetHeight;
-        startTop     = dialog.offsetTop;
-        startLeft    = dialog.offsetLeft;
-
-        window.addEventListener('mousemove', doResize);
-        window.addEventListener('mouseup', stopResize);
-    }
-
-    function doResize(e) {
-        // wie weit bewegt
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        // neue Größe rechnet gegenläufig: wir ziehen an der oberen linken Ecke
-        const newWidth  = startWidth  - dx;
-        const newHeight = startHeight - dy;
-
-        // Mindestgrößen-Check (hier z.B. 200×200)
-        if (newWidth > 200 && newWidth < window.innerWidth - 40) {
-            dialog.style.width = newWidth + 'px';
-            recs.style.right = newWidth + 'px'
-        }
-        if (newHeight > 200 && newHeight < window.innerHeight - 40) {
-            dialog.style.height = newHeight + 'px';
-            recs.style.height = newHeight + 'px'; 
-        }
-    }
-
-    function stopResize() {
-        window.removeEventListener('mousemove', doResize);
-        window.removeEventListener('mouseup', stopResize);
-    }
+        chatbotButtonLabel.style.opacity = opacity;
+    });
 
 </script>
