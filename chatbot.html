@@ -520,6 +520,146 @@
     const kundenberater_name = berater_box?.querySelector('.tos-font-h4')?.textContent || '';
     const kundenberater_telefon = berater_box?.querySelector('a.tos-font-h5')?.textContent || '';
 
+    // Chat synchronization constants
+    const CHAT_SESSION_KEY = 'chamaeleon_chat_session';
+    const CHAT_DURATION_HOURS = 12;
+    const CHAT_DURATION_MS = CHAT_DURATION_HOURS * 60 * 60 * 1000;
+
+    // Chat synchronization variables
+    let currentSessionId = null;
+    let isLoadingFromStorage = false;
+
+    // Initialize chat session
+    function initializeChatSession() {
+        cleanupExpiredSessions();
+
+        const existingSession = getChatSession();
+        if (existingSession && !isSessionExpired(existingSession)) {
+            // Load existing session
+            currentSessionId = existingSession.sessionId;
+            loadChatFromSession(existingSession);
+        } else {
+            // Create new session
+            currentSessionId = generateSessionId();
+            const newSession = {
+                sessionId: currentSessionId,
+                startTime: Date.now(),
+                messages: [],
+                recommendations: []
+            };
+            saveChatSession(newSession);
+        }
+    }
+
+    // Generate unique session ID
+    function generateSessionId() {
+        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Check if session is expired
+    function isSessionExpired(session) {
+        return Date.now() - session.startTime > CHAT_DURATION_MS;
+    }
+
+    // Get chat session from localStorage
+    function getChatSession() {
+        try {
+            const sessionData = localStorage.getItem(CHAT_SESSION_KEY);
+            return sessionData ? JSON.parse(sessionData) : null;
+        } catch (error) {
+            console.error('Error loading chat session:', error);
+            return null;
+        }
+    }
+
+    // Save chat session to localStorage
+    function saveChatSession(session) {
+        try {
+            localStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(session));
+        } catch (error) {
+            console.error('Error saving chat session:', error);
+        }
+    }
+
+    // Clean up expired sessions
+    function cleanupExpiredSessions() {
+        const session = getChatSession();
+        if (session && isSessionExpired(session)) {
+            localStorage.removeItem(CHAT_SESSION_KEY);
+        }
+    }
+
+    // Load chat messages from session
+    function loadChatFromSession(session) {
+        if (!session || !session.messages) return;
+
+        isLoadingFromStorage = true;
+
+        // Clear current messages except the initial bot message
+        const initialMessage = chatbotMessages.querySelector('.bot-message');
+        chatbotMessages.innerHTML = '';
+        if (initialMessage) {
+            chatbotMessages.appendChild(initialMessage);
+        }
+
+        // Load messages from session
+        session.messages.forEach(msg => {
+            addMessage(msg.content, msg.className, false); // Don't save to storage while loading
+        });
+
+        // Load recommendations
+        if (session.recommendations && session.recommendations.length > 0) {
+            updateRecommendations(session.recommendations, false); // Don't save to storage while loading
+        }
+
+        isLoadingFromStorage = false;
+    }
+
+    // Save message to session
+    function saveMessageToSession(content, className) {
+        if (isLoadingFromStorage) return;
+
+        const session = getChatSession();
+        if (!session || session.sessionId !== currentSessionId) return;
+
+        session.messages.push({
+            content,
+            className,
+            timestamp: Date.now()
+        });
+
+        saveChatSession(session);
+    }
+
+    // Save recommendations to session
+    function saveRecommendationsToSession(recommendations) {
+        if (isLoadingFromStorage) return;
+
+        const session = getChatSession();
+        if (!session || session.sessionId !== currentSessionId) return;
+
+        session.recommendations = recommendations;
+        saveChatSession(session);
+    }
+
+    // Listen for storage changes from other tabs
+    window.addEventListener('storage', function (e) {
+        if (e.key === CHAT_SESSION_KEY && e.newValue) {
+            try {
+                const newSession = JSON.parse(e.newValue);
+                if (newSession.sessionId === currentSessionId) {
+                    // Same session updated from another tab
+                    loadChatFromSession(newSession);
+                }
+            } catch (error) {
+                console.error('Error syncing chat from other tab:', error);
+            }
+        }
+    });
+
+    // Initialize chat session on load
+    initializeChatSession();
+
     // Toggle chatbot dialog
     chatbotButton.addEventListener('click', function () {
         chatbotDialog.classList.toggle('active');
@@ -752,7 +892,7 @@
     let currentUserMessage = null;
 
     // Add message to chat
-    function addMessage(text, className) {
+    function addMessage(text, className, saveToStorage = true) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${className}`;
 
@@ -761,6 +901,11 @@
 
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
+
+        // Save to session storage (unless loading from storage)
+        if (saveToStorage) {
+            saveMessageToSession(text, className);
+        }
 
         // Store reference to user messages and scroll appropriately
         if (className === 'user-message') {
@@ -796,6 +941,8 @@
 
         messageDiv.appendChild(paragraph);
         chatbotMessages.appendChild(messageDiv);
+
+        // Note: Typing messages are not saved to session storage as they are temporary
 
         // Scroll to show the current user message at top if it exists
         if (currentUserMessage) {
@@ -844,6 +991,8 @@
         messageDiv.appendChild(retryButton);
         chatbotMessages.appendChild(messageDiv);
 
+        // Note: Error messages are not saved to session storage as they are temporary
+
         // For error messages, keep current user message visible at top if it exists
         if (currentUserMessage) {
             setTimeout(() => {
@@ -859,7 +1008,7 @@
     }
 
     // Update recommendations display
-    function updateRecommendations(recommendationPreviews) {
+    function updateRecommendations(recommendationPreviews, saveToStorage = true) {
         // Add new recommendations (don't clear existing ones)
         recommendationPreviews.forEach(preview => {
             // Check if this recommendation already exists
@@ -887,6 +1036,17 @@
             }
         });
 
+        // Save to session storage (unless loading from storage)
+        if (saveToStorage) {
+            // Get current recommendations state
+            const currentRecommendations = Array.from(recommendationsContainer.children).map(element => ({
+                url: element.href,
+                title: element.querySelector('.title').textContent,
+                image: element.querySelector('img').src
+            }));
+            saveRecommendationsToSession(currentRecommendations);
+        }
+
         // Scroll to show the latest recommendations
         recommendationsContainer.scrollTop = recommendationsContainer.scrollHeight;
     }
@@ -900,6 +1060,9 @@
             sendMessage();
         }
     });
+
+    // Periodic cleanup of expired sessions (every 5 minutes)
+    setInterval(cleanupExpiredSessions, 5 * 60 * 1000);
 
     // Fade on scroll functionality
     const chatbotButtonLabel = document.getElementById('chatbot-label');
