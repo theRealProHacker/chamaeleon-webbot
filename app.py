@@ -1,6 +1,7 @@
 from functools import cache
 from bs4 import BeautifulSoup
 from flask import Flask, request, Response, jsonify, abort, stream_template
+from flask_cors import CORS
 import requests
 import re
 import json
@@ -13,6 +14,17 @@ from agent import call
 from agent_lang import call_stream
 
 app = Flask(__name__)
+
+# Configure CORS to allow requests from specific domains
+CORS(app, origins=[
+    "https://chamdev.tourone.de",
+    "https://chamaeleon-reisen.de",
+    "https://www.chamaeleon-reisen.de",
+    # Allow HTTP for development
+    "http://chamdev.tourone.de",  
+    "http://chamaeleon-reisen.de",
+    "http://www.chamaeleon-reisen.de"
+])
 
 
 def make_recommendation_preview(recommendation: str):
@@ -169,9 +181,6 @@ def chat_stream():
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST",
-            "Access-Control-Allow-Headers": "Content-Type",
         },
     )
 
