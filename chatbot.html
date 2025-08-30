@@ -657,9 +657,6 @@
         }
     });
 
-    // Initialize chat session on load
-    initializeChatSession();
-
     // Toggle chatbot dialog
     chatbotButton.addEventListener('click', function () {
         chatbotDialog.classList.toggle('active');
@@ -1062,7 +1059,7 @@
     });
 
     // Periodic cleanup of expired sessions (every 5 minutes)
-    setInterval(cleanupExpiredSessions, 5 * 60 * 1000);
+    // setInterval(cleanupExpiredSessions, 5 * 60 * 1000);
 
     // Fade on scroll functionality
     const chatbotButtonLabel = document.getElementById('chatbot-label');
@@ -1075,4 +1072,7 @@
         chatbotButtonLabel.style.opacity = opacity;
     });
 
+
+    // Initialize chat session on load
+    initializeChatSession();
 </script>
