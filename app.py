@@ -1,4 +1,6 @@
 from functools import cache
+import os
+from pprint import pprint
 from bs4 import BeautifulSoup
 from flask import Flask, request, Response, jsonify, abort, stream_template
 from flask_cors import CORS
@@ -26,6 +28,7 @@ CORS(app, origins=[
     "http://www.chamaeleon-reisen.de"
 ])
 
+LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
 
 def make_recommendation_preview(recommendation: str):
     """
@@ -122,7 +125,7 @@ def chat():
 @app.route("/chat/stream", methods=["POST"])
 def chat_stream():
     data = request.get_json()
-    messages = data.get("messages", [])
+    messages: list[dict] = data.get("messages", [])
     endpoint = data.get("current_url", "/")
     kundenberater_name = data.get("kundenberater_name", "")
     kundenberater_telefon = data.get("kundenberater_telefon", "")
@@ -130,18 +133,23 @@ def chat_stream():
     if not messages:
         abort(400, "No messages provided")
 
+    messages = messages[:-1]
+    logging_messages = messages[1:]
+    
     def generate():
         try:
             for event in call_stream(
                 messages, endpoint, kundenberater_name, kundenberater_telefon
             ):
                 # Handle recommendation previews for final response
-                if event.get("type") == "response" and event.get("data", {}).get(
-                    "recommendations"
-                ):
+                if event.get("type") == "response":
                     recommendations = event["data"]["recommendations"]
 
                     # Send the response first without previews
+                    logging_messages.append({
+                        "role": "assistant",
+                        "content": event["data"]["reply"]
+                    })
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
 
@@ -156,16 +164,20 @@ def chat_stream():
                                     "type": "recommendation_previews",
                                     "data": {"recommendation_previews": previews},
                                 }
+                                logging_messages.append(preview_event)
                                 preview_json = json.dumps(
                                     preview_event, ensure_ascii=False
                                 )
                                 yield f"data: {preview_json}\n\n"
                         except Exception as e:
                             print(f"Error generating recommendation previews: {e}")
-                else:
-                    # Regular event - send as-is
+                elif event["type"]=="status":
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
+
+            response = requests.post(LOGGING_URL, data=json.dumps(logging_messages))
+            if response.status_code != 200:
+                print(f"Error logging messages: {response.text}")
 
         except Exception as e:
             print(f"Error in streaming: {e}")
@@ -241,62 +253,66 @@ def proxy(path):
             # Decode content from ISO-8859-1 to Python Unicode string
             content = resp.content.decode("ISO-8859-1")
 
-            # Replace any existing charset meta tag with UTF-8
-            content = re.sub(
-                r'<meta\s+charset=["\\]?[^"\\\'>]*["\\]?>',
-                '<meta charset="UTF-8">',
-                content,
-                flags=re.IGNORECASE,
-            )
-            content = re.sub(
-                r'<meta\s+http-equiv=["\\]?Content-Type["\\]?\s+content=["\\]?text/html;\s*charset=["\\]?[^"\\\'>]*["\\]?>',
-                '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">',
-                content,
-                flags=re.IGNORECASE,
-            )
+            content = content.replace("https://chamaeleon-webbot-production.up.railway.app", "")
 
-            # If no charset meta tag exists, add one in the head
-            if "<head>" in content.lower() and "<meta charset" not in content.lower():
-                content = content.replace("<head>", '<head><meta charset="UTF-8">')
-            elif (
-                "<head>" not in content.lower()
-                and "<meta charset" not in content.lower()
-            ):
-                # Fallback if no head tag, add at the beginning of html
-                if "<html" in content.lower():
-                    content = content.replace(
-                        "<html",
-                        '<html lang="de"><head><meta charset="UTF-8"></head>',
-                        1,
-                    )
-                else:
-                    content = (
-                        '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="UTF-8">\n</head>\n<body>'
-                        + content
-                        + "</body>\n</html>"
-                    )
+            # # Replace any existing charset meta tag with UTF-8
+            # content = re.sub(
+            #     r'<meta\s+charset=["\\]?[^"\\\'>]*["\\]?>',
+            #     '<meta charset="UTF-8">',
+            #     content,
+            #     flags=re.IGNORECASE,
+            # )
+            # content = re.sub(
+            #     r'<meta\s+http-equiv=["\\]?Content-Type["\\]?\s+content=["\\]?text/html;\s*charset=["\\]?[^"\\\'>]*["\\]?>',
+            #     '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">',
+            #     content,
+            #     flags=re.IGNORECASE,
+            # )
 
-            # Inject chatbot before </body>
-            if "</body>" in content.lower():
-                content = content.replace("</body>", chatbot_html + "</body>")
+            # # If no charset meta tag exists, add one in the head
+            # if "<head>" in content.lower() and "<meta charset" not in content.lower():
+            #     content = content.replace("<head>", '<head><meta charset="UTF-8">')
+            # elif (
+            #     "<head>" not in content.lower()
+            #     and "<meta charset" not in content.lower()
+            # ):
+            #     # Fallback if no head tag, add at the beginning of html
+            #     if "<html" in content.lower():
+            #         content = content.replace(
+            #             "<html",
+            #             '<html lang="de"><head><meta charset="UTF-8"></head>',
+            #             1,
+            #         )
+            #     else:
+            #         content = (
+            #             '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="UTF-8">\n</head>\n<body>'
+            #             + content
+            #             + "</body>\n</html>"
+            #         )
 
-            # Ensure the Content-Type header for the response is UTF-8
-            final_content_type = "text/html; charset=UTF-8"
-            updated_response_headers = []
-            content_type_found = False
-            for name, value in response_headers:
-                if name.lower() == "content-type":
-                    updated_response_headers.append(
-                        ("Content-Type", final_content_type)
-                    )
-                    content_type_found = True
-                else:
-                    updated_response_headers.append((name, value))
-            if not content_type_found:
-                updated_response_headers.append(("Content-Type", final_content_type))
+            # # Inject chatbot before </body>
+            # if "</body>" in content.lower():
+            #     content = content.replace("</body>", chatbot_html + "</body>")
+
+            # # Ensure the Content-Type header for the response is UTF-8
+            # final_content_type = "text/html; charset=UTF-8"
+            # updated_response_headers = []
+            # content_type_found = False
+            # for name, value in response_headers:
+            #     if name.lower() == "content-type":
+            #         updated_response_headers.append(
+            #             ("Content-Type", final_content_type)
+            #         )
+            #         content_type_found = True
+            #     else:
+            #         updated_response_headers.append((name, value))
+            # if not content_type_found:
+            #     updated_response_headers.append(("Content-Type", final_content_type))
 
             # Flask's Response will encode the string to UTF-8 by default
-            return Response(content, resp.status_code, updated_response_headers)
+            return Response(content, resp.status_code, 
+                            # updated_response_headers
+            )
 
         return Response(resp.content, resp.status_code, response_headers)
 

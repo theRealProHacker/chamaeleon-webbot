@@ -127,9 +127,6 @@ def call_stream(
     # Initialize recommendation containers
     recommendations = set[str]()
 
-    # Yield initial status
-    yield {"type": "status", "data": "thinking"}
-
     # Create agent with tools
     agent_executor = create_react_agent(
         model,
@@ -142,33 +139,41 @@ def call_stream(
     )
 
     try:
-        tool_used = False
-
         # Stream the agent execution
+        events = []
         for event in agent_executor.stream(
             {"messages": chat_history}, stream_mode="values"
         ):
-            # Check if any tools are being used
-            if "agent" in event and not tool_used:
-                # Look for tool calls in the agent's response
-                if hasattr(event["agent"], "tool_calls") and event["agent"].tool_calls:
-                    tool_used = True
-                    yield {"type": "status", "data": "tool_usage"}
-                elif "tool_calls" in str(event["agent"]):
-                    tool_used = True
-                    yield {"type": "status", "data": "tool_usage"}
-
-            # # Check for tool execution
-            if "tools" in event and not tool_used:
-                tool_used = True
-                yield {"type": "status", "data": "tool_usage"}
+            events.append(event)
+            
+            # Check if there are new messages with tool calls
+            if "messages" in event:
+                messages = event["messages"]
+                for message in messages:
+                    # Check for tool calls in AI messages
+                    if hasattr(message, 'tool_calls') and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            yield {"type": "tool_call", "data": {
+                                "name": tool_call["name"],
+                                "args": tool_call["args"],
+                                "id": tool_call.get("id", "")
+                            }}
+                    
+                    # Check for tool responses
+                    if hasattr(message, 'content') and isinstance(message.content, list):
+                        for content_item in message.content:
+                            if isinstance(content_item, dict) and content_item.get("type") == "tool_result":
+                                yield {"type": "tool_response", "data": {
+                                    "tool_call_id": content_item.get("tool_call_id", ""),
+                                    "content": content_item.get("content", "")
+                                }}
 
         # Get the final response
-        response = event
+        response = events[-1] if events else None
 
         # Debug output
-        for message in response["messages"][1:]:  # Skip the system message
-            message.pretty_print()
+        # for message in response["messages"][1:]:  # Skip the system message
+        #     message.pretty_print()
 
         # Extract reply from response
         reply = response["messages"][-1].content
@@ -182,7 +187,6 @@ def call_stream(
 
         # Yield final response
         result = {"reply": reply, "recommendations": list(recommendations)}
-        print(result)
 
         yield {"type": "response", "data": result}
 
