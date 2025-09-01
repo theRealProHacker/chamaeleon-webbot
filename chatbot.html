@@ -419,12 +419,13 @@
 
     /* mobile */
     @media (max-width: 600px) {
-        #chatbot-container {
+        #chatbot-container:has(.active) {
             width: 100%;
             height: 100%;
             top: unset;
             bottom: 0;
             display: block;
+            background-color: rgba(255, 255, 255, 0.95);
         }
 
         #chatbot-button {
@@ -442,23 +443,23 @@
         }
 
         #chatbot-dialog {
-            position: absolute;
+            position: relative;
             width: 100vw;
-            /* height: calc(100vh - 140px); */
-            height: 100vh;
+            height: calc(100vh - 160px);
+            max-height: unset;
             bottom: 0;
             left: 0;
         }
 
         #recommendations-container {
-            display: none !important;
             position: relative;
             bottom: unset;
             right: unset;
             flex-direction: row;
             overflow: auto hidden;
             width: 100vw;
-            height: 160px;
+            height: 140px;
+            padding: 10px;
         }
 
         .recommendation-preview {
