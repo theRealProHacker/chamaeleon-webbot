@@ -175,7 +175,7 @@ def chat_stream():
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
 
-            response = requests.post(LOGGING_URL, data=json.dumps(logging_messages))
+            response = requests.post(LOGGING_URL, data=json.dumps(logging_messages), headers={"Content-Type": "application/json"})
             if response.status_code != 200:
                 print(f"Error logging messages: {response.text}")
 
