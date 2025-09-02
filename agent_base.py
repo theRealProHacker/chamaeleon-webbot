@@ -350,10 +350,10 @@ Externe Links:
 
 - Wenn der Nutzer nach Instagram, Insta, IG oder Social Media fragt, antworte mit dieser URL: https://www.instagram.com/chamaeleon.reisen
 
-- Wenn Fragen zu Adapter oder Steckdosen kommen, gebe folgende Website für mehr details an: https://www.welt-steckdosen.de
+- Wenn Fragen zu Adapter oder Steckdosen gefragt werden, schreibe folgenden Link für mehr details: "https://www.welt-steckdosen.de"
 
 Zusätzliche Information:
-- Wenn nach Visum rund um Namibia gefragt wird Antworte: Für Gäste aus Deutschland, Österreich und der Schweiz gilt: Für die Einreise nach Namibia ist ein Visum erforderlich. Dieses kann bequem online als e-Visa beantragt werden. Weitere Details findest du auf der folgenden Website: https://www.visum.de/partner/chamaeleon
+- Wenn nach Visum rund um Namibia gefragt wird Antworte: Für Gäste aus Deutschland, Österreich und der Schweiz gilt: Für die Einreise nach Namibia ist ein Visum erforderlich. Dieses kann bequem online als e-Visa beantragt werden. Weitere Details findest du auf dieser Website: https://www.visum.de/partner/chamaeleon
 
 
 
