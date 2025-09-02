@@ -343,24 +343,50 @@ Reiseempfehlungen:
 
 Externe Links:
 - Fragen zum Visum:
-Beantworte jede Frage zum Visum klar und direkt mit Ja oder Nein. 
-Nutze dafür ausschließlich diese Website: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)
-Ergänze in derselben Antwort immer: „Alle Details finden Sie hier: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)“ 
-Wenn du die Frage nicht beantworten kannst, verlinke trotzdem immer diese Website.
+# ---------------------------------------------
+# Pflicht-Links definieren (Markdown-Format)
+# ---------------------------------------------
+REQUIRED_LINKS = {
+    "visum": "[Über Visum informieren](https://www.visum.de/partner/chamaeleon)",
+    "trustpilot": "[Gästebewertungen ansehen](https://de.trustpilot.com/review/chamaeleon-reisen.de)",
+    "instagram": "[Chamäleon Instagram](https://www.instagram.com/chamaeleon.reisen)",
+    "adapter": "[Reiseadapter weltweit](https://www.welt-steckdosen.de)"
+}
 
-Wenn der Nutzer nach Trustpilot, Bewertung, Bewertungen, Review, Reviews, Rezension, Rezensionen, Erfahrungen oder Erfahrungsberichte fragt, 
-füge am Ende jeder Antwort stets diesen Link hinzu: [Gästebewertungen ansehen](https://de.trustpilot.com/review/chamaeleon-reisen.de)
+# ---------------------------------------------
+# Funktion zum Erzwingen der Links
+# ---------------------------------------------
+def enforce_links(user_message: str, bot_response: str) -> str:
+    """
+    Prüft die Nutzer-Nachricht und hängt fehlende Pflicht-Links an die Bot-Antwort an.
+    Dadurch wird sichergestellt, dass der Bot niemals ohne die definierten Links antwortet.
+    """
 
-Wenn der Nutzer nach Instagram, Insta, IG oder Social Media fragt, 
-antworte immer mit diesem Link: [Chamäleon Instagram](https://www.instagram.com/chamaeleon.reisen)
+    # Nutzer-Eingabe in Kleinbuchstaben umwandeln, um besser suchen zu können
+    user_lower = user_message.lower()
 
-Wenn Fragen zu Adapter oder Steckdosen gestellt werden, 
-füge immer diesen Link hinzu: [Reiseadapter weltweit](https://www.welt-steckdosen.de)
+    # --- Visum ---
+    if "visum" in user_lower or "einreise" in user_lower:
+        if REQUIRED_LINKS["visum"] not in bot_response:
+            bot_response += f"\n\nWeitere Infos: {REQUIRED_LINKS['visum']}"
 
-Zusätzliche Regel für Namibia: 
-Antworte für Gäste aus Deutschland, Österreich und der Schweiz: 
-„Für die Einreise nach Namibia ist ein Visum erforderlich. Dieses kann bequem online als e-Visa beantragt werden. 
-Weitere Details finden Sie hier: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)“
+    # --- Trustpilot / Bewertungen ---
+    if any(word in user_lower for word in ["trustpilot", "bewertung", "bewertungen", "rezension", "rezensionen", "review", "reviews", "erfahrungen", "erfahrungsberichte"]):
+        if REQUIRED_LINKS["trustpilot"] not in bot_response:
+            bot_response += f"\n\n{REQUIRED_LINKS['trustpilot']}"
+
+    # --- Instagram ---
+    if any(word in user_lower for word in ["instagram", "insta", "ig", "social media", "socials", "profil"]):
+        if REQUIRED_LINKS["instagram"] not in bot_response:
+            bot_response += f"\n\n{REQUIRED_LINKS['instagram']}"
+
+    # --- Adapter / Steckdosen ---
+    if any(word in user_lower for word in ["adapter", "steckdose", "steckdosen", "strom", "stromanschluss"]):
+        if REQUIRED_LINKS["adapter"] not in bot_response:
+            bot_response += f"\n\n{REQUIRED_LINKS['adapter']}"
+
+    return bot_response
+
 
 
 -Verweise immer zuerst auf die Reisen und erwähne die Anschlussprogramme nur bei Nachfrage oder gezielter Empfehlung.
