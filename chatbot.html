@@ -715,7 +715,7 @@
         if (typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined') {
             processMessageStream(messageText, messages, typingMessageId);
         } else {
-            processMessageFallback(messageText, messages, typingMessageId);
+            // TODO: analytics and error message
         }
     }
 
@@ -775,8 +775,9 @@
                 return readStream();
             })
             .catch(error => {
-                console.error('Streaming failed, trying fallback:', error);
-                processMessageFallback(messageText, messages, typingMessageId);
+                console.error('Streaming failed:', error);
+                // show error message
+                addErrorMessage('Es gab einen Fehler. Wir arbeiten dran. Probiere es vielleicht später nochmal.', messageText);
             });
     }
 
