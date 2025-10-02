@@ -179,7 +179,6 @@
 /Afrika/Tansania/Cheetah
 /Afrika/Tansania/Cheetah-NEU
 /Afrika/Tansania/Mara-Fluss
-/Afrika/Tansania/Migration
 /Afrika/Tansania/Nachtraeumen-Hatari-Lodge-TZMAR
 /Afrika/Tansania/Nachtraeumen-Lazy-Lagoon-Island
 /Afrika/Tansania/Nachtraeumen-Lazy-Lagoon-Island-TZUSA
