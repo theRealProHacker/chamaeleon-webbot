@@ -39,6 +39,10 @@ def make_recommendation_preview(recommendation: str):
     """
 
     try:
+        target = ""
+        if "#" in recommendation:
+            recommendation, _target = recommendation.split("#")
+            target = "#" + _target
         site = find_trip_site(recommendation)
     except ValueError:
         print(f"Warning: No site found for recommendation '{recommendation}'")
@@ -53,7 +57,7 @@ def make_recommendation_preview(recommendation: str):
             title_text = recommendation.split("/")[-1].replace("-ALL", "")
         image_url = soup.find("meta", property="og:image")["content"]
 
-        return {"url": BASE_URL + site, "title": title_text, "image": image_url}
+        return {"url": BASE_URL + site + target, "title": title_text, "image": image_url}
     except Exception as e:
         print(f"Error creating preview for {recommendation}: {e}")
         return None
