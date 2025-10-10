@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, request, Response, jsonify, abort, stream_template
 from flask_cors import CORS
 import requests
+from requests.auth import HTTPBasicAuth
 import re
 import json
 import asyncio
@@ -29,6 +30,8 @@ CORS(app, origins=[
 ])
 
 LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
+LOGGING_USERNAME = os.environ.get("LOGGING_USERNAME")
+LOGGING_PASSWORD = os.environ.get("LOGGING_PASSWORD")
 
 def make_recommendation_preview(recommendation: str):
     """
@@ -179,7 +182,17 @@ def chat_stream():
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
 
-            response = requests.post(LOGGING_URL, data=json.dumps(logging_messages), headers={"Content-Type": "application/json"})
+            # Add authentication if not localhost
+            auth = None
+            if "localhost" not in LOGGING_URL and "127.0.0.1" not in LOGGING_URL:
+                auth = HTTPBasicAuth(LOGGING_USERNAME, LOGGING_PASSWORD)
+            
+            response = requests.post(
+                LOGGING_URL, 
+                data=json.dumps(logging_messages), 
+                headers={"Content-Type": "application/json"},
+                auth=auth
+            )
             if response.status_code != 200:
                 print(f"Error logging messages: {response.text}")
 
