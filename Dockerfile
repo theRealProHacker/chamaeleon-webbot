@@ -7,6 +7,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Install German locale
 RUN apt-get update && \
+    apt-get install -y build-essential rustc cargo && \
     apt-get install -y locales && \
     sed -i '/de_DE.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen && \
