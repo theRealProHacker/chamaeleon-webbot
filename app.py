@@ -93,41 +93,6 @@ def make_recommendation_previews_async(recommendations):
         return previews
 
 
-# --- Chatbot API Endpoint ---
-@app.route("/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    messages = data.get("messages", [])
-    endpoint = data.get("current_url", "/")
-    kundenberater_name = data.get("kundenberater_name", "")
-    kundenberater_telefon = data.get("kundenberater_telefon", "")
-
-    if not messages:
-        abort(400, "No messages provided")
-
-    try:
-        response = call(messages, endpoint, kundenberater_name, kundenberater_telefon)
-    except Exception as e:
-        raise e
-
-    if response.get("recommendations"):
-        recommendations = response["recommendations"]
-
-        # Generate previews asynchronously
-        try:
-            response["recommendation_previews"] = make_recommendation_previews_async(
-                recommendations
-            )
-        except Exception as e:
-            print(f"Error generating recommendation previews: {e}")
-            response["recommendation_previews"] = []
-
-    return jsonify(response)
-
-
-# --- End Chatbot API Endpoint ---
-
-
 # --- Streaming Chatbot API Endpoint ---
 @app.route("/chat/stream", methods=["POST"])
 def chat_stream():
