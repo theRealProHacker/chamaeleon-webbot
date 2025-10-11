@@ -29,7 +29,7 @@ RUN python3 -m venv venv
 RUN . venv/bin/activate && \
     pip install --upgrade pip && \
     pip install --no-cache-dir gunicorn && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r _requirements.txt
 
 # Run the web service on container startup.
 CMD ["/bin/bash", "-c", ". venv/bin/activate && exec gunicorn app:app"]
