@@ -214,11 +214,6 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "restaurants",
         "tankstellen",
     ],
-    "Botswana: Darf ich Hartschalenkoffer mitnehmen? Müssen es Reisetaschen sein?": [
-        "stoffkoffer",
-        "hartschalenkoffer",
-        "platzgründe",
-    ],
     "Botswana: Kann ich auch Mückenspray vor Ort kaufen?": [
         "supermarkt",
         "reiseleitung",

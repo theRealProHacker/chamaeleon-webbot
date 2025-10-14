@@ -79,6 +79,9 @@ A: 12 Teilnehmer.
 **F: Mein gewünschter Termin ist online nicht mehr sichtbar.**
 A: Der Termin ist leider ausgebucht bzw. wurde vorübergehend geschlossen. Schreibe eine Mail an das Chamäleon-Team.
 
+**F: Was für Gepäck kann ich mitnehmen?**
+A: Wir bitten dich, wenn möglich, auf Hartschalenkoffer zu verzichten, da diese im Bus viel Platz wegnehmen. Du musst dir aber kein neues Gepäck kaufen! Du darfst auch Stoffkoffer mit Rollen mitnehmen. Für deine Reise müssen es keine Reisetaschen sein.
+
 ## Für Reisebüros
 **F: Wo finde ich die Provisionsabrechnung?**
 A: Die finale Provisionsgutschrift für deine Buchungen wird nur noch im Agenturbereich hochgeladen. Hier kannst du die Provisionsabrechnung, sowie alle aktuellen Dokumente als Reisebüro einsehen, herunterladen und ggf. weiterleiten: https://agt.chamaeleon-reisen.de/Agentur/Buchungen
