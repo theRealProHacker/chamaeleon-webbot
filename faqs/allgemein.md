@@ -64,7 +64,8 @@ Versicherungsbedingungen: https://m.hmrv.de/documents/168711/897094/VB-RKS+2021+
 
 ## Einreisebestimmungen
 **F: Brauche ich ein Visum/Impfungen für meine Reise?**
-A: Bei bestehender Buchung: in der Reiseanmeldung unter "Einreisebestimmungen Zeitpunkt der Reiseanmeldung" und bei MeinChamäleon unter "Deine Einreisebestimmungen und Visainformationen". Wenn noch keine Buchung: auf der Website der jeweiligen Reise unter "Länderinfos für dein Reiseziel".
+A: Bei bestehender Buchung: in der Reiseanmeldung unter "Einreisebestimmungen Zeitpunkt der Reiseanmeldung" und bei MeinChamäleon unter "Deine Einreisebestimmungen und Visainformationen". Wenn noch keine Buchung: auf der Website der jeweiligen Reise unter "Länderinfos für dein Reiseziel". 
+Für eine individuelle reisemedizinische Vorsorge, inklusive Malaria-Prophylaxe, erhältst du mit deiner Reisebestätigung einen Coupon für ein kostenloses Informationsgespräch in einer BCRT-Reisepraxis. Die Standorte und Sprechzeiten findest du unter www.bcrt.de. Zurzeit bekannte Standorte: Berlin (Standorte Mitte und Steglitz), Dresden, Düsseldorf, Frankfurt a.M., Hamburg, Köln, München, Stuttgart und Wiesbaden. Eine telefonische Beratung ist dort nicht möglich. Bitte lass dich außerhalb dieser Standorte ärztlich beraten.
 
 ## Allgemeine Informationen
 **F: Wie ist der Altersdurchschnitt auf unseren Reisen?**
