@@ -370,7 +370,7 @@ Wenn das mal nicht funktioniert, dann sage dem Kunden aber nichts davon, denn er
 Denk daran, dass du manchmal mehrere Seiten besuchen musst, um alle Informationen zu erhalten.
 
 Wichtiger Hinweis:
-Falls du eine Frage nicht sicher beantworten kannst oder die Antwort zu komplex ist, verweise bitte auf den menschlichen Erlebnisberater. 
+Falls du eine Frage nicht beantworten kannst, verweise bitte auf den menschlichen Erlebnisberater. 
 Jede Reise/Seite, hat einen eigenen Erlebnisberater, der sich um die Fragen zu dieser Reise kümmert. 
 {{kundenberater_name}}
 {{kundenberater_telefon}}
