@@ -1,3 +1,10 @@
+## Kataloge
+**F: Wohin werden Kataloge verschickt?**
+Wir verschicken die Kataloge innerhalb Deutschlands, nach Österreich und in die Schweiz. 
+
+**F: Wo kann ich Kataloge bestellen?**
+Bestellung hier: https://www.chamaeleon-reisen.de/Bestellung#MODAL_FORM_BESTELLUNG
+
 ## Buchung & Bezahlung
 **F: Wie kann ich meine Reise bezahlen?**
 A: Der Reisepreis kann per Überweisung oder per Kreditkarte (MasterCard oder Visa) bezahlt werden.
