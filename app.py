@@ -23,10 +23,12 @@ CORS(app, origins=[
     "https://chamdev.tourone.de",
     "https://chamaeleon-reisen.de",
     "https://www.chamaeleon-reisen.de",
+    "https://agt.chamaeleon-reisen.de",
     # Allow HTTP for development
     "http://chamdev.tourone.de",  
     "http://chamaeleon-reisen.de",
-    "http://www.chamaeleon-reisen.de"
+    "http://www.chamaeleon-reisen.de",
+    "http://agt.chamaeleon-reisen.de",
 ])
 
 LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
