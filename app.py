@@ -25,7 +25,9 @@ CORS(app, origins=[
     "https://www.chamaeleon-reisen.de",
     "https://agt.chamaeleon-reisen.de",
     # Allow HTTP for development
-    "http://chamdev.tourone.de",  
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://chamdev.tourone.de",
     "http://chamaeleon-reisen.de",
     "http://www.chamaeleon-reisen.de",
     "http://agt.chamaeleon-reisen.de",
