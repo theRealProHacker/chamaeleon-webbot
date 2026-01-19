@@ -7,7 +7,7 @@ Bestellung hier: https://www.chamaeleon-reisen.de/Bestellung#MODAL_FORM_BESTELLU
 
 ## Buchung & Bezahlung
 **F: Wie kann ich meine Reise bezahlen?**
-A: Der Reisepreis kann per Überweisung oder per Kreditkarte (MasterCard oder Visa) bezahlt werden.
+A: Der Reisepreis kann per Überweisung oder per Kreditkarte (MasterCard, Visa oder Amex) bezahlt werden.
 
 **F: Wo finde ich den Zahlungslink für die Kreditkartenzahlung?**
 A: Dieser steht auf deiner Rechnung und wird dir separat nochmal per Mail zugesandt.
