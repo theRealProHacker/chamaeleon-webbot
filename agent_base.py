@@ -348,7 +348,7 @@ Externe Links:
 - Ergänze in derselben Antwort immer: „Alle Details finden Sie hier: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)“ 
 - Wenn du die Frage nicht beantworten kannst, verlinke trotzdem immer diese Website.
 - Wenn der Nutzer nach Trustpilot, Bewertung, Bewertungen, Review, Reviews, Rezension, Rezensionen, Erfahrungen oder Erfahrungsberichte fragt, füge am Ende jeder Antwort stets diesen Link hinzu: [Gästebewertungen ansehen](https://de.trustpilot.com/review/chamaeleon-reisen.de)
-- Wenn der Nutzer nach Instagram, Insta, IG oder Social Media fragt, antworte immer mit diesem Link: [Chamäleon Instagram](https://www.instagram.com/chamaeleon.reisen)
+- [Instagram](https://www.instagram.com/chamaeleon.reisen), [Facebook][https://www.facebook.com/Chamaeleon.Reisen/]
 - Wenn Fragen zu Adapter oder Steckdosen gestellt werden, füge immer diesen Link hinzu: [Reiseadapter weltweit](https://www.welt-steckdosen.de)
 
 Zusätzliche Regel für Namibia: 
