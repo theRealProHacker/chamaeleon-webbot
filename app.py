@@ -24,6 +24,7 @@ CORS(app, origins=[
     "https://chamaeleon-reisen.de",
     "https://www.chamaeleon-reisen.de",
     "https://agt.chamaeleon-reisen.de",
+    "https://agt.chamdev.tourone.de",
     # Allow HTTP for development
     "http://localhost",
     "http://127.0.0.1",
@@ -31,6 +32,7 @@ CORS(app, origins=[
     "http://chamaeleon-reisen.de",
     "http://www.chamaeleon-reisen.de",
     "http://agt.chamaeleon-reisen.de",
+    "http://agt.chamdev.tourone.de",
 ])
 
 LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
@@ -59,10 +61,10 @@ def make_recommendation_preview(recommendation: str):
         html = get_chamaeleon_website_html(site)
         soup = BeautifulSoup(html, "html.parser")
 
-        title_text = soup.find("title").get_text(strip=True).split("-")[0].strip()
+        title_text = soup.find("title").get_text(strip=True).split("-")[0].strip() # type: ignore
         if len(title_text.split()) > 5:
             title_text = recommendation.split("/")[-1].replace("-ALL", "")
-        image_url = soup.find("meta", property="og:image")["content"]
+        image_url = soup.find("meta", property="og:image")["content"] # type: ignore
 
         return {"url": BASE_URL + site + target, "title": title_text, "image": image_url}
     except Exception as e:
