@@ -16,5 +16,6 @@ langgraph
 smolagents[litellm,gradio]
 # mistune for markdown processing
 mistune
+cachetools
 # testing
 pytest

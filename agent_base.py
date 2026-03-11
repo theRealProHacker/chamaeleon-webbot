@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import locale
 import datetime
-from functools import cache
+from cachetools.func import ttl_cache
 
 # Set German locale
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
@@ -151,7 +151,7 @@ Verfügbare Länder:
 """.strip()
 
 
-@cache
+@ttl_cache(maxsize=1024, ttl=86400)
 def visa_tool_base(country: str) -> str:
     land_id = country.upper()
     if land_id not in visa_labels:
@@ -213,7 +213,7 @@ Returns:
 BASE_URL = "https://www.chamaeleon-reisen.de"
 
 
-@cache
+@ttl_cache(maxsize=1024, ttl=86400)
 def get_chamaeleon_website_html(url_path: str) -> str:
     full_url = BASE_URL + url_path
 
@@ -229,6 +229,11 @@ def get_chamaeleon_website_html(url_path: str) -> str:
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators."""
+    if url_path.startswith("https://chamaeleon-reisen.de"):
+        url_path = url_path[len("https://chamaeleon-reisen.de") :]
+    if url_path not in all_sites:
+        # TODO: look at this on Railway
+        print(f"Warnung: URL '{url_path}' nicht in Sitemap gefunden. Verfügbare URLs: {', '.join(all_sites)}")
     try:
         content = get_chamaeleon_website_html(url_path)
 
