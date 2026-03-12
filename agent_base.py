@@ -370,8 +370,6 @@ Denk daran, dass du manchmal mehrere Seiten besuchen musst, um alle Informatione
 Wichtiger Hinweis:
 Falls du eine Frage nicht beantworten kannst, verweise bitte auf den menschlichen Erlebnisberater. 
 Jede Reise/Seite, hat einen eigenen Erlebnisberater, der sich um die Fragen zu dieser Reise kümmert. 
-{{kundenberater_name}}
-{{kundenberater_telefon}}
 
 Chamäleon ist generell telefonisch erreichbar:
 - Mo–Fr: 09:00–18:00 Uhr
@@ -418,6 +416,9 @@ Aktuelle Zeitangabe:
 - Wochentag: {{weekday}}
 
 Der Kunde befindet sich gerade auf folgender Webseite: {{endpoint}}. Gehe davon aus, dass sich Fragen auf diese Seite beziehen.
+
+{{kundenberater_name}}
+{{kundenberater_telefon}}
 """.strip()
 
 # URL patterns for link processing
