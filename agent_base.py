@@ -233,7 +233,7 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         url_path = url_path[len("https://chamaeleon-reisen.de") :]
     if url_path not in all_sites:
         # TODO: look at this on Railway
-        print(f"Warnung: URL '{url_path}' nicht in Sitemap gefunden. Verfügbare URLs: {', '.join(all_sites)}")
+        print(f"Warnung: URL '{url_path}' nicht in Sitemap gefunden. ")
     try:
         content = get_chamaeleon_website_html(url_path)
 
