@@ -79,7 +79,7 @@ def make_recommendation_previews_async(recommendations):
     if not recommendations:
         return []
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=len(recommendations)) as executor:
         # Submit all preview generation tasks
         future_to_rec = {
             executor.submit(make_recommendation_preview, rec): rec
