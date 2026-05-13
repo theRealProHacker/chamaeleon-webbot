@@ -157,7 +157,7 @@ def chat_stream():
 
             # Add authentication if not localhost
             auth = None
-            if "localhost" not in LOGGING_URL and "127.0.0.1" not in LOGGING_URL:
+            if "localhost" not in LOGGING_URL and "127.0.0.1" not in LOGGING_URL and LOGGING_USERNAME and LOGGING_PASSWORD:
                 auth = HTTPBasicAuth(LOGGING_USERNAME, LOGGING_PASSWORD)
             
             response = requests.post(
