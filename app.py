@@ -113,7 +113,7 @@ def chat_stream():
     if not messages:
         abort(400, "No messages provided")
 
-    messages = messages[:-1]
+    messages = messages[:]
     logging_messages = messages[1:]
     
     def generate():
