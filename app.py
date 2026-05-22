@@ -1,14 +1,10 @@
-import asyncio
 import json
-import os
-import re
 import time
 import traceback
 from functools import cache
-from pprint import pprint
 
 import requests
-from flask import Flask, Response, abort, jsonify, request, stream_template
+from flask import Flask, Response, abort, request
 from flask_cors import CORS
 
 from agent import call_stream
@@ -18,23 +14,26 @@ from recommendations import make_recommendation_previews_async
 app = Flask(__name__)
 
 # Configure CORS to allow requests from specific domains
-CORS(app, origins=[
-    "https://chamdev.tourone.de",
-    "https://chamaeleon-reisen.de",
-    "https://www.chamaeleon-reisen.de",
-    "https://agt.chamaeleon-reisen.de",
-    "https://agt.chamdev.tourone.de",
-    "https://leon.chamdev.tourone.de",
-    # Allow HTTP for development
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://chamdev.tourone.de",
-    "http://chamaeleon-reisen.de",
-    "http://www.chamaeleon-reisen.de",
-    "http://agt.chamaeleon-reisen.de",
-    "http://agt.chamdev.tourone.de",
-    "http://leon.chamdev.tourone.de",
-])
+CORS(
+    app,
+    origins=[
+        "https://chamdev.tourone.de",
+        "https://chamaeleon-reisen.de",
+        "https://www.chamaeleon-reisen.de",
+        "https://agt.chamaeleon-reisen.de",
+        "https://agt.chamdev.tourone.de",
+        "https://leon.chamdev.tourone.de",
+        # Allow HTTP for development
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://chamdev.tourone.de",
+        "http://chamaeleon-reisen.de",
+        "http://www.chamaeleon-reisen.de",
+        "http://agt.chamaeleon-reisen.de",
+        "http://agt.chamdev.tourone.de",
+        "http://leon.chamdev.tourone.de",
+    ],
+)
 
 
 # --- Streaming Chatbot API Endpoint ---
@@ -49,7 +48,7 @@ def chat_stream():
 
     if not messages:
         abort(400, "No messages provided")
-    
+
     if not session_id:
         abort(400, "No session_id provided")
 
@@ -59,7 +58,7 @@ def chat_stream():
     assert len(logging_messages) == 1 and logging_messages[0]["role"] == "user"
 
     logging_messages[0]["timestamp"] = time.time()
-    
+
     def generate():
         try:
             for event in call_stream(
@@ -73,12 +72,14 @@ def chat_stream():
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
                     # log assistant message
-                    logging_messages.append({
-                        "role": "assistant",
-                        "content": event["data"]["reply"],
-                        "url": endpoint,
-                        "timestamp": time.time()
-                    })
+                    logging_messages.append(
+                        {
+                            "role": "assistant",
+                            "content": event["data"]["reply"],
+                            "url": endpoint,
+                            "timestamp": time.time(),
+                        }
+                    )
 
                     # Generate previews asynchronously and send them separately
                     if recommendations:
@@ -95,19 +96,21 @@ def chat_stream():
                                     preview_event, ensure_ascii=False
                                 )
                                 yield f"data: {preview_json}\n\n"
-                                logging_messages.append({
-                                    "role": "recommendation_previews",
-                                    "content": previews,
-                                    "url": endpoint,
-                                    "timestamp": time.time()
-                                }) # type: ignore
+                                logging_messages.append(
+                                    {
+                                        "role": "recommendation_previews",
+                                        "content": previews,
+                                        "url": endpoint,
+                                        "timestamp": time.time(),
+                                    }
+                                )  # type: ignore
                         except Exception as e:
                             print(f"Error generating recommendation previews: {e}")
-                    
+
                 # elif event["type"]=="status":
                 #     event_json = json.dumps(event, ensure_ascii=False)
                 #     print("Status message: ", event_json)
-                    # yield f"data: {event_json}\n\n"
+                # yield f"data: {event_json}\n\n"
 
             log_messages(session_id, logging_messages)
             logging_old(logging_messages)
@@ -134,6 +137,7 @@ def chat_stream():
 
 # --- Proxy Setup ---
 BASE_URL = "https://www.chamaeleon-reisen.de"
+
 
 # --- Proxy Route ---
 @app.route("/", defaults={"path": ""})
@@ -176,7 +180,9 @@ def proxy(path):
             # Decode content from ISO-8859-1 to Python Unicode string
             content = resp.content.decode("ISO-8859-1")
 
-            content = content.replace("https://chamaeleon-webbot-production.up.railway.app", "")
+            content = content.replace(
+                "https://chamaeleon-webbot-production.up.railway.app", ""
+            )
 
             # # Replace any existing charset meta tag with UTF-8
             # content = re.sub(
@@ -233,8 +239,10 @@ def proxy(path):
             #     updated_response_headers.append(("Content-Type", final_content_type))
 
             # Flask's Response will encode the string to UTF-8 by default
-            return Response(content, resp.status_code, 
-                            # updated_response_headers
+            return Response(
+                content,
+                resp.status_code,
+                # updated_response_headers
             )
 
         return Response(resp.content, resp.status_code, response_headers)

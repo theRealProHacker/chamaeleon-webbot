@@ -1,21 +1,23 @@
-import json
-
 import mistune
-from langchain.agents import AgentType, initialize_agent
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
-from agent_base import (GEMINI_API_KEY, OPENAI_API_KEY,
-                        chamaeleon_website_tool_base, country_faq_tool_base,
-                        country_faq_tool_description,
-                        detect_recommendation_links, format_system_prompt,
-                        laender_faqs, make_recommend_human_support_base,
-                        make_recommend_trip_base, visa_tool_base,
-                        visa_tool_description, website_tool_description)
+from agent_base import (
+    GEMINI_API_KEY,
+    chamaeleon_website_tool_base,
+    country_faq_tool_base,
+    country_faq_tool_description,
+    detect_recommendation_links,
+    format_system_prompt,
+    laender_faqs,
+    make_recommend_human_support_base,
+    make_recommend_trip_base,
+    visa_tool_base,
+    visa_tool_description,
+    website_tool_description,
+)
 
 # Initialize the model
 model = ChatGoogleGenerativeAI(
@@ -138,28 +140,41 @@ def call_stream(
             {"messages": chat_history}, stream_mode="values"
         ):
             events.append(event)
-            
+
             # Check if there are new messages with tool calls
             if "messages" in event:
                 messages = event["messages"]
                 for message in messages:
                     # Check for tool calls in AI messages
-                    if hasattr(message, 'tool_calls') and message.tool_calls:
+                    if hasattr(message, "tool_calls") and message.tool_calls:
                         for tool_call in message.tool_calls:
-                            yield {"type": "tool_call", "data": {
-                                "name": tool_call["name"],
-                                "args": tool_call["args"],
-                                "id": tool_call.get("id", "")
-                            }}
-                    
+                            yield {
+                                "type": "tool_call",
+                                "data": {
+                                    "name": tool_call["name"],
+                                    "args": tool_call["args"],
+                                    "id": tool_call.get("id", ""),
+                                },
+                            }
+
                     # Check for tool responses
-                    if hasattr(message, 'content') and isinstance(message.content, list):
+                    if hasattr(message, "content") and isinstance(
+                        message.content, list
+                    ):
                         for content_item in message.content:
-                            if isinstance(content_item, dict) and content_item.get("type") == "tool_result":
-                                yield {"type": "tool_response", "data": {
-                                    "tool_call_id": content_item.get("tool_call_id", ""),
-                                    "content": content_item.get("content", "")
-                                }}
+                            if (
+                                isinstance(content_item, dict)
+                                and content_item.get("type") == "tool_result"
+                            ):
+                                yield {
+                                    "type": "tool_response",
+                                    "data": {
+                                        "tool_call_id": content_item.get(
+                                            "tool_call_id", ""
+                                        ),
+                                        "content": content_item.get("content", ""),
+                                    },
+                                }
 
         # Get the final response
         response = events[-1]

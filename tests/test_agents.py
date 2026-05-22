@@ -100,8 +100,6 @@ class TestAgentImplementations:
             mock_create_agent.assert_called_once()
             mock_agent_instance.invoke.assert_called_once()
 
-
-
     def test_both_agents_have_same_interface(self, sample_messages, sample_endpoint):
         """Test that both implementations have the same interface."""
         # Check that agent has a call function
@@ -123,8 +121,6 @@ class TestAgentImplementations:
                 assert "recommendations" in result
             except Exception:
                 pytest.fail("LangChain agent should handle errors gracefully")
-
-
 
     def test_tool_factories(self):
         """Test that tool factory functions work correctly."""
