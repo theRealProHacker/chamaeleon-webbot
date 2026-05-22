@@ -32,7 +32,7 @@ RUN . venv/bin/activate && \
     pip install --no-cache-dir -r _requirements.txt
 
 # Run the web service on container startup.
-ENV WEB_CONCURRENCY=2 \
+ENV WEB_CONCURRENCY=1 \
     WORKER_CONNECTIONS=1000 \
     GUNICORN_TIMEOUT=120
 
