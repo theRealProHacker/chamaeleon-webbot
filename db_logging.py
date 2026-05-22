@@ -3,6 +3,8 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Callable, NotRequired, TypedDict, TypeVar
+import queue
+import threading
 
 from dotenv import load_dotenv
 from supabase import Client, create_client
@@ -137,11 +139,6 @@ def _load_sessions_from_db() -> None:
             key=lambda item: _sessions[item[0]]["last_active"],
         )
     )
-
-
-################## Load sessions on import ####################################
-_load_sessions_from_db()
-
 
 def _prune_sessions() -> None:
     now = time.time()
@@ -278,6 +275,31 @@ def active_session_count() -> int:
     _prune_sessions()
     return len(_sessions)
 
+############## Running #############
+
+################## Load sessions on import ####################################
+_load_sessions_from_db()
+
+print("Active Sessions:", active_session_count())
+
+################## Log worker + queue ####################################
+log_queue: queue.Queue = queue.Queue()
+
+def _log_worker():
+    """Single background thread — processes logging tasks one at a time."""
+    while True:
+        task = log_queue.get()
+        if task is None:  # poison pill to shut down
+            break
+        try:
+            task()
+        except Exception as e:
+            print(f"[log_worker] Error: {e}")
+        finally:
+            log_queue.task_done()
+
+# Start exactly ONE worker thread at module load time
+threading.Thread(target=_log_worker, daemon=True, name="log-worker").start()
 
 ######## Old Logging ####################################
 

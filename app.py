@@ -8,7 +8,7 @@ from flask import Flask, Response, abort, request
 from flask_cors import CORS
 
 from agent import call_stream
-from db_logging import Message, log_messages, logging_old
+from db_logging import Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
 app = Flask(__name__)
@@ -47,10 +47,10 @@ def chat_stream():
     kundenberater_telefon = data.get("kundenberater_telefon", "")
 
     if not messages:
-        abort(400, "No messages provided")
+        return abort(400, "No messages provided")
 
     if not session_id:
-        abort(400, "No session_id provided")
+        return abort(400, "No session_id provided")
 
     messages = messages[:]
     logging_messages = messages[-1:]
@@ -112,8 +112,8 @@ def chat_stream():
                 #     print("Status message: ", event_json)
                 # yield f"data: {event_json}\n\n"
 
-            log_messages(session_id, logging_messages)
-            logging_old(logging_messages)
+            log_queue.put(lambda: log_messages(session_id, logging_messages))
+            # logging_old(logging_messages)
 
         except Exception as e:
             print(f"Error in streaming: {e}")
