@@ -1,4 +1,5 @@
-from agent_base import chamaeleon_website_tool_base, get_chamaeleon_website_html
+from agent_base import (chamaeleon_website_tool_base,
+                        get_chamaeleon_website_html)
 
 url = "/Afrika/Aegypten"
 

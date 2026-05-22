@@ -2,7 +2,7 @@ import os
 import time
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
-from typing import Callable, NotRequired, TypeVar, TypedDict
+from typing import Callable, NotRequired, TypedDict, TypeVar
 
 from dotenv import load_dotenv
 from supabase import Client, create_client
@@ -285,7 +285,6 @@ import json
 
 import requests
 from requests.auth import HTTPBasicAuth
-
 
 LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
 LOGGING_USERNAME = os.environ.get("LOGGING_USERNAME")

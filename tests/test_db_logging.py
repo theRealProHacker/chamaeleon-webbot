@@ -6,8 +6,8 @@ import importlib
 import sys
 import time
 import types
-from types import SimpleNamespace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import common as _
 
