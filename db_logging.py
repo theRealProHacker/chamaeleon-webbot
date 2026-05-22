@@ -44,14 +44,6 @@ SESSION_MESSAGE_EXPIRY_SECONDS = 12 * 60 * 60  # 12 hours
 SESSION_EXPIRY_SECONDS = 7 * 24 * 60 * 60  # 7 days
 
 
-def _store_session_on_bottom(session_id: SessionID, session: Session) -> None:
-    """When new session is created"""
-    _sessions[session_id] = session
-    _sessions.move_to_end(session_id)
-    _sessions_by_last_active[session_id] = None
-    _sessions_by_last_active.move_to_end(session_id)
-
-
 def _message_bounds(messages: ChatHistory) -> tuple[float, float]:
     if not messages:
         raise RuntimeError("Cannot derive session bounds from an empty message list")
@@ -247,15 +239,16 @@ def log_messages(session_id: SessionID, messages: ChatHistory) -> None:
             print(f"Inserted chat log: {db_id} with messages: {messages}")
 
         now = time.time()
-        _store_session_on_bottom(
-            session_id,
-            {
-                "db_id": db_id,
-                "history": messages,
-                "created_at": now,
-                "last_active": now,
-            },
-        )
+
+        session: Session = {
+            "db_id": db_id,
+            "history": messages,
+            "created_at": now,
+            "last_active": now,
+        }
+
+        _sessions[session_id] = session
+        _sessions_by_last_active[session_id] = None
 
     else:
         # --- Existing session: UPDATE ---
