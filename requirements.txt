@@ -1,8 +1,10 @@
+cachetools
 flask
 flask-cors
 requests
 beautifulsoup4
 markdownify
+supabase
 # secret keys
 python-dotenv
 # langchain
@@ -16,6 +18,5 @@ langgraph
 smolagents[litellm,gradio]
 # mistune for markdown processing
 mistune
-cachetools
 # testing
 pytest

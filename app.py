@@ -1,20 +1,19 @@
-from functools import cache
-import os
-from pprint import pprint
-from bs4 import BeautifulSoup
-from flask import Flask, request, Response, jsonify, abort, stream_template
-from flask_cors import CORS
-import requests
-from requests.auth import HTTPBasicAuth
-import re
-import json
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-import threading
+import json
+import os
+import re
+import time
+import traceback
+from functools import cache
+from pprint import pprint
 
-from agent_base import all_sites, find_trip_site, get_chamaeleon_website_html, BASE_URL
-from agent import call
-from agent_lang import call_stream
+import requests
+from flask import Flask, Response, abort, jsonify, request, stream_template
+from flask_cors import CORS
+
+from agent import call_stream
+from db_logging import Message, log_messages, logging_old
+from recommendations import make_recommendation_previews_async
 
 app = Flask(__name__)
 
@@ -37,84 +36,29 @@ CORS(app, origins=[
     "http://leon.chamdev.tourone.de",
 ])
 
-LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
-LOGGING_USERNAME = os.environ.get("LOGGING_USERNAME")
-LOGGING_PASSWORD = os.environ.get("LOGGING_PASSWORD")
-
-def make_recommendation_preview(recommendation: str):
-    """
-    This is where we gather the preview information that is necessary for the preview.
-    The frontend is still responsible for displaying the preview with nice HTML.
-
-    The information we need is the trip title and the head image URL.
-    """
-
-    try:
-        target = ""
-        if "#" in recommendation:
-            recommendation, _target = recommendation.split("#")
-            target = "#" + _target
-        site = find_trip_site(recommendation)
-    except ValueError:
-        print(f"Warning: No site found for recommendation '{recommendation}'")
-        return None  # No site found for the recommendation
-
-    try:
-        html = get_chamaeleon_website_html(site)
-        soup = BeautifulSoup(html, "html.parser")
-
-        title_text = soup.find("title").get_text(strip=True).split("-")[0].strip() # type: ignore
-        if len(title_text.split()) > 5:
-            title_text = recommendation.split("/")[-1].replace("-ALL", "")
-        image_url = soup.find("meta", property="og:image")["content"] # type: ignore
-
-        return {"url": BASE_URL + site + target, "title": title_text, "image": image_url}
-    except Exception as e:
-        print(f"Error creating preview for {recommendation}: {e}")
-        return None
-
-
-def make_recommendation_previews_async(recommendations):
-    """
-    Create recommendation previews in parallel using ThreadPoolExecutor
-    """
-    if not recommendations:
-        return []
-
-    with ThreadPoolExecutor(max_workers=len(recommendations)) as executor:
-        # Submit all preview generation tasks
-        future_to_rec = {
-            executor.submit(make_recommendation_preview, rec): rec
-            for rec in recommendations
-        }
-
-        previews = []
-        for future in future_to_rec:
-            try:
-                preview = future.result(timeout=5)  # 5 second timeout per preview
-                if preview:
-                    previews.append(preview)
-            except Exception as e:
-                rec = future_to_rec[future]
-                print(f"Error creating preview for {rec}: {e}")
-
-        return previews
-
 
 # --- Streaming Chatbot API Endpoint ---
 @app.route("/chat/stream", methods=["POST"])
 def chat_stream():
     data = request.get_json()
-    messages: list[dict] = data.get("messages", [])
+    session_id = data.get("session_id")
+    messages: list[Message] = data.get("messages", [])
     endpoint = data.get("current_url", "/")
     kundenberater_name = data.get("kundenberater_name", "")
     kundenberater_telefon = data.get("kundenberater_telefon", "")
 
     if not messages:
         abort(400, "No messages provided")
+    
+    if not session_id:
+        abort(400, "No session_id provided")
 
     messages = messages[:]
-    logging_messages = messages[1:]
+    logging_messages = messages[-1:]
+
+    assert len(logging_messages) == 1 and logging_messages[0]["role"] == "user"
+
+    logging_messages[0]["timestamp"] = time.time()
     
     def generate():
         try:
@@ -126,12 +70,15 @@ def chat_stream():
                     recommendations = event["data"]["recommendations"]
 
                     # Send the response first without previews
-                    logging_messages.append({
-                        "role": "assistant",
-                        "content": event["data"]["reply"]
-                    })
                     event_json = json.dumps(event, ensure_ascii=False)
                     yield f"data: {event_json}\n\n"
+                    # log assistant message
+                    logging_messages.append({
+                        "role": "assistant",
+                        "content": event["data"]["reply"],
+                        "url": endpoint,
+                        "timestamp": time.time()
+                    })
 
                     # Generate previews asynchronously and send them separately
                     if recommendations:
@@ -144,35 +91,29 @@ def chat_stream():
                                     "type": "recommendation_previews",
                                     "data": {"recommendation_previews": previews},
                                 }
-                                logging_messages.append(preview_event)
                                 preview_json = json.dumps(
                                     preview_event, ensure_ascii=False
                                 )
                                 yield f"data: {preview_json}\n\n"
+                                logging_messages.append({
+                                    "role": "recommendation_previews",
+                                    "content": previews,
+                                    "url": endpoint,
+                                    "timestamp": time.time()
+                                }) # type: ignore
                         except Exception as e:
                             print(f"Error generating recommendation previews: {e}")
-                elif event["type"]=="status":
-                    event_json = json.dumps(event, ensure_ascii=False)
-                    yield f"data: {event_json}\n\n"
+                    
+                # elif event["type"]=="status":
+                #     event_json = json.dumps(event, ensure_ascii=False)
+                #     print("Status message: ", event_json)
+                    # yield f"data: {event_json}\n\n"
 
-            # Add authentication if not localhost
-            auth = None
-            if "localhost" not in LOGGING_URL and "127.0.0.1" not in LOGGING_URL and LOGGING_USERNAME and LOGGING_PASSWORD:
-                auth = HTTPBasicAuth(LOGGING_USERNAME, LOGGING_PASSWORD)
-            
-            response = requests.post(
-                LOGGING_URL, 
-                data=json.dumps(logging_messages), 
-                headers={"Content-Type": "application/json"},
-                auth=auth
-            )
-            if response.status_code != 200:
-                print(f"Error logging messages: {response.text}")
+            log_messages(session_id, logging_messages)
+            logging_old(logging_messages)
 
         except Exception as e:
             print(f"Error in streaming: {e}")
-            import traceback
-
             traceback.print_exc()
             error_event = {"type": "error", "data": str(e)}
             yield f"data: {json.dumps(error_event)}\n\n"
@@ -183,6 +124,7 @@ def chat_stream():
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable buffering for nginx
         },
     )
 
@@ -192,15 +134,6 @@ def chat_stream():
 
 # --- Proxy Setup ---
 BASE_URL = "https://www.chamaeleon-reisen.de"
-
-# Load chatbot widget once on startup
-try:
-    with open("chatbot.html", "r", encoding="utf-8") as f:
-        chatbot_html = f.read()
-except FileNotFoundError:
-    chatbot_html = "<!-- chatbot.html not found -->"
-# --- End Proxy Setup ---
-
 
 # --- Proxy Route ---
 @app.route("/", defaults={"path": ""})

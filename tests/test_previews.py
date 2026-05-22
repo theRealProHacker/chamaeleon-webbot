@@ -3,8 +3,8 @@
 Test script for the enhanced streaming chatbot functionality
 """
 
-import sys
 import os
+import sys
 import time
 
 # Add the bot directory to the path

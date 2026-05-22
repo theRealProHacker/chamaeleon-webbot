@@ -1,15 +1,16 @@
 import csv
+import datetime
 import json
+import locale
 import os
 import re
+
 import markdownify
 import pytz
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-import locale
-import datetime
 from cachetools.func import ttl_cache
+from dotenv import load_dotenv
 
 # Set German locale
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")

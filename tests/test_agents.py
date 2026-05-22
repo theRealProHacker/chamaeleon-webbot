@@ -1,19 +1,18 @@
-import pytest
-from unittest.mock import patch, MagicMock
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Import both implementations
-import agent_lang
-import agent_smol
+import agent
 import agent_base
 
 
 class TestAgentImplementations:
-    """Test suite for both agent implementations."""
+    """Test suite for agent implementation."""
 
     @pytest.fixture
     def sample_messages(self):
@@ -89,7 +88,7 @@ class TestAgentImplementations:
             mock_create_agent.return_value = mock_agent_instance
 
             # Call the agent
-            result = agent_lang.call(sample_messages, sample_endpoint)
+            result = agent.call(sample_messages, sample_endpoint)
 
             # Verify the result structure
             assert isinstance(result, dict)
@@ -101,51 +100,12 @@ class TestAgentImplementations:
             mock_create_agent.assert_called_once()
             mock_agent_instance.invoke.assert_called_once()
 
-    @patch("agent_base.chamaeleon_website_tool_base")
-    def test_smolagents_agent_call(
-        self, mock_website_tool, sample_messages, sample_endpoint, mock_website_response
-    ):
-        """Test the smolagents agent implementation."""
-        # Mock the website tool
-        mock_website_tool.return_value = mock_website_response
 
-        # Mock the smolagents components
-        with (
-            patch("agent_smol.CodeAgent") as mock_code_agent,
-            patch("agent_smol.model") as mock_model,
-        ):
-            # Mock agent response
-            mock_agent_instance = MagicMock()
-            mock_agent_instance.run.return_value = "Test response from smolagents agent"
-            mock_code_agent.return_value = mock_agent_instance
-
-            # Call the agent
-            result = agent_smol.call(sample_messages, sample_endpoint)
-
-            # Verify the result structure
-            assert isinstance(result, dict)
-            assert "reply" in result
-            assert "recommendations" in result
-            assert isinstance(result["recommendations"], list)
-
-            # Verify the agent was called
-            mock_code_agent.assert_called_once()
-            mock_agent_instance.run.assert_called_once()
 
     def test_both_agents_have_same_interface(self, sample_messages, sample_endpoint):
         """Test that both implementations have the same interface."""
-        # Both should have a call function with the same signature
-        assert hasattr(agent_lang, "call")
-        assert hasattr(agent_smol, "call")
-
-        # Check function signatures are compatible
-        import inspect
-
-        lang_sig = inspect.signature(agent_lang.call)
-        smol_sig = inspect.signature(agent_smol.call)
-
-        assert len(lang_sig.parameters) == len(smol_sig.parameters)
-        assert list(lang_sig.parameters.keys()) == list(smol_sig.parameters.keys())
+        # Check that agent has a call function
+        assert hasattr(agent, "call")
 
     @patch("agent_base.chamaeleon_website_tool_base")
     def test_error_handling(self, mock_website_tool, sample_messages, sample_endpoint):
@@ -156,7 +116,7 @@ class TestAgentImplementations:
 
             # Should not raise an exception
             try:
-                result = agent_lang.call(sample_messages, sample_endpoint)
+                result = agent.call(sample_messages, sample_endpoint)
                 # If it doesn't raise, it should return a valid structure
                 assert isinstance(result, dict)
                 assert "reply" in result
@@ -164,20 +124,7 @@ class TestAgentImplementations:
             except Exception:
                 pytest.fail("LangChain agent should handle errors gracefully")
 
-        # Test smolagents error handling
-        with patch("agent_smol.CodeAgent") as mock_code_agent:
-            mock_code_agent.side_effect = Exception("Test error")
 
-            # Should not raise an exception
-            try:
-                result = agent_smol.call(sample_messages, sample_endpoint)
-                # Should return error message
-                assert isinstance(result, dict)
-                assert "reply" in result
-                assert "recommendations" in result
-                assert "technischen Fehler" in result["reply"]
-            except Exception:
-                pytest.fail("Smolagents agent should handle errors gracefully")
 
     def test_tool_factories(self):
         """Test that tool factory functions work correctly."""
@@ -202,28 +149,19 @@ class TestAgentImplementations:
     def test_message_conversion(self, sample_messages):
         """Test message conversion functions."""
         # Test LangChain message conversion
-        langchain_messages = agent_lang.convert_messages_to_langchain(sample_messages)
+        langchain_messages = agent.convert_messages_to_langchain(sample_messages)
         assert len(langchain_messages) == len(sample_messages)
-
-        # Test smolagents message conversion
-        smol_conversation = agent_smol.convert_messages_to_smolagents(sample_messages)
-        assert isinstance(smol_conversation, str)
-        assert "User:" in smol_conversation
-        assert "Assistant:" in smol_conversation
 
     @pytest.mark.integration
     @patch("agent_base.chamaeleon_website_tool_base")
-    def test_integration_both_agents(
+    def test_integration_agent(
         self, mock_website_tool, sample_messages, sample_endpoint, mock_website_response
     ):
-        """Integration test comparing both agents with mocked dependencies."""
+        """Integration test for the agent with mocked dependencies."""
         mock_website_tool.return_value = mock_website_response
 
-        # Mock both agents
-        with (
-            patch("agent_lang.create_react_agent") as mock_lang_agent,
-            patch("agent_smol.CodeAgent") as mock_smol_agent,
-        ):
+        # Mock agent
+        with patch("agent_lang.create_react_agent") as mock_lang_agent:
             # Setup LangChain mock
             mock_lang_instance = MagicMock()
             mock_lang_instance.invoke.return_value = {
@@ -233,21 +171,15 @@ class TestAgentImplementations:
             }
             mock_lang_agent.return_value = mock_lang_instance
 
-            # Setup smolagents mock
-            mock_smol_instance = MagicMock()
-            mock_smol_instance.run.return_value = "Smolagents response"
-            mock_smol_agent.return_value = mock_smol_instance
+            # Test implementation
+            lang_result = agent.call(sample_messages, sample_endpoint)
 
-            # Test both implementations
-            lang_result = agent_lang.call(sample_messages, sample_endpoint)
-            smol_result = agent_smol.call(sample_messages, sample_endpoint)
-
-            # Both should return the same structure
-            assert set(lang_result.keys()) == set(smol_result.keys())
+            # Verify result structure
+            assert isinstance(lang_result, dict)
+            assert "reply" in lang_result
+            assert "recommendations" in lang_result
             assert isinstance(lang_result["reply"], str)
-            assert isinstance(smol_result["reply"], str)
             assert isinstance(lang_result["recommendations"], list)
-            assert isinstance(smol_result["recommendations"], list)
 
 
 if __name__ == "__main__":

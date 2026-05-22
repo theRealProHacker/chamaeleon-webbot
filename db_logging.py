@@ -1,0 +1,282 @@
+import os
+import time
+from collections import OrderedDict
+from datetime import datetime, timedelta, timezone
+from typing import Callable, NotRequired, Optional, TypeVar, TypedDict
+
+from dotenv import load_dotenv
+from supabase import Client, create_client
+
+load_dotenv()
+
+_url = os.environ.get("SUPABASE_URL")
+_key = os.environ.get("SUPABASE_KEY")
+assert _url and _key, "SUPABASE_URL and SUPABASE_KEY must be set in environment variables"
+supabase: Client = create_client(_url, _key)
+
+class Message(TypedDict):
+    role: str
+    content: str | list
+    url: str
+    timestamp: float
+
+type ChatHistory = list[Message]
+
+type SessionID = str
+
+class Session(TypedDict):
+    db_id: str
+    history: NotRequired[ChatHistory]
+    created_at: float
+    last_active: float
+
+# sorted old -> new
+_sessions: OrderedDict[SessionID, Session] = OrderedDict()
+_sessions_by_last_active: OrderedDict[SessionID, None] = OrderedDict()
+
+SESSION_MESSAGE_EXPIRY_SECONDS = 12 * 60 * 60  # 12 hours
+SESSION_EXPIRY_SECONDS = 7 * 24 * 60 * 60  # 7 days
+
+
+def _store_session_on_bottom(session_id: SessionID, session: Session) -> None:
+    """When new session is created"""
+    _sessions[session_id] = session
+    _sessions.move_to_end(session_id)
+    _sessions_by_last_active[session_id] = None
+    _sessions_by_last_active.move_to_end(session_id)
+
+def _message_bounds(messages: ChatHistory) -> tuple[float, float]:
+    if not messages:
+        raise RuntimeError("Cannot derive session bounds from an empty message list")
+    return messages[0]["timestamp"], messages[-1]["timestamp"]
+
+T = TypeVar("T")
+
+def _execute_with_retries(action: Callable[[], T], failure_message: str, session_id: SessionID) -> T:
+    max_retries = 3
+    last_error: Exception | None = None
+    last_response: object | None = None
+
+    for attempt in range(max_retries):
+        try:
+            return action()
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_retries - 1:
+                time.sleep(2**attempt)
+            continue
+
+    raise last_error or RuntimeError(failure_message.format(session_id=session_id) + f" after {max_retries} attempts. Last response: {last_response}")
+
+def _db_query_all(cutoff: str):
+    return (
+        supabase
+        .table("chats")
+        .select("id, session_id, messages, timestamp")
+        .gte("timestamp", cutoff)
+        .order("timestamp", desc=False)
+        .execute()
+    )
+
+def _load_sessions_from_db() -> None:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    response = _execute_with_retries(
+        lambda: _db_query_all(cutoff),
+        "Failed to load chat sessions for session {session_id}",
+        "startup",
+    )
+
+    rows = response.data
+    if not isinstance(rows, list):
+        raise RuntimeError(f"Failed to load chat sessions for session startup: {response}")
+
+    now = time.time()
+    loaded_sessions: list[tuple[SessionID, Session]] = []
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        session_id = row.get("session_id")
+        db_id = row.get("id")
+        messages: ChatHistory = row.get("messages") # type: ignore
+
+        if not isinstance(session_id, str):
+            continue
+
+        if not isinstance(db_id, str) or not isinstance(messages, list) or not messages:
+            print(f"Skipping invalid session row with id {session_id}: {row}")
+            continue
+
+        created_at, last_active = _message_bounds(messages)
+
+        session: Session = {
+            "db_id": db_id,
+            "created_at": created_at,
+            "last_active": last_active,
+        }
+        if now - last_active <= SESSION_MESSAGE_EXPIRY_SECONDS:
+            session["history"] = list(messages)
+
+        loaded_sessions.append((session_id, session))
+
+    global _sessions, _sessions_by_last_active
+    _sessions = OrderedDict(loaded_sessions)
+    _sessions_by_last_active = OrderedDict(sorted(((sid, None) for sid in _sessions), key=lambda item: _sessions[item[0]]["last_active"]))
+
+################## Load sessions on import ####################################
+_load_sessions_from_db()
+
+def _prune_sessions() -> None:
+    now = time.time()
+    session_cutoff = now - SESSION_EXPIRY_SECONDS
+    message_cutoff = now - SESSION_MESSAGE_EXPIRY_SECONDS
+
+    expired_session_ids = []
+    for sid, session in _sessions.items():
+        if session["created_at"] >= session_cutoff:
+            break
+        expired_session_ids.append(sid)
+
+    for sid in expired_session_ids:
+        del _sessions[sid]
+        _sessions_by_last_active.pop(sid, None)
+
+    for session_id in _sessions_by_last_active:
+        session = _sessions[session_id]
+        if session["last_active"] >= message_cutoff:
+            break    
+        session.pop("history", None)
+
+
+def _is_real_msg(msg: Message) -> bool:
+    """Only user and assistant messages"""
+    match msg:
+        case {"role": str(), "content": str(content)} if content.strip():
+            return True
+    return False
+
+
+def _fetch_chat_history(db_id: str, session_id: SessionID) -> ChatHistory:
+    """Fetch chat history from Supabase with retries."""
+    response = _execute_with_retries(
+        lambda: supabase.table("chats").select("session_id, messages").eq("id", db_id).execute(),
+        "Failed to fetch chat history for session {session_id}",
+        session_id,
+    )
+
+    data = response.data
+    if not isinstance(data, list) or not data:
+        raise RuntimeError(f"Failed to fetch chat history for session {session_id}: {response}")
+
+    first_row = data[0]
+    if not isinstance(first_row, dict) or "messages" not in first_row:
+        raise RuntimeError(f"Failed to fetch chat history for session {session_id}: {response}")
+
+    history: ChatHistory = first_row["messages"] # type: ignore
+    if not isinstance(history, list):
+        raise RuntimeError(f"Failed to fetch chat history for session {session_id}: {response}")
+    
+    if first_row["session_id"] != session_id:
+        raise RuntimeError(f"Fetched session_id {first_row['session_id']} does not match expected {session_id}")
+
+    return history
+
+def log_messages(session_id: SessionID, messages: ChatHistory) -> None:
+    if not session_id:
+        raise ValueError("session_id must not be empty")
+
+    _prune_sessions()
+
+    if session_id not in _sessions:
+        # TODO: check if the session_id already exists in DB to avoid duplicates
+        # --- New session: INSERT ---
+        row = {
+            "session_id": session_id,
+            "messages": messages,
+        }
+        response = supabase.table("chats").insert(row).execute()
+        # if response["status"] != 201:
+        #     raise RuntimeError(f"Failed to insert chat log: {response}")
+
+        data = response.data
+
+        first_row = data[0]
+        if not isinstance(first_row, dict) or "id" not in first_row:
+            raise RuntimeError(f"Failed to insert chat log: {response}")
+        
+        db_id: str = first_row["id"] # type: ignore
+        
+        if "localhost" in LOGGING_URL:
+            print(f"Inserted chat log: {db_id} with messages: {messages}")
+
+        now = time.time()
+        _store_session_on_bottom(
+            session_id,
+            {
+                "db_id": db_id,
+                "history": messages,
+                "created_at": now,
+                "last_active": now,
+            },
+        )
+        
+    else:
+        # --- Existing session: UPDATE ---
+        session = _sessions[session_id]
+        session["last_active"] = time.time()
+        db_id = session["db_id"]
+        # update last active sorting
+        _sessions_by_last_active.pop(session_id, None)
+        _sessions_by_last_active[session_id] = None
+
+        # Merge
+        if "history" not in session:
+            history = _fetch_chat_history(db_id, session_id)
+        else:
+            history = session["history"]
+        history += messages
+
+        # TODO: optimize by only sending new messages instead of whole history on every update
+        update_payload = {
+            "messages": history,
+        }
+        supabase.table("chats").update(update_payload).eq("id", db_id).execute() # type: ignore
+        session["history"] = history
+
+
+def active_session_count() -> int:
+    _prune_sessions()
+    return len(_sessions)
+
+
+######## Old Logging #################################### 
+
+import json
+
+import requests
+from requests.auth import HTTPBasicAuth
+
+
+LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
+LOGGING_USERNAME = os.environ.get("LOGGING_USERNAME")
+LOGGING_PASSWORD = os.environ.get("LOGGING_PASSWORD")
+
+
+
+def logging_old(logging_messages):
+    if "localhost" in LOGGING_URL:
+        return
+    # Add authentication if not localhost
+    auth = None
+    if "localhost" not in LOGGING_URL and "127.0.0.1" not in LOGGING_URL and LOGGING_USERNAME and LOGGING_PASSWORD:
+        auth = HTTPBasicAuth(LOGGING_USERNAME, LOGGING_PASSWORD)
+    
+    response = requests.post(
+        LOGGING_URL, 
+        data=json.dumps(logging_messages), 
+        headers={"Content-Type": "application/json"},
+        auth=auth
+    )
+    if response.status_code != 200:
+        print(f"Error logging messages: {response.text}")

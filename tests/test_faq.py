@@ -1,15 +1,15 @@
-from contextlib import redirect_stdout
-import time
 import json
 import os
 import re
 import sys
+import time
+from contextlib import redirect_stdout
 from io import StringIO
 
 import common as _
 
+from agent import call
 from agent_base import general_faq_data, laender_faq_data
-from agent_lang import call
 
 
 def safe_print(*args, **kwargs):

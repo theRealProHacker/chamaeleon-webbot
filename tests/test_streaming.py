@@ -2,12 +2,12 @@
 Test script for the streaming chatbot functionality
 """
 
+import os
+import sys
+
 import common as _
 
-import sys
-import os
-
-from agent_lang import call_stream
+from agent import call_stream
 
 
 def test_streaming(message: str = ""):
