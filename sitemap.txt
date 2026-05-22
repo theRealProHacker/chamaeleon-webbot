@@ -1,6 +1,7 @@
 ## Allgemeines
 
 /
+/Barrierefreiheitserklaerung
 
 ### Rechtliches
 /AGB
@@ -18,10 +19,14 @@
 /Reiseleiter
 /Team
 /Vision
+/30Jahre
+/Club
+/Sitemap
 
 ### Marketing & Sales
 /Bestellung
 /Erlebnistage
+/Reise-finden
 /Reisebuero-finden
 /Vorbestellung
 
@@ -29,8 +34,9 @@
 /Abenteuer-Reisen
 /Erlebnis-Reisen
 /Geniesser-Reisen
+/Merkzettel
 
-## Kurzfristige Abfahrten
+## Kurzfristige Abreisen
 
 /Kurzfristige-Abreisen
 /Kurzfristige-Abreisen/Afrika
@@ -316,7 +322,9 @@
 /Asien/China/Yangtze
 /Asien/Georgien
 /Asien/Indien
+/Asien/Indonesien
 /Asien/Indien/Kerala-NEU
+/Afrika/Suedafrika/Tsitsikamma
 /Asien/Indien/Nachtraeumen-Goa
 /Asien/Indien/Nachtraeumen-Mahabalipuram
 /Asien/Indien/Rajasthan
@@ -382,17 +390,15 @@
 /Asien/Vietnam/Nachtraeumen-Phu-Quoc-mit-Saigon
 /Asien/Vietnam/Sapa
 
+### Weiteres
 /Sehenswuerdigkeiten-Sri-Lanka
 
-### Weiteres
-
 /Indien-Rundreise
-
-/Island-Rundreise
 
 /Kirgistan-Rundreise
 
 /Thailand-Gruppenreise
+
 
 ### Europa
 
@@ -423,6 +429,7 @@
 /Europa/Island/Jokulsarlon-ALL
 /Europa/Island/Nachtraeumen-Reykjavik-NEU
 /Europa/Island/Vestfirdir
+/Europa/Island/Jokulsarlon
 /Europa/Island/Vestfirdir-2023
 /Europa/Island/Vestfirdir-LH-ALL
 /Europa/Island/Vorfreuen-Reykjavik_NEU
@@ -430,6 +437,7 @@
 /Europa/Italien/Apulien-ALL
 /Europa/Italien/Nachtraeumen-Adria-Del-Levante-Hotel
 /Europa/Italien/Nachtraeumen-Adria-La-Sorgente-Hotel
+/Europa/Italien/Apulien
 /Europa/Italien/Nachtraeumen-Ionisches-Meer
 /Europa/Italien/Nachtraeumen-Rom
 /Europa/Italien/Sizilien-ALL
@@ -456,6 +464,7 @@
 /Europa/Portugal/Douro-ALL
 /Europa/Portugal/Nachtraeumen-Algarve
 /Europa/Rumaenien
+/Europa/Portugal/Douro
 /Europa/Rumaenien/Siebenbuergen
 /Europa/Rumaenien/Siebenbuergen-ALL
 /Europa/Schottland
@@ -476,6 +485,8 @@
 
 ### Weiteres
 
+/Island-Rundreise
+
 /Kroatien-Sehenswuerdigkeiten
 
 /Schottland-Sehenswuerdigkeiten
@@ -483,6 +494,7 @@
 /Spanien-Sehenswuerdigkeiten
 
 /island-sehenswuerdigkeiten
+
 /spanien-sehenswuerdigkeiten
 
 ### Ozeanien
