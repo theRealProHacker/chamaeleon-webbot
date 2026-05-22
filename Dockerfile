@@ -32,4 +32,8 @@ RUN . venv/bin/activate && \
     pip install --no-cache-dir -r _requirements.txt
 
 # Run the web service on container startup.
-CMD ["/bin/bash", "-c", ". venv/bin/activate && exec gunicorn app:app"]
+ENV WEB_CONCURRENCY=2 \
+    WORKER_CONNECTIONS=1000 \
+    GUNICORN_TIMEOUT=120
+
+CMD ["sh", "-c", "exec gunicorn -k gevent --workers ${WEB_CONCURRENCY} --worker-connections ${WORKER_CONNECTIONS} --timeout ${GUNICORN_TIMEOUT} --bind 0.0.0.0:${PORT} app:app"]

@@ -1,6 +1,7 @@
 cachetools
 flask
 flask-cors
+gevent
 requests
 beautifulsoup4
 markdownify
