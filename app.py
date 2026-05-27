@@ -1,13 +1,15 @@
 import json
+import os
 import time
 import traceback
 from functools import cache
 
 import requests
-from flask import Flask, Response, abort, request
+from flask import Flask, Response, abort, request, send_from_directory
 from flask_cors import CORS
 
 from agent import call_stream
+import dashboard
 from db_logging import Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
@@ -133,6 +135,23 @@ def chat_stream():
 
 
 # --- End Streaming Chatbot API Endpoint ---
+
+
+# --- Dashboard routes ---
+
+for route, view_func in dashboard.routes:
+    app.add_url_rule(route, view_func=view_func)
+
+
+@app.route("/dashboard")
+@app.route("/dashboard/")
+def dashboard_index():
+    return send_from_directory(
+        os.path.join(app.root_path, "static", "dashboard"), "index.html"
+    )
+
+
+# --- End Dashboard routes ---
 
 
 # --- Proxy Setup ---

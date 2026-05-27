@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chamaeleon Chat Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
+        integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3"
+        crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --surface-muted: #f1f5f9;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #475569;
+            --accent: #2563eb;
+            --accent-soft: #bfdbfe;
+            --danger: #dc2626;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 1.5rem clamp(1.5rem, 4vw, 3rem);
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: clamp(1.5rem, 2vw, 2rem);
+            letter-spacing: -0.02em;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.4rem;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        main {
+            flex: 1;
+            padding: clamp(1.5rem, 4vw, 3rem);
+        }
+
+        .layout {
+            display: flex;
+            gap: clamp(1.5rem, 3vw, 3rem);
+            align-items: flex-start;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .left-panel {
+            flex: 1;
+            min-width: min(33vw, 28rem);
+        }
+
+        .right-panel {
+            flex: 2;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            box-shadow: 0 15px 35px rgba(15, 23, 42, 0.08);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 280px;
+        }
+
+        #dailyChartWrapper {
+            height: 220px;
+        }
+
+        h2 {
+            margin: 0 0 1rem;
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+        }
+
+        .chart-hint {
+            margin: 0.75rem 0 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric {
+            border-radius: 1rem;
+            padding: 1.1rem;
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .metric-value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .metric-caption {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .messages-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .messages-header {
+            display: flex;
+            align-items: baseline;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .messages-header span {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            flex: 1;
+        }
+
+        .export-button {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            background: var(--surface-muted);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .export-button:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .export-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: var(--surface-muted);
+        }
+
+        .messages-list {
+            max-height: clamp(20rem, 55vh, 30rem);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding-right: 0.5rem;
+        }
+
+        .chat-thread {
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem;
+            background: var(--surface-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .chat-meta {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+        }
+
+        .message {
+            border-radius: 0.85rem;
+            padding: 0.75rem 0.9rem;
+            background: white;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
+
+        .message.user {
+            border-left: 4px solid var(--accent);
+        }
+
+        .message.assistant {
+            border-left: 4px solid #0ea5e9;
+        }
+
+        .message h4 {
+            margin: 0 0 0.35rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .message p {
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .empty-state {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 2rem 1rem;
+            border: 1px dashed var(--border);
+            border-radius: 1rem;
+        }
+
+        .last-updated {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 1.1rem;
+            right: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 1.1rem;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.85);
+            color: white;
+            font-size: 0.9rem;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+            backdrop-filter: blur(6px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 20;
+        }
+
+        .refresh-indicator.visible {
+            opacity: 1;
+        }
+
+        .spinner {
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            border: 2.5px solid rgba(255, 255, 255, 0.25);
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-skeleton {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loading-skeleton::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(241, 245, 249, 0) 0%, rgba(226, 232, 240, 0.8) 50%, rgba(241, 245, 249, 0) 100%);
+            animation: shimmer 1.4s infinite;
+        }
+
+        .loading-skeleton>* {
+            opacity: 0;
+        }
+
+        .error-message {
+            margin: 0.75rem 0 0;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            background: rgba(220, 38, 38, 0.08);
+            border: 1px solid rgba(220, 38, 38, 0.25);
+            color: #b91c1c;
+            font-size: 0.9rem;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 1080px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .left-panel,
+            .right-panel {
+                width: 100%;
+            }
+
+            .messages-list {
+                max-height: none;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="refreshIndicator" class="refresh-indicator" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Refreshing data…</span>
+    </div>
+    <header>
+        <h1>Chamaeleon Chat Insight</h1>
+        <div class="controls">
+            <button id="refreshButton" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.93-3.36L23 10"></path>
+                    <path d="M20.49 15a9 9 0 0 1-14.93 3.36L1 14"></path>
+                </svg>
+                Refresh
+            </button>
+            <span id="lastUpdated" class="last-updated">Last updated: --</span>
+        </div>
+    </header>
+    <main>
+        <div class="layout">
+            <section class="panel left-panel">
+                <article class="card">
+                    <h2>Chats per Month</h2>
+                    <div id="monthlyChartWrapper" class="chart-wrapper loading-skeleton" role="img"
+                        aria-label="Chats per month over the last year">
+                        <canvas id="monthlyChart" aria-hidden="true"></canvas>
+                    </div>
+                    <p class="chart-hint">Click a month to drill down into daily performance and message details.</p>
+                </article>
+                <article class="card">
+                    <h2>Chats by Weekday</h2>
+                    <div id="weekdayChartWrapper" class="chart-wrapper loading-skeleton" role="img"
+                        aria-label="Chats distribution across weekdays">
+                        <canvas id="weekdayChart" aria-hidden="true"></canvas>
+                    </div>
+                    <p class="chart-hint">See which weekdays drive the most chat activity.</p>
+                </article>
+                <article id="dailyChartCard" class="card" hidden>
+                    <h2 id="dailyChartTitle">Chats per Day</h2>
+                    <div id="dailyChartWrapper" class="chart-wrapper loading-skeleton" role="img"
+                        aria-label="Chats per day for selected month">
+                        <canvas id="dailyChart" aria-hidden="true"></canvas>
+                    </div>
+                </article>
+                <article id="hourlyChartCard" class="card" hidden>
+                    <h2 id="hourlyChartTitle">Chats per Hour</h2>
+                    <div id="hourlyChartWrapper" class="chart-wrapper loading-skeleton" role="img"
+                        aria-label="Chats per hour for selected month">
+                        <canvas id="hourlyChart" aria-hidden="true"></canvas>
+                    </div>
+                </article>
+            </section>
+            <section class="panel right-panel">
+                <article id="metricsCard" class="card loading-skeleton">
+                    <h2 id="metricsTitle">All Chats</h2>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <span class="metric-label">Total Chats</span>
+                            <span class="metric-value" id="totalChatsValue">--</span>
+                            <span class="metric-caption" id="totalChatsCaption"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Avg. User Messages</span>
+                            <span class="metric-value" id="avgUserMessagesValue">--</span>
+                            <span class="metric-caption">Per chat</span>
+                        </div>
+                    </div>
+                    <p id="metricsError" class="error-message" hidden></p>
+                </article>
+                <article class="card messages-card">
+                    <div class="messages-header">
+                        <h2 id="messagesTitle">Messages</h2>
+                        <span id="messagesSubtitle">Select a month to see message details.</span>
+                        <button id="exportButton" class="export-button" type="button" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export JSON
+                        </button>
+                    </div>
+                    <div id="messagesList" class="messages-list">
+                        <div class="empty-state">Choose a month to explore its conversations.</div>
+                    </div>
+                </article>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+        const WEEKDAY_FULL_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const weekdayChartCtx = document.getElementById('weekdayChart').getContext('2d');
+        const monthlyChartCtx = document.getElementById('monthlyChart').getContext('2d');
+        const dailyChartCtx = document.getElementById('dailyChart').getContext('2d');
+        const hourlyChartCtx = document.getElementById('hourlyChart').getContext('2d');
+        const refreshIndicator = document.getElementById('refreshIndicator');
+        const refreshButton = document.getElementById('refreshButton');
+        const exportButton = document.getElementById('exportButton');
+        const lastUpdatedEl = document.getElementById('lastUpdated');
+        const metricsCard = document.getElementById('metricsCard');
+        const weekdayChartWrapper = document.getElementById('weekdayChartWrapper');
+        const monthlyChartWrapper = document.getElementById('monthlyChartWrapper');
+        const dailyChartCard = document.getElementById('dailyChartCard');
+        const dailyChartWrapper = document.getElementById('dailyChartWrapper');
+        const hourlyChartCard = document.getElementById('hourlyChartCard');
+        const hourlyChartWrapper = document.getElementById('hourlyChartWrapper');
+        const metricsTitleEl = document.getElementById('metricsTitle');
+        const totalChatsValueEl = document.getElementById('totalChatsValue');
+        const totalChatsCaptionEl = document.getElementById('totalChatsCaption');
+        const avgUserMessagesEl = document.getElementById('avgUserMessagesValue');
+        const metricsErrorEl = document.getElementById('metricsError');
+        const messagesTitleEl = document.getElementById('messagesTitle');
+        const messagesSubtitleEl = document.getElementById('messagesSubtitle');
+        const messagesListEl = document.getElementById('messagesList');
+        let weekdayChart;
+        let monthlyChart;
+        let dailyChart;
+        let hourlyChart;
+        let monthlySummaryData = [];
+        let selectedMonthKey = null;
+        let refreshTimerId;
+        let initialSkeleton = true;
+        let globalWeekdayCounts = [];
+        let currentWeekdayData = [];
+        let currentChats = [];
+        let currentMessagesLabel = 'Selected Month';
+        let monthlyChartKeys = [];
+        let currentHourlyCountsBase = [];
+        let currentFilteredChats = [];
+        let globalHourlyCounts = [];
+
+        async function fetchDashboard(monthKey = null, { showIndicator = false, refreshCurrent = false } = {}) {
+            if (showIndicator) {
+                showRefreshIndicator();
+            }
+
+            const params = new URLSearchParams();
+            if (monthKey) {
+                params.set('month', monthKey);
+            }
+            if (refreshCurrent) {
+                params.set('refreshCurrent', '1');
+            }
+            const url = params.toString() ? `/api/dashboard?${params}` : '/api/dashboard';
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Unable to load dashboard data');
+                }
+                const payload = await response.json();
+                updateStateFromPayload(payload);
+                monthlySummaryData = Array.isArray(payload.monthly_summary) ? payload.monthly_summary : [];
+                globalWeekdayCounts = Array.isArray(payload.weekday_counts) ? payload.weekday_counts : [];
+                if (!monthKey) {
+                    globalHourlyCounts = payload.hourly_counts || [];
+                }
+                renderMonthlyChart(monthlySummaryData);
+
+                const monthPayload = payload.selected_month && typeof payload.selected_month === 'object'
+                    ? payload.selected_month
+                    : null;
+
+                if (monthPayload && monthKey) {
+                    renderMonthDetail(monthPayload);
+                } else {
+                    renderTotals(payload.totals || {}, 'All Chats');
+                    clearMonthDetail();
+                }
+
+                updateLastUpdated();
+                hideError();
+                if (initialSkeleton) {
+                    removeSkeletons();
+                    initialSkeleton = false;
+                }
+            } catch (error) {
+                console.error(error);
+                showError(error?.message || 'An unexpected error occurred while loading data.');
+            } finally {
+                if (showIndicator) {
+                    hideRefreshIndicator();
+                }
+            }
+        }
+
+        function updateStateFromPayload(payload) {
+            const currentKey = payload?.current_month || null;
+            if (currentKey) {
+                state.currentMonth = currentKey;
+            }
+            const tracked = Array.isArray(payload?.tracked_months) ? payload.tracked_months : [];
+            if (tracked.length) {
+                state.trackedMonths = tracked;
+            }
+        }
+
+        function renderWeekdayChart(weekdayData) {
+            const fallbackFull = WEEKDAY_FULL_NAMES;
+            const arrayData = Array.isArray(weekdayData) ? weekdayData : [];
+            const normalized = fallbackFull.map(fullName => {
+                const short = fullName.slice(0, 3).toLowerCase();
+                const match = arrayData.find(item => {
+                    if (typeof item?.weekday === 'string' && item.weekday.toLowerCase() === fullName.toLowerCase()) {
+                        return true;
+                    }
+                    if (typeof item?.short_label === 'string' && item.short_label.toLowerCase() === short) {
+                        return true;
+                    }
+                    return false;
+                });
+                if (match) {
+                    const weekdayName = typeof match.weekday === 'string' && match.weekday.trim()
+                        ? match.weekday
+                        : fullName;
+                    return {
+                        weekday: weekdayName,
+                        short_label: match.short_label || weekdayName.slice(0, 3),
+                        count: Number(match.count) || 0,
+                    };
+                }
+                return {
+                    weekday: fullName,
+                    short_label: fullName.slice(0, 3),
+                    count: 0,
+                };
+            });
+
+            const labels = normalized.map(item => item.short_label || item.weekday || '');
+            const counts = normalized.map(item => item.count ?? 0);
+            const titleLabels = normalized.map(item => item.weekday || item.short_label || '');
+            const colors = normalized.map((_, idx) => idx === state.selectedWeekdayIndex ? '#2563eb' : '#94a3b8');
+            const hoverColors = normalized.map((_, idx) => idx === state.selectedWeekdayIndex ? '#1d4ed8' : '#2563eb');
+
+            currentWeekdayData = normalized;
+
+            if (!weekdayChart) {
+                weekdayChart = new Chart(weekdayChartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Chats',
+                                data: counts,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                hoverBackgroundColor: hoverColors
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => {
+                                        const index = items?.[0]?.dataIndex ?? 0;
+                                        return titleLabels[index] || '';
+                                    },
+                                    label: item => `${item.formattedValue} chats`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        },
+                        onClick: (_evt, elements) => handleWeekdaySelection(elements)
+                    }
+                });
+            } else {
+                weekdayChart.data.labels = labels;
+                weekdayChart.data.datasets[0].data = counts;
+                weekdayChart.options.plugins.tooltip.callbacks.title = items => {
+                    const index = items?.[0]?.dataIndex ?? 0;
+                    return titleLabels[index] || '';
+                };
+                weekdayChart.options.onClick = (_evt, elements) => handleWeekdaySelection(elements);
+            }
+
+            updateWeekdayChartColors();
+
+            if (weekdayChartWrapper.classList.contains('loading-skeleton')) {
+                weekdayChartWrapper.classList.remove('loading-skeleton');
+            }
+        }
+
+        function handleWeekdaySelection(elements) {
+            if (!Array.isArray(elements) || !elements.length) {
+                if (state.selectedWeekdayIndex !== null) {
+                    state.selectedWeekdayIndex = null;
+                    updateWeekdayChartColors();
+                    if (selectedMonthKey) {
+                        renderMessagesWithCurrentFilter();
+                    }
+                }
+                return;
+            }
+            const index = elements[0]?.index;
+            if (typeof index !== 'number') {
+                return;
+            }
+            state.selectedWeekdayIndex = state.selectedWeekdayIndex === index ? null : index;
+            updateWeekdayChartColors();
+            if (selectedMonthKey) {
+                renderMessagesWithCurrentFilter();
+            }
+        }
+
+        function handleMonthSelection(elements) {
+            if (!Array.isArray(elements) || !elements.length) {
+                if (selectedMonthKey) {
+                    selectedMonthKey = null;
+                    fetchDashboard(null, { showIndicator: true });
+                }
+                return;
+            }
+            const index = elements[0]?.index;
+            if (typeof index !== 'number') {
+                return;
+            }
+            const selectedKey = monthlyChartKeys?.[index];
+            if (!selectedKey) {
+                return;
+            }
+            if (selectedMonthKey === selectedKey) {
+                selectedMonthKey = null;
+                fetchDashboard(null, { showIndicator: true });
+            } else {
+                selectedMonthKey = selectedKey;
+                fetchMonthIfNeeded(selectedMonthKey);
+            }
+        }
+
+        function updateWeekdayChartColors() {
+            if (!weekdayChart || !Array.isArray(currentWeekdayData) || !currentWeekdayData.length) {
+                return;
+            }
+            const dataset = weekdayChart.data?.datasets?.[0];
+            if (!dataset) {
+                return;
+            }
+            const colors = currentWeekdayData.map((_, idx) => idx === state.selectedWeekdayIndex ? '#2563eb' : '#94a3b8');
+            const hoverColors = currentWeekdayData.map((_, idx) => idx === state.selectedWeekdayIndex ? '#1d4ed8' : '#2563eb');
+            dataset.backgroundColor = colors;
+            dataset.hoverBackgroundColor = hoverColors;
+            weekdayChart.update('none');
+        }
+
+        function renderMonthlyChart(summary) {
+            const labels = summary.map(item => item.label);
+            const counts = summary.map(item => item.count ?? 0);
+            monthlyChartKeys = summary.map(item => item.key);
+            const colors = monthlyChartKeys.map(key => key === selectedMonthKey ? '#2563eb' : '#94a3b8');
+
+            if (!monthlyChart) {
+                monthlyChart = new Chart(monthlyChartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Chats',
+                                data: counts,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                hoverBackgroundColor: '#2563eb'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => items?.[0]?.label || '',
+                                    label: item => `${item.formattedValue} chats`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        },
+                        onClick: (_evt, elements) => handleMonthSelection(elements)
+                    }
+                });
+            } else {
+                monthlyChart.data.labels = labels;
+                monthlyChart.data.datasets[0].data = counts;
+                monthlyChart.data.datasets[0].backgroundColor = colors;
+                monthlyChart.options.onClick = (_evt, elements) => handleMonthSelection(elements);
+                monthlyChart.update('none');
+            }
+
+            if (monthlyChartWrapper.classList.contains('loading-skeleton')) {
+                monthlyChartWrapper.classList.remove('loading-skeleton');
+            }
+        }
+
+        function fetchMonthIfNeeded(monthKey) {
+            if (!monthKey) {
+                fetchDashboard(null, { showIndicator: true });
+                return;
+            }
+            const isCurrent = monthKey === state.currentMonth;
+            const cached = state.monthDetailCache.get(monthKey);
+            if (!isCurrent && cached) {
+                renderMonthDetail(cached);
+                return;
+            }
+            fetchDashboard(monthKey, { showIndicator: true, refreshCurrent: isCurrent });
+        }
+
+        function renderTotals(totals, scopeLabel = 'All Chats') {
+            const totalChats = totals?.total_chats ?? 0;
+            const avgUserMessages = totals?.avg_user_messages_per_chat;
+
+            metricsTitleEl.textContent = scopeLabel || 'All Chats';
+            totalChatsValueEl.textContent = formatNumber(totalChats);
+            totalChatsCaptionEl.textContent = scopeLabel === 'All Chats' ? 'Across the entire history' : 'Chats for this month';
+            avgUserMessagesEl.textContent = formatDecimal(avgUserMessages);
+        }
+
+        function renderMonthDetail(monthData) {
+            renderTotals(monthData.metrics || {}, monthData.label || 'Selected Month');
+
+            renderDailyChart(monthData.daily_counts || [], monthData.label);
+            currentHourlyCountsBase = monthData.hourly_counts || [];
+            currentChats = Array.isArray(monthData.chats) ? monthData.chats : [];
+            currentMessagesLabel = monthData.label || 'Selected Month';
+            renderWeekdayChart(monthData.weekday_counts || []);
+            renderMessagesWithCurrentFilter();
+            renderHourlyChart(currentHourlyCountsBase, currentMessagesLabel);
+            if (monthData?.month) {
+                state.monthDetailCache.set(monthData.month, monthData);
+            }
+        }
+
+        function renderDailyChart(dailyCounts, label) {
+            if (!dailyCounts.length) {
+                dailyChartCard.hidden = true;
+                return;
+            }
+
+            dailyChartCard.hidden = false;
+            document.getElementById('dailyChartTitle').textContent = `Chats per Day · ${label}`;
+
+            const labels = dailyCounts.map(item => item.label || item.date);
+            const counts = dailyCounts.map(item => item.count ?? 0);
+
+            if (!dailyChart) {
+                dailyChart = new Chart(dailyChartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Chats',
+                                data: counts,
+                                backgroundColor: '#93c5fd',
+                                borderRadius: 6,
+                                hoverBackgroundColor: '#2563eb'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => items?.[0]?.label || '',
+                                    label: item => `${item.formattedValue} chats`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { precision: 0 } }
+                        }
+                    }
+                });
+            } else {
+                dailyChart.data.labels = labels;
+                dailyChart.data.datasets[0].data = counts;
+                dailyChart.update('none');
+            }
+
+            if (dailyChartWrapper.classList.contains('loading-skeleton')) {
+                dailyChartWrapper.classList.remove('loading-skeleton');
+            }
+        }
+
+        function normalizeHourlyCounts(hourlyCounts) {
+            const counts = { ...hourlyCounts };
+            return Array.from({ length: 24 }, (_, hour) => ({
+                hour,
+                label: `${String(hour).padStart(2, '0')}:00`,
+                count: counts[hour] || 0,
+            }));
+        }
+
+        function calculateHourlyCountsFromChats(chats) {
+            const counts = Array(24).fill(0);
+            chats.forEach(chat => {
+                const primaryTimestamp = deriveChatTimestamp(chat) || chat.started_at || chat.ended_at;
+                const date = coerceToDate(primaryTimestamp);
+                if (date) {
+                    counts[date.getHours()]++;
+                }
+            });
+            return counts.map((count, hour) => ({
+                hour,
+                label: `${String(hour).padStart(2, '0')}:00`,
+                count,
+            }));
+        }
+
+        function updateHourlyChartFromFilteredChats() {
+            const hourlyCounts = state.selectedWeekdayIndex === null
+                ? currentHourlyCountsBase
+                : calculateHourlyCountsFromChats(currentFilteredChats);
+            renderHourlyChart(hourlyCounts, currentMessagesLabel);
+        }
+
+        function renderHourlyChart(hourlyCounts, label) {
+            if (!Array.isArray(hourlyCounts)) {
+                hourlyChartCard.hidden = true;
+                return;
+            }
+
+            hourlyChartCard.hidden = false;
+            document.getElementById('hourlyChartTitle').textContent = `Chats per Hour · ${label}`;
+
+            const labels = hourlyCounts.map(item => item.label ?? `${String(item.hour ?? 0).padStart(2, '0')}:00`);
+            const counts = hourlyCounts.map(item => item.count ?? 0);
+
+            if (!hourlyChart) {
+                hourlyChart = new Chart(hourlyChartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Chats',
+                                data: counts,
+                                backgroundColor: '#fed7aa',
+                                borderRadius: 6,
+                                hoverBackgroundColor: '#fb923c'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => items?.[0]?.label || '',
+                                    label: item => `${item.formattedValue} chats`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { precision: 0 } }
+                        }
+                    }
+                });
+            } else {
+                hourlyChart.data.labels = labels;
+                hourlyChart.data.datasets[0].data = counts;
+                hourlyChart.update('none');
+            }
+
+            if (hourlyChartWrapper.classList.contains('loading-skeleton')) {
+                hourlyChartWrapper.classList.remove('loading-skeleton');
+            }
+        }
+
+        function filterChatsByWeekday(chats) {
+            if (state.selectedWeekdayIndex === null) {
+                return Array.isArray(chats) ? [...chats] : [];
+            }
+
+            const base = Array.isArray(chats) ? chats : [];
+            return base.filter(chat => {
+                const primaryTimestamp = deriveChatTimestamp(chat) || chat.started_at || chat.ended_at;
+                const date = coerceToDate(primaryTimestamp);
+                if (!date) {
+                    return false;
+                }
+                const weekdayIndex = (date.getDay() + 6) % 7;
+                return weekdayIndex === state.selectedWeekdayIndex;
+            });
+        }
+
+        function renderMessagesWithCurrentFilter() {
+            const filtered = filterChatsByWeekday(currentChats);
+            const weekdayName = state.selectedWeekdayIndex === null
+                ? null
+                : WEEKDAY_FULL_NAMES[state.selectedWeekdayIndex];
+            renderMessages(filtered, currentMessagesLabel, { weekdayName });
+            currentFilteredChats = filtered;
+            updateHourlyChartFromFilteredChats();
+            updateExportButton();
+        }
+
+        function updateExportButton() {
+            const hasMessages = currentFilteredChats && currentFilteredChats.length > 0;
+            exportButton.disabled = !hasMessages;
+        }
+
+        function exportMessagesToJSON() {
+            if (!currentFilteredChats || currentFilteredChats.length === 0) {
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+
+            let filterPart = '';
+            if (selectedMonthKey) {
+                const cleanMonth = selectedMonthKey.replace(/[^a-zA-Z0-9-]/g, '_');
+                filterPart = cleanMonth;
+
+                if (state.selectedWeekdayIndex !== null) {
+                    const weekdayName = WEEKDAY_FULL_NAMES[state.selectedWeekdayIndex];
+                    filterPart += `_${weekdayName}`;
+                }
+            } else {
+                filterPart = 'all-chats';
+            }
+
+            const filename = `chamaeleon-chats_${filterPart}_${dateStr}.json`;
+
+            // Remove duration_seconds, started_at, and ended_at from chats
+            const cleanedChats = currentFilteredChats.map(chat => {
+                const { duration_seconds, started_at, ended_at, ...cleanChat } = chat;
+                return cleanChat;
+            });
+
+            const exportData = {
+                export_info: {
+                    exported_at: now.toISOString(),
+                    exported_at_human: now.toLocaleString(),
+                    filter: {
+                        month: selectedMonthKey || 'all',
+                        weekday: state.selectedWeekdayIndex !== null
+                            ? WEEKDAY_FULL_NAMES[state.selectedWeekdayIndex]
+                            : 'all'
+                    },
+                    total_chats: currentFilteredChats.length
+                },
+                chats: cleanedChats
+            };
+
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function renderMessages(chats, label, { weekdayName = null } = {}) {
+            const displayLabel = label || 'Selected Month';
+            messagesTitleEl.textContent = `Messages · ${displayLabel}`;
+            if (weekdayName) {
+                messagesSubtitleEl.textContent = `Filtering by ${weekdayName}. Click a weekday bar to change.`;
+            } else {
+                messagesSubtitleEl.textContent = `Showing detailed threads for ${displayLabel.toLowerCase()}.`;
+            }
+            messagesListEl.innerHTML = '';
+
+            if (!chats.length) {
+                const emptyText = weekdayName
+                    ? `No chats recorded on ${weekdayName}.`
+                    : 'No chats recorded during this month.';
+                messagesListEl.innerHTML = `<div class="empty-state">${emptyText}</div>`;
+                return;
+            }
+
+            const orderedChats = Array.isArray(chats) ? [...chats] : [];
+
+            orderedChats.forEach(chat => {
+                const container = document.createElement('article');
+                container.className = 'chat-thread';
+
+                const header = document.createElement('div');
+                header.className = 'chat-header';
+                const title = document.createElement('strong');
+                title.textContent = chat.id ? `Chat ${chat.id.slice(0, 8)}` : 'Chat';
+                header.appendChild(title);
+
+                const meta = document.createElement('div');
+                meta.className = 'chat-meta';
+                const recordedAt = deriveChatTimestamp(chat);
+                if (recordedAt) {
+                    meta.appendChild(createMetaChip(`Logged: ${formatTimestamp(recordedAt)}`));
+                }
+                if (chat.started_at) {
+                    meta.appendChild(createMetaChip(`Start: ${formatTimestamp(chat.started_at)}`));
+                }
+                if (chat.ended_at) {
+                    meta.appendChild(createMetaChip(`End: ${formatTimestamp(chat.ended_at)}`));
+                }
+                if (typeof chat.duration_seconds === 'number' && chat.duration_seconds > 0) {
+                    meta.appendChild(createMetaChip(`Duration: ${formatDuration(chat.duration_seconds)}`));
+                }
+                meta.appendChild(createMetaChip(`User msgs: ${formatNumber(chat.user_message_count ?? 0)}`));
+
+                container.appendChild(header);
+                container.appendChild(meta);
+
+                const messages = Array.isArray(chat.messages) ? chat.messages.filter(isDisplayableMessage) : [];
+                if (!messages.length) {
+                    const emptyMessage = document.createElement('div');
+                    emptyMessage.className = 'message';
+                    const emptyText = document.createElement('p');
+                    emptyText.textContent = 'No displayable messages in this chat.';
+                    emptyMessage.appendChild(emptyText);
+                    container.appendChild(emptyMessage);
+                }
+
+                messages.forEach(message => {
+                    const messageEl = document.createElement('div');
+                    messageEl.className = `message ${message.role || ''}`.trim();
+
+                    const titleEl = document.createElement('h4');
+                    const roleLabel = message.role ? message.role.charAt(0).toUpperCase() + message.role.slice(1) : 'Message';
+                    titleEl.textContent = roleLabel;
+                    if (message.timestamp) {
+                        const timeEl = document.createElement('span');
+                        timeEl.textContent = `· ${formatTimestamp(message.timestamp)}`;
+                        titleEl.appendChild(timeEl);
+                    }
+
+                    const bodyEl = document.createElement('p');
+                    bodyEl.textContent = message.content || '';
+
+                    messageEl.appendChild(titleEl);
+                    messageEl.appendChild(bodyEl);
+                    container.appendChild(messageEl);
+                });
+
+                messagesListEl.appendChild(container);
+            });
+        }
+
+        function clearMonthDetail() {
+            selectedMonthKey = null;
+            dailyChartCard.hidden = true;
+            renderHourlyChart(globalHourlyCounts, 'All Chats');
+            messagesTitleEl.textContent = 'Messages';
+            messagesSubtitleEl.textContent = 'Select a month to see message details.';
+            messagesListEl.innerHTML = '<div class="empty-state">Choose a month to explore its conversations.</div>';
+            currentChats = [];
+            currentMessagesLabel = 'Selected Month';
+            state.selectedWeekdayIndex = null;
+            renderWeekdayChart(globalWeekdayCounts);
+            updateExportButton();
+        }
+
+        function showRefreshIndicator() {
+            refreshIndicator.classList.add('visible');
+        }
+
+        function hideRefreshIndicator() {
+            refreshIndicator.classList.remove('visible');
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            lastUpdatedEl.textContent = `Last updated: ${now.toLocaleString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+                month: 'short',
+                day: 'numeric'
+            })}`;
+        }
+
+        function removeSkeletons() {
+            document.querySelectorAll('.loading-skeleton').forEach(el => el.classList.remove('loading-skeleton'));
+        }
+
+        function showError(message) {
+            metricsErrorEl.textContent = message;
+            metricsErrorEl.hidden = false;
+        }
+
+        function hideError() {
+            metricsErrorEl.hidden = true;
+        }
+
+        function scheduleAutoRefresh() {
+            if (refreshTimerId) {
+                clearInterval(refreshTimerId);
+            }
+            refreshTimerId = setInterval(() => {
+                fetchDashboard(selectedMonthKey, { showIndicator: true });
+            }, REFRESH_INTERVAL_MS);
+        }
+
+        function formatNumber(value) {
+            return new Intl.NumberFormat().format(Math.round(value ?? 0));
+        }
+
+        function formatDecimal(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return '—';
+            }
+            return Number(value).toFixed(1);
+        }
+
+        function formatDuration(seconds) {
+            const totalSeconds = Number(seconds);
+            if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+                return '—';
+            }
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const secs = Math.floor(totalSeconds % 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            }
+            return `${secs}s`;
+        }
+
+        function formatTimestamp(isoString) {
+            const date = coerceToDate(isoString);
+            if (!date) {
+                return isoString ?? '';
+            }
+            return date.toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function createMetaChip(text) {
+            const span = document.createElement('span');
+            span.textContent = text;
+            return span;
+        }
+
+        function coerceToDate(value) {
+            if (!value) {
+                return null;
+            }
+            if (value instanceof Date) {
+                return value;
+            }
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                const timestamp = value < 1e12 ? value * 1000 : value;
+                return new Date(timestamp);
+            }
+            if (typeof value === 'string') {
+                let normalized = value.trim();
+                if (!normalized) {
+                    return null;
+                }
+                if (/^\d{4}-\d{2}-\d{2}\s/.test(normalized)) {
+                    normalized = normalized.replace(' ', 'T');
+                }
+                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {
+                    normalized += 'Z';
+                }
+                const parsed = Date.parse(normalized);
+                if (!Number.isNaN(parsed)) {
+                    return new Date(parsed);
+                }
+            }
+            return null;
+        }
+
+        function deriveChatTimestamp(chat) {
+            if (!chat || typeof chat !== 'object') {
+                return null;
+            }
+            if (chat.chat_timestamp) {
+                return chat.chat_timestamp;
+            }
+            const messages = Array.isArray(chat.messages) ? chat.messages : [];
+            const withTimestamp = messages.find(message => coerceToDate(message?.timestamp));
+            return withTimestamp ? withTimestamp.timestamp : null;
+        }
+
+
+        function isDisplayableMessage(message) {
+            if (!message || typeof message !== 'object') {
+                return false;
+            }
+            if (typeof message.role !== 'string') {
+                return false;
+            }
+            const role = message.role.toLowerCase();
+            if (role !== 'user' && role !== 'assistant') {
+                return false;
+            }
+            if (typeof message.content !== 'string' || !message.content.trim()) {
+                return false;
+            }
+            return true;
+        }
+
+        refreshButton.addEventListener('click', () => {
+            const currentKey = state.currentMonth;
+            state.monthDetailCache.delete(currentKey);
+            fetchDashboard(selectedMonthKey || currentKey, { showIndicator: true, refreshCurrent: true });
+        });
+
+        exportButton.addEventListener('click', () => {
+            exportMessagesToJSON();
+        });
+
+        window.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                fetchDashboard(selectedMonthKey, { showIndicator: true });
+            }
+        });
+
+        const state = {
+            currentMonth: null,
+            trackedMonths: [],
+            monthDetailCache: new Map(),
+            selectedWeekdayIndex: null,
+        };
+
+        fetchDashboard(null, { refreshCurrent: true });
+        scheduleAutoRefresh();
+    </script>
+</body>
+
+</html>
