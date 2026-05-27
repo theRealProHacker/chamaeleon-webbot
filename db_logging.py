@@ -140,6 +140,7 @@ def _load_sessions_from_db() -> None:
         )
     )
 
+
 def _prune_sessions() -> None:
     now = time.time()
     session_cutoff = now - SESSION_EXPIRY_SECONDS
@@ -160,14 +161,6 @@ def _prune_sessions() -> None:
         if session["last_active"] >= message_cutoff:
             break
         session.pop("history", None)
-
-
-def _is_real_msg(msg: Message) -> bool:
-    """Only user and assistant messages"""
-    match msg:
-        case {"role": str(), "content": str(content)} if content.strip():
-            return True
-    return False
 
 
 def _fetch_chat_history(db_id: str, session_id: SessionID) -> ChatHistory:
@@ -275,6 +268,7 @@ def active_session_count() -> int:
     _prune_sessions()
     return len(_sessions)
 
+
 ############## Running #############
 
 ################## Load sessions on import ####################################
@@ -284,6 +278,7 @@ print("Active Sessions:", active_session_count())
 
 ################## Log worker + queue ####################################
 log_queue: queue.Queue = queue.Queue()
+
 
 def _log_worker():
     """Single background thread — processes logging tasks one at a time."""
@@ -297,6 +292,7 @@ def _log_worker():
             print(f"[log_worker] Error: {e}")
         finally:
             log_queue.task_done()
+
 
 # Start exactly ONE worker thread at module load time
 threading.Thread(target=_log_worker, daemon=True, name="log-worker").start()

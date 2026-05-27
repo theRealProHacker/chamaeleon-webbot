@@ -4,12 +4,20 @@ from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
-from agent_base import (GEMINI_API_KEY, chamaeleon_website_tool_base,
-                        country_faq_tool_base, country_faq_tool_description,
-                        detect_recommendation_links, format_system_prompt,
-                        laender_faqs, make_recommend_human_support_base,
-                        make_recommend_trip_base, visa_tool_base,
-                        visa_tool_description, website_tool_description)
+from agent_base import (
+    GEMINI_API_KEY,
+    chamaeleon_website_tool_base,
+    country_faq_tool_base,
+    country_faq_tool_description,
+    detect_recommendation_links,
+    format_system_prompt,
+    laender_faqs,
+    make_recommend_human_support_base,
+    make_recommend_trip_base,
+    visa_tool_base,
+    visa_tool_description,
+    website_tool_description,
+)
 
 # Initialize the model
 model = ChatGoogleGenerativeAI(

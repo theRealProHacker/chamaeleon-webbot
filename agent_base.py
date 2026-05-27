@@ -232,7 +232,7 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators."""
     if url_path.startswith("https://chamaeleon-reisen.de"):
         url_path = url_path[len("https://chamaeleon-reisen.de") :]
-    
+
     if "#" in url_path:
         url_path, _ = url_path.split("#")
     if url_path not in all_sites:
