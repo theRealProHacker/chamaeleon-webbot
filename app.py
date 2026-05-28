@@ -142,15 +142,6 @@ def chat_stream():
 for route, view_func in dashboard.routes:
     app.add_url_rule(route, view_func=view_func)
 
-
-@app.route("/dashboard")
-@app.route("/dashboard/")
-def dashboard_index():
-    return send_from_directory(
-        os.path.join(app.root_path, "static", "dashboard"), "index.html"
-    )
-
-
 # --- End Dashboard routes ---
 
 

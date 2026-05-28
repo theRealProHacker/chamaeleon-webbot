@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from dateutil.parser import isoparse
 from typing import Any, Optional
 
-from flask import request, jsonify
+from flask import request, jsonify, send_from_directory
 
 from db_logging import ChatHistory, Message, supabase
 
@@ -435,6 +435,13 @@ def make_key_chat_history(chat_history: ChatHistory) -> ChatHistory:
     return key_chat_history
 
 
+def dashboard_index():
+    return send_from_directory(
+        "static/dashboard", "index.html"
+    )
+
 routes = [
     ("/api/dashboard", dashboard_data),
+    ("/dashboard", dashboard_index),
+    ("/dashboard/", dashboard_index),
 ]
