@@ -10,8 +10,10 @@ When current month changes, fetch old current month to finalize it, and start tr
 All datetimes in local timezone, i.e. German local time.
 """
 
+import os
 import time
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from zoneinfo import ZoneInfo
 from types import NoneType
 from dateutil.parser import isoparse
@@ -457,11 +459,32 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
 
 month_cache = MonthCache()
 
-# ──────────────────────────────────────────
-# Code
-# ──────────────────────────────────────────
+# Authentication for dashboard routes
+API_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
+API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "change-me")
 
 
+def check_auth(username: str | None, password: str | None) -> bool:
+    return username == API_USERNAME and password == API_PASSWORD
+
+
+def auth_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return (
+                jsonify({"error": "Authentication required"}),
+                401,
+                {"WWW-Authenticate": 'Basic realm="Dashboard", charset="UTF-8"'},
+            )
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+# Routes
+@auth_required
 def dashboard_data():
     """
     General dashboard data endpoint. Returns aggregated stats for all months
@@ -513,6 +536,7 @@ def _dashboard_month(_month_key: MonthKey) -> MonthDetail:
     return month_cache._cache[_month_key]
 
 
+@auth_required
 def dashboard_month(month: MonthKey):
     month_cache.current_month_rollover()  # check if we need to rollover to new month
     if not month:
@@ -523,6 +547,7 @@ def dashboard_month(month: MonthKey):
     return jsonify(_dashboard_month(month))
 
 
+@auth_required
 def dashboard_index():
     return send_from_directory("static/dashboard", "index.html")
 
