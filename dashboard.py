@@ -12,6 +12,7 @@ All datetimes in local timezone, i.e. German local time.
 
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from types import NoneType
 from dateutil.parser import isoparse
 from typing import Any, Literal, NotRequired, Optional, TypedDict
@@ -157,6 +158,8 @@ class DashboardPayload(TypedDict):
 # ──────────────────────────────────────────
 # In-memory cache
 # ──────────────────────────────────────────
+
+tz = ZoneInfo("Europe/Berlin")
 
 
 def month_key(dt: datetime) -> MonthKey:
@@ -403,7 +406,7 @@ class MonthCache:
 
 
 def fetch_month_chats(month_key: MonthKey) -> list[AnyChatRow]:
-    month_start = datetime.strptime(month_key + "-01", "%Y-%m-%d")
+    month_start = datetime.strptime(month_key + "-01", "%Y-%m-%d").replace(tzinfo=tz)
     next_month_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
     rows: list[AnyChatRow] = (
         supabase.table("chats")
