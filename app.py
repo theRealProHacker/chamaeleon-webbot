@@ -56,6 +56,8 @@ def chat_stream():
 
     messages = messages[:]
     logging_messages = messages[-1:]
+    # Set timestamp of user message
+    # logging_messages[0]["timestamp"] = time.time()
 
     assert len(logging_messages) == 1 and logging_messages[0]["role"] == "user"
 
@@ -115,7 +117,6 @@ def chat_stream():
                 # yield f"data: {event_json}\n\n"
 
             log_queue.put(lambda: log_messages(session_id, logging_messages))
-            # logging_old(logging_messages)
 
         except Exception as e:
             print(f"Error in streaming: {e}")

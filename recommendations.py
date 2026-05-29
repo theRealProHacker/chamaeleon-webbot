@@ -1,11 +1,18 @@
 from concurrent.futures import ThreadPoolExecutor
+from typing import TypedDict
 
 from bs4 import BeautifulSoup
 
 from agent_base import BASE_URL, find_trip_site, get_chamaeleon_website_html
 
 
-def make_recommendation_preview(recommendation: str):
+class RecommendationPreview(TypedDict):
+    url: str
+    title: str
+    image: str
+
+
+def make_recommendation_preview(recommendation: str) -> RecommendationPreview | None:
     """
     This is where we gather the preview information that is necessary for the preview.
     The frontend is still responsible for displaying the preview with nice HTML.
@@ -30,7 +37,7 @@ def make_recommendation_preview(recommendation: str):
         title_text = soup.find("title").get_text(strip=True).split("-")[0].strip()  # type: ignore
         if len(title_text.split()) > 5:
             title_text = recommendation.split("/")[-1].replace("-ALL", "")
-        image_url = soup.find("meta", property="og:image")["content"]  # type: ignore
+        image_url: str = soup.find("meta", property="og:image")["content"]  # type: ignore
 
         return {
             "url": BASE_URL + site + target,
@@ -49,7 +56,7 @@ def make_recommendation_previews_async(recommendations):
     if not recommendations:
         return []
 
-    with ThreadPoolExecutor(max_workers=len(recommendations)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(recommendations), 8)) as executor:
         # Submit all preview generation tasks
         future_to_rec = {
             executor.submit(make_recommendation_preview, rec): rec

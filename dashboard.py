@@ -1,447 +1,536 @@
-import html.entities
-import os
-import re
+"""
+Following idea:
+- On startup, load all chats from the DB and analyze them, storing results in an in-memory cache grouped by month.
+- When the dashboard requests data for a month, serve from cache if available and not expired;
+
+Only current month can expire, past months are static once loaded. When current month expires, only re-fetch current month to update it, not everything.
+
+When current month changes, fetch old current month to finalize it, and start tracking new current month.
+
+All datetimes in local timezone, i.e. German local time.
+"""
+
 import time
-from calendar import day_name
 from datetime import datetime, timedelta, timezone
+from types import NoneType
 from dateutil.parser import isoparse
-from typing import Any, Optional
+from typing import Any, Literal, NotRequired, Optional, TypedDict
 
 from flask import request, jsonify, send_from_directory
 
-from db_logging import ChatHistory, Message, supabase
+from db_logging import ChatHistory, Message, _message_bounds, supabase, DEBUG
 
-chat_cache: dict[str, tuple[str, ChatHistory, float]] = {}
-CACHE_START_MONTH = datetime(2025, 9, 1, tzinfo=timezone.utc)
-CACHE_EXPIRY_SECONDS = 5 * 60
-month_cache: dict[str, dict[str, Any]] = {}
+DAY_NAME = [
+    "Montag",
+    "Dienstag",
+    "Mittwoch",
+    "Donnerstag",
+    "Freitag",
+    "Samstag",
+    "Sonntag",
+]
 
-
-def is_real_msg(msg: Message):
-    return "role" in msg and "content" in msg
-
-
-def parse_iso_datetime(value: Any) -> Optional[datetime]:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, (int, float)):
-        seconds = float(value)
-        if seconds > 1e12:
-            seconds /= 1000
-        return datetime.fromtimestamp(seconds, tz=timezone.utc)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            dt = isoparse(text)
-        except (ValueError, TypeError):
-            return None
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
-    return None
+GERMAN_MONTHS: list[str] = [
+    "",
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+]
 
 
-def month_key_from_datetime(dt: datetime) -> str:
+class OldMessage(TypedDict):
+    role: NotRequired[str]
+    content: str
+    data: NotRequired[Any]
+    type: NotRequired[str]
+
+
+type AnyMessage = OldMessage | Message
+
+# ──────────────────────────────────────────
+# Supabase DB row  (what .select("*") returns)
+# ──────────────────────────────────────────
+
+
+class OldChatRow(TypedDict):
+    id: str  # uuid primary key
+    messages: list[OldMessage]
+    timestamp: str  # ISO-8601 string from Postgres
+    session_id: NoneType
+
+
+class ChatRow(TypedDict):
+    id: str  # uuid primary key
+    messages: ChatHistory
+    timestamp: str  # ISO-8601 string from Postgres
+    session_id: str
+
+
+type AnyChatRow = OldChatRow | ChatRow
+
+
+# ──────────────────────────────────────────
+# Dashboard API payload
+# ──────────────────────────────────────────
+
+MonthKey = str  # "2025-09"
+
+type Day = int  # 1–31
+# type Hour = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+type Hour = int  # 0–23
+# type Weekday = Literal[0, 1, 2, 3, 4, 5, 6]
+type Weekday = int  # 0–6, where 0=Monday, 6=Sunday
+
+
+# class FrontendMessage(TypedDict):
+#     role: str
+#     content: str | list
+#     url: NotRequired[str]
+#     timestamp: NotRequired[str]
+
+
+class ChatDetail(TypedDict):
+    id: str | None
+    chat_timestamp: str | None
+    # ISO strings for JSON serialization
+    started_at: NotRequired[str]
+    ended_at: NotRequired[str]
+    duration_seconds: NotRequired[float]
+    user_message_count: int
+    messages: list[AnyMessage]
+
+
+class WeekdayCount(TypedDict):
+    weekday: str  # "Monday"
+    short_label: str  # "Mon"
+    count: int
+
+
+class HourlyCount(TypedDict):
+    hour: int  # 0–23
+    label: str  # "09:00"
+    count: int
+
+
+class DailyCount(TypedDict):
+    date: str  # "2025-09-14"
+    label: str  # "14 Sep"
+    count: int
+
+
+class MonthlySummary(TypedDict):
+    key: MonthKey
+    label: str
+    count: int
+
+
+class MonthDetail(TypedDict):
+    month: str
+    label: str
+    total_chats: int
+    avg_user_messages_per_chat: float
+    daily_counts: list[DailyCount]
+    hourly_counts: list[HourlyCount]
+    weekday_counts: list[WeekdayCount]
+    chats: Optional[list[ChatDetail]]
+
+
+class DashboardPayload(TypedDict):
+    # general
+    total_chats: int
+    avg_user_messages_per_chat: float
+    hourly_counts: list[HourlyCount]
+    weekday_counts: list[WeekdayCount]
+    monthly_summary: list[MonthlySummary]
+    current_month: MonthKey
+
+
+# ──────────────────────────────────────────
+# In-memory cache
+# ──────────────────────────────────────────
+
+
+def month_key(dt: datetime) -> MonthKey:
     return dt.strftime("%Y-%m")
 
 
-def get_current_month_start() -> datetime:
-    now = datetime.now(timezone.utc)
-    return datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+def build_hourly_count(hour: int, count: int) -> HourlyCount:
+    return {"hour": hour, "label": f"{hour:02d}:00", "count": count}
 
 
-def iterate_month_keys(start: datetime, end: datetime) -> list[str]:
-    keys: list[str] = []
-    pointer = datetime(start.year, start.month, 1, tzinfo=timezone.utc)
-    limit = datetime(end.year, end.month, 1, tzinfo=timezone.utc)
-    while pointer <= limit:
-        keys.append(month_key_from_datetime(pointer))
-        if pointer.month == 12:
-            pointer = datetime(pointer.year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            pointer = datetime(pointer.year, pointer.month + 1, 1, tzinfo=timezone.utc)
-    return keys
-
-
-def get_tracked_month_keys() -> list[str]:
-    current_start = get_current_month_start()
-    start = CACHE_START_MONTH
-    if current_start < start:
-        return [month_key_from_datetime(current_start)]
-    return iterate_month_keys(start, current_start)
-
-
-def prune_month_cache(valid_keys: list[str]) -> None:
-    for key in list(month_cache.keys()):
-        if key not in valid_keys:
-            month_cache.pop(key, None)
-
-
-def analyze_chat(chat: dict[str, Any]) -> dict[str, Any]:
-    messages = chat.get("messages") or []
-
-    parsed_messages: list[dict[str, Any]] = []
-    first_ts: Optional[datetime] = None
-    last_ts: Optional[datetime] = None
-
-    for message in messages:
-        msg_ts = parse_iso_datetime(message.get("timestamp"))
-        if msg_ts is not None:
-            if first_ts is None or msg_ts < first_ts:
-                first_ts = msg_ts
-            if last_ts is None or msg_ts > last_ts:
-                last_ts = msg_ts
-        parsed_messages.append(
-            {
-                "role": message.get("role"),
-                "content": message.get("content"),
-                "timestamp": msg_ts,
-            }
-        )
-
-    chat_ts = parse_iso_datetime(chat.get("timestamp") or chat.get("chat_timestamp"))
-    if chat_ts is None:
-        chat_ts = first_ts or last_ts
-
-    has_duration = first_ts is not None and last_ts is not None and first_ts < last_ts
-    duration_seconds = (last_ts - first_ts).total_seconds() if has_duration else 0.0
-
+def build_weekday_count(weekday: int, count: int) -> WeekdayCount:
     return {
-        "id": chat.get("id"),
-        "chat_timestamp": chat_ts,
-        "start_ts": first_ts,
-        "end_ts": last_ts,
-        "duration_seconds": duration_seconds,
-        "has_duration": has_duration,
-        "user_message_count": sum(1 for msg in messages if msg.get("role") == "user"),
-        "messages": parsed_messages,
+        "weekday": DAY_NAME[weekday],
+        "short_label": DAY_NAME[weekday][:3],
+        "count": count,
     }
 
 
-def format_month_label(month_key: str) -> str:
-    try:
-        dt = datetime.strptime(month_key, "%Y-%m")
-        return dt.strftime("%B %Y")
-    except ValueError:
-        return month_key
-
-
-def get_month_bounds(month_key: str) -> tuple[datetime, datetime]:
-    dt = datetime.strptime(month_key, "%Y-%m")
-    start = datetime(dt.year, dt.month, 1, tzinfo=timezone.utc)
-    if dt.month == 12:
-        end = datetime(dt.year + 1, 1, 1, tzinfo=timezone.utc)
-    else:
-        end = datetime(dt.year, dt.month + 1, 1, tzinfo=timezone.utc)
-    return start, end
-
-
-def build_monthly_summary(
-    analyses_by_month: dict[str, list[dict[str, Any]]], month_keys: list[str]
-) -> list[dict[str, Any]]:
-    return [
-        {
-            "key": month,
-            "label": format_month_label(month),
-            "count": len(analyses_by_month.get(month, [])),
-        }
-        for month in month_keys
-    ]
-
-
-def compute_totals(analyses: list[dict[str, Any]]) -> dict[str, Any]:
-    total_chats = len(analyses)
-    total_user_messages = sum(
-        analysis.get("user_message_count", 0) for analysis in analyses
-    )
-    avg_user_messages = total_user_messages / total_chats if total_chats else 0.0
+def build_daily_count(day: int, month_key: MonthKey, count: int) -> DailyCount:
+    month = int(month_key[5:7])
     return {
-        "total_chats": total_chats,
-        "avg_user_messages_per_chat": avg_user_messages,
+        "date": f"{month_key}-{day:02d}",
+        "label": f"{day} {GERMAN_MONTHS[month]}",
+        "count": count,
     }
 
 
-def build_weekday_counts(analyses: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    counts: dict[int, int] = {idx: 0 for idx in range(7)}
-    for analysis in analyses:
-        timestamp = (
-            analysis.get("chat_timestamp")
-            or analysis.get("start_ts")
-            or analysis.get("end_ts")
+def is_user(message: AnyMessage) -> bool:
+    return "role" in message and message["role"] == "user"
+
+
+class MonthCache:
+    START_MONTH = datetime(2025, 9, 1)
+    EXPIRY_SECONDS = 5 * 60  # 5 minutes
+    _cache: dict[MonthKey, MonthDetail]
+    current_month: MonthKey
+    last_fetched_current_month: float
+
+    total_chats: int
+    total_user_messages: int
+    hourly_counts: list[int]
+    weekday_counts: list[int]
+
+    def __init__(self):
+        self._cache = {}
+        self.current_month = month_key(self.current_month_start())
+        self.last_fetched_current_month = 0.0
+        self.total_chats = 0
+        self.total_user_messages = 0
+        self.hourly_counts = [0] * 24
+        self.weekday_counts = [0] * 7
+
+    @property
+    def avg_user_messages_per_chat(self) -> float:
+        return (
+            self.total_user_messages / self.total_chats if self.total_chats > 0 else 0.0
         )
-        if isinstance(timestamp, datetime):
-            counts[timestamp.weekday()] += 1
 
-    return [
-        {
-            "weekday": day_name[idx],
-            "short_label": day_name[idx][:3],
-            "count": counts[idx],
+    @property
+    def expired(self) -> bool:
+        now = time.time()
+        return now - self.last_fetched_current_month > self.EXPIRY_SECONDS
+
+    def load_all(self):
+        # fetch everything
+        # TODO: long term: stream this if it gets too big, or do it in batches by month
+        rows: list[AnyChatRow] = supabase.table("chats").select("*").execute().data  # type: ignore
+
+        if DEBUG:
+            print(
+                f"Fetched {len(rows)} chat rows from Supabase for cache initialization"
+            )
+
+        # setup month grouping
+        month_rows: dict[
+            MonthKey,
+            list[AnyChatRow],
+        ] = {}
+
+        # group rows by month
+        for row in rows:
+            timestamp = isoparse(row["timestamp"])
+            _month_key = month_key(timestamp)
+
+            month_rows.setdefault(_month_key, []).append(row)
+
+        # setup counting
+        self.total_chats = 0
+        self.total_user_messages = 0
+        # count together mounths
+        for _month_key, _rows in month_rows.items():
+            _total_count, _user_message_count, hourly_counts, _, weekday_counts = (
+                self.compute_month(_rows, _month_key)
+            )
+
+            # update counts
+            self.total_chats += _total_count
+            self.total_user_messages += _user_message_count
+            for hour, count in hourly_counts.items():
+                self.hourly_counts[hour] += count
+            for weekday, count in weekday_counts.items():
+                self.weekday_counts[weekday] += count
+
+        self.last_fetched_current_month = time.time()
+
+    def compute_month(
+        self, rows: list[AnyChatRow], _month_key: MonthKey
+    ) -> tuple[int, int, dict[Hour, int], dict[Day, int], dict[Weekday, int]]:
+        (
+            total_count,
+            user_message_count,
+            hourly_count,
+            daily_count,
+            weekday_count,
+        ) = (0, 0, {h: 0 for h in range(24)}, {}, {wd: 0 for wd in range(7)})
+
+        for row in rows:
+            timestamp = isoparse(row["timestamp"])
+            day, hour, weekday = timestamp.day, timestamp.hour, timestamp.weekday()
+            total_count += 1
+            try:
+                user_message_count += sum(1 for m in row["messages"] if is_user(m))
+            except (KeyError, TypeError):
+                print(row["messages"])
+                continue
+            hourly_count[hour] += 1
+            daily_count[day] = daily_count.get(day, 0) + 1
+            weekday_count[weekday] += 1
+
+        for day in range(1, max(daily_count.keys(), default=0) + 1):
+            daily_count.setdefault(day, 0)
+
+        self._cache[_month_key] = {
+            "month": _month_key,
+            "label": f"{GERMAN_MONTHS[int(_month_key[5:7])]} {_month_key[:4]}",
+            "total_chats": total_count,
+            "avg_user_messages_per_chat": (
+                user_message_count / total_count if total_count > 0 else 0.0
+            ),
+            "daily_counts": [
+                build_daily_count(day, _month_key, count)
+                for day, count in sorted(daily_count.items())
+            ],
+            "hourly_counts": [
+                build_hourly_count(hour, count)
+                for hour, count in sorted(hourly_count.items())
+            ],
+            "weekday_counts": [
+                build_weekday_count(weekday, count)
+                for weekday, count in sorted(weekday_count.items())
+            ],
+            "chats": None,
         }
-        for idx in range(7)
-    ]
 
-
-def build_daily_counts(
-    analyses: list[dict[str, Any]], start: datetime, end: datetime
-) -> list[dict[str, Any]]:
-    pointer = start
-    buckets: dict[str, dict[str, Any]] = {}
-    while pointer < end:
-        key = pointer.strftime("%Y-%m-%d")
-        buckets[key] = {
-            "date": key,
-            "label": pointer.strftime("%d %b"),
-            "count": 0,
-        }
-        pointer += timedelta(days=1)
-
-    for analysis in analyses:
-        ts = analysis.get("chat_timestamp") or analysis.get("start_ts")
-        if not isinstance(ts, datetime):
-            continue
-        if ts < start or ts >= end:
-            continue
-        key = ts.strftime("%Y-%m-%d")
-        if key in buckets:
-            buckets[key]["count"] += 1
-
-    return list(buckets.values())
-
-
-def build_hourly_counts(analyses: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    counts = {hour: 0 for hour in range(24)}
-    for analysis in analyses:
-        timestamp = (
-            analysis.get("chat_timestamp")
-            or analysis.get("start_ts")
-            or analysis.get("end_ts")
+        return (
+            total_count,
+            user_message_count,
+            hourly_count,
+            daily_count,
+            weekday_count,
         )
-        if isinstance(timestamp, datetime):
-            hour = timestamp.hour
-            counts[hour] += 1
 
-    return [
-        {
-            "hour": hour,
-            "label": f"{hour:02d}:00",
-            "count": counts[hour],
-        }
-        for hour in range(24)
-    ]
+    def update_current_month(
+        self, include_chats: bool = False
+    ) -> None | list[ChatDetail]:
+        """
+        If you call this, first check if it is actually expired.
+        """
+        # assert self.current_month in self._cache, "Current month not in cache, cannot update"
+        if self.current_month not in self._cache:
+            return self.add_month(self.current_month)
+        cache_entry = self._cache[self.current_month]
+        now = time.time()
+        # subtract old current month counts from totals before re-fetching
+        self.total_chats -= cache_entry["total_chats"]
+        self.total_user_messages -= round(
+            cache_entry["avg_user_messages_per_chat"] * cache_entry["total_chats"]
+        )
+        for hourly, count in enumerate(cache_entry["hourly_counts"]):
+            self.hourly_counts[hourly] -= count["count"]
+        for weekday, count in enumerate(cache_entry["weekday_counts"]):
+            self.weekday_counts[weekday] -= count["count"]
 
+        # re-fetch current month data from DB
+        rows = fetch_month_chats(self.current_month)
+        # analyze and update cache for current month
+        (
+            total_count,
+            user_message_count,
+            hourly_count,
+            _,
+            weekday_count,
+        ) = self.compute_month(rows, self.current_month)
+        if include_chats:
+            chats = self._cache[self.current_month]["chats"] = analyse_chats(rows)
 
-def iso_or_none(value: Optional[datetime]) -> Optional[str]:
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, str):
-        return value
-    return None
+        # update total counts and averages
+        self.total_chats += total_count
+        self.total_user_messages += user_message_count
+        for hour, count in sorted(hourly_count.items()):
+            self.hourly_counts[hour] += count
+        for weekday, count in sorted(weekday_count.items()):
+            self.weekday_counts[weekday] += count
 
+        self.last_fetched_current_month = now
 
-def chat_detail_sort_key(item: dict[str, Any]) -> datetime:
-    for candidate in (
-        item.get("ended_at"),
-        item.get("chat_timestamp"),
-        item.get("started_at"),
-    ):
-        parsed = parse_iso_datetime(candidate)
-        if parsed is not None:
-            return parsed
-    return datetime.min.replace(tzinfo=timezone.utc)
+        if include_chats:
+            return chats
 
+    def current_month_rollover(self):
+        """
+        Checks if current month has changed, and if so, finalizes old month and starts tracking new month.
+        """
+        new_current_month = month_key(self.current_month_start())
+        if new_current_month == self.current_month:
+            return
 
-def build_month_detail(
-    month_analyses: list[dict[str, Any]], month_key: str
-) -> dict[str, Any]:
-    start, end = get_month_bounds(month_key)
-    metrics = compute_totals(month_analyses)
-    daily_counts = build_daily_counts(month_analyses, start, end)
-    hourly_counts = build_hourly_counts(month_analyses)
-    weekday_counts = build_weekday_counts(month_analyses)
+        # finalize old month
+        self.update_current_month(include_chats=False)
+        # start tracking new month
+        self.add_month(new_current_month)
 
-    chat_details = []
-    for analysis in month_analyses:
-        messages_payload = [
+    def add_month(self, new_current_month: MonthKey):
+        self.current_month = new_current_month
+        self._cache.setdefault(
+            self.current_month,
             {
-                "role": message.get("role"),
-                "content": message.get("content"),
-                "timestamp": iso_or_none(message.get("timestamp")),
-            }
-            for message in analysis.get("messages", [])
-        ]
-        chat_details.append(
-            {
-                "id": analysis.get("id"),
-                "chat_timestamp": iso_or_none(analysis.get("chat_timestamp")),
-                "started_at": iso_or_none(analysis.get("start_ts")),
-                "ended_at": iso_or_none(analysis.get("end_ts")),
-                "duration_seconds": analysis.get("duration_seconds", 0.0),
-                "user_message_count": analysis.get("user_message_count", 0),
-                "messages": messages_payload,
-            }
+                "month": self.current_month,
+                "label": f"{GERMAN_MONTHS[int(self.current_month[5:7])]} {self.current_month[:4]}",
+                "total_chats": 0,
+                "avg_user_messages_per_chat": 0.0,
+                "daily_counts": [],
+                "hourly_counts": [],
+                "weekday_counts": [],
+                "chats": None,
+            },
         )
+        return self.update_current_month(include_chats=False)
 
-    chat_details.sort(key=chat_detail_sort_key, reverse=True)
-
-    return {
-        "month": month_key,
-        "label": format_month_label(month_key),
-        "metrics": metrics,
-        "daily_counts": daily_counts,
-        "hourly_counts": hourly_counts,
-        "weekday_counts": weekday_counts,
-        "chats": chat_details,
-    }
+    @staticmethod
+    def current_month_start() -> datetime:
+        now = datetime.now()
+        return datetime(now.year, now.month, 1)
 
 
-def fetch_chats_for_month(month_key: str) -> list[dict[str, Any]]:
-    start, end = get_month_bounds(month_key)
-    response = (
+def fetch_month_chats(month_key: MonthKey) -> list[AnyChatRow]:
+    month_start = datetime.strptime(month_key + "-01", "%Y-%m-%d")
+    next_month_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    rows: list[AnyChatRow] = (
         supabase.table("chats")
         .select("*")
-        .gte("timestamp", start.isoformat())
-        .lt("timestamp", end.isoformat())
+        .gte("timestamp", month_start.isoformat())
+        .lt("timestamp", next_month_start.isoformat())
+        .order("timestamp", desc=True)
         .execute()
+        .data  # type: ignore
     )
-    data = response.data
-    if not data:
-        return []
-    return list(data)
+    return rows
 
 
-def load_month_analyses(
-    month_key: str, *, force_refresh: bool = False
-) -> list[dict[str, Any]]:
-    record = month_cache.get(month_key)
-    if record and not force_refresh:
-        is_current_month = month_key == month_key_from_datetime(
-            get_current_month_start()
-        )
-        if not is_current_month:
-            return record["analyses"]
-        if time.time() - record.get("fetched_at", 0) < CACHE_EXPIRY_SECONDS:
-            return record["analyses"]
+def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
+    details: list[ChatDetail] = []
+    for row in rows:
+        # read values from row
+        db_id = row["id"]
+        messages = row["messages"]
+        if not messages:
+            continue
+        timestamp = row["timestamp"]
+        session_id = row["session_id"]
+        # number of user messages
+        user_message_count = sum(1 for m in messages if is_user(m))
+        detail: ChatDetail = {
+            "id": db_id,
+            "chat_timestamp": timestamp,
+            "user_message_count": user_message_count,
+            "messages": messages,  # type: ignore
+            # "html": False,
+        }
+        details.append(detail)
+        if session_id is None:
+            continue
+        # Only new chats after here
+        _row: ChatRow = row  # type: ignore
+        messages = _row["messages"]
+        detail["id"] = session_id
+        # detail["html"] = True
+        start_ts, end_ts = _message_bounds(messages)
+        detail["started_at"] = datetime.fromtimestamp(start_ts).isoformat()
+        detail["ended_at"] = datetime.fromtimestamp(end_ts).isoformat()
+        detail["duration_seconds"] = end_ts - start_ts
 
-    chats = fetch_chats_for_month(month_key)
-    analyses = [analyze_chat(chat) for chat in chats]
-    analyses.sort(
-        key=lambda item: item.get("chat_timestamp")
-        or datetime.min.replace(tzinfo=timezone.utc)
-    )
-    month_cache[month_key] = {
-        "analyses": analyses,
-        "fetched_at": time.time(),
-    }
-    return analyses
+    return details
 
 
-def build_dashboard_payload(
-    month_key: Optional[str], refresh_current: bool
-) -> dict[str, Any]:
-    tracked_keys = get_tracked_month_keys()
-    prune_month_cache(tracked_keys)
-    current_month_key = month_key_from_datetime(get_current_month_start())
+month_cache = MonthCache()
 
-    analyses_by_month: dict[str, list[dict[str, Any]]] = {}
-    for key in tracked_keys:
-        force = refresh_current and key == current_month_key
-        analyses_by_month[key] = load_month_analyses(key, force_refresh=force)
-
-    chart_keys = tracked_keys[-12:]
-    monthly_summary = build_monthly_summary(analyses_by_month, chart_keys)
-    all_analyses = [
-        analysis for key in tracked_keys for analysis in analyses_by_month.get(key, [])
-    ]
-    totals = compute_totals(all_analyses)
-    weekday_counts = build_weekday_counts(all_analyses)
-    hourly_counts = build_hourly_counts(all_analyses)
-
-    selected_key = month_key or None
-    if selected_key == "current":
-        selected_key = current_month_key
-    if selected_key not in tracked_keys:
-        selected_key = None
-
-    selected_month_payload = None
-    if selected_key:
-        selected_month_payload = build_month_detail(
-            analyses_by_month.get(selected_key, []), selected_key
-        )
-
-    return {
-        "monthly_summary": monthly_summary,
-        "totals": totals,
-        "selected_month": selected_month_payload,
-        "current_month": current_month_key,
-        "tracked_months": tracked_keys,
-        "weekday_counts": weekday_counts,
-        "hourly_counts": hourly_counts,
-    }
+# ──────────────────────────────────────────
+# Code
+# ──────────────────────────────────────────
 
 
 def dashboard_data():
-    month_key = request.args.get("month")
-    refresh_current = request.args.get("refreshCurrent", "").lower() in {
-        "1",
-        "true",
-        "yes",
-        "y",
+    """
+    General dashboard data endpoint. Returns aggregated stats for all months
+    """
+
+    month_cache.current_month_rollover()
+
+    if month_cache.expired:
+        month_cache.update_current_month(include_chats=True)
+
+    payload: DashboardPayload = {
+        "total_chats": month_cache.total_chats,
+        "avg_user_messages_per_chat": month_cache.avg_user_messages_per_chat,
+        "hourly_counts": [
+            build_hourly_count(hour, count)
+            for hour, count in enumerate(month_cache.hourly_counts)
+        ],
+        "weekday_counts": [
+            {
+                "weekday": DAY_NAME[weekday],
+                "short_label": DAY_NAME[weekday][:3],
+                "count": count,
+            }
+            for weekday, count in enumerate(month_cache.weekday_counts)
+        ],
+        "monthly_summary": [
+            {
+                "key": month,
+                "label": cache_entry["label"],
+                "count": cache_entry["total_chats"],
+            }
+            for month, cache_entry in sorted(month_cache._cache.items())
+        ],
+        "current_month": month_cache.current_month,
     }
-    payload = build_dashboard_payload(month_key, refresh_current)
+
     return jsonify(payload)
 
 
-def gen_key(chat_history: ChatHistory):
-    # filter for messages
-    return ";".join(
-        (msg["role"] + ": " + msg["content"])
-        for msg in chat_history
-        if is_real_msg(msg)
-    )
+def _dashboard_month(_month_key: MonthKey) -> MonthDetail:
+    """
+    Endpoint for fetching detailed data for a specific month, including individual chats.
+    """
+    if _month_key == month_cache.current_month and month_cache.expired:
+        month_cache.update_current_month(include_chats=True)
+    elif not month_cache._cache[_month_key]["chats"]:
+        rows = fetch_month_chats(_month_key)
+        month_cache._cache[_month_key]["chats"] = analyse_chats(rows)
+    return month_cache._cache[_month_key]
 
 
-html_tag_pattern = re.compile(r"<.*?>")
+def dashboard_month(month: MonthKey):
+    month_cache.current_month_rollover()  # check if we need to rollover to new month
+    if not month:
+        return jsonify({"error": "Missing 'month' query parameter"}), 400
+    elif month not in month_cache._cache:
+        return jsonify({"error": f"Month '{month}' not found in cache"}), 404
 
-
-def clean_html_tags(text: str) -> str:
-    for key, val in reversed(html.entities.html5.items()):
-        # if "quot" in key.lower():
-        #     text = text.replace("&quot;", '"')
-        #     continue
-        text = text.replace("&" + key, val)
-    return html_tag_pattern.sub("", text)
-
-
-def clean_chat_history(chat_history: ChatHistory) -> ChatHistory:
-    return [
-        {"role": msg["role"], "content": clean_html_tags(msg["content"])}
-        if is_real_msg(msg)
-        else msg
-        for msg in chat_history
-    ]
-
-
-def make_key_chat_history(chat_history: ChatHistory) -> ChatHistory:
-    key_chat_history = chat_history[:]
-    while True:
-        msg = key_chat_history.pop()
-        if is_real_msg(msg) and msg["role"] == "user":
-            break
-    return key_chat_history
+    return jsonify(_dashboard_month(month))
 
 
 def dashboard_index():
-    return send_from_directory(
-        "static/dashboard", "index.html"
-    )
+    return send_from_directory("static/dashboard", "index.html")
 
+
+# Load cache on startup
+month_cache.load_all()
+
+# Define dashboard routes
 routes = [
     ("/api/dashboard", dashboard_data),
+    ("/api/dashboard/<string:month>", dashboard_month),
     ("/dashboard", dashboard_index),
     ("/dashboard/", dashboard_index),
 ]

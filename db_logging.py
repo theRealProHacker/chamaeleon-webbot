@@ -11,6 +11,8 @@ from supabase import Client, create_client
 
 load_dotenv()
 
+DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+
 _url = os.environ.get("SUPABASE_URL")
 _key = os.environ.get("SUPABASE_KEY")
 assert _url and _key, (
@@ -20,9 +22,9 @@ supabase: Client = create_client(_url, _key)
 
 
 class Message(TypedDict):
-    role: str
+    role: str  # type: Literal["user", "assistant", "recommendation_previews"]
     content: str | list
-    url: str
+    url: NotRequired[str]  # currently not on user messages for some reason
     timestamp: float
 
 
@@ -47,9 +49,18 @@ SESSION_EXPIRY_SECONDS = 7 * 24 * 60 * 60  # 7 days
 
 
 def _message_bounds(messages: ChatHistory) -> tuple[float, float]:
+    """
+    Necessary because some messages might not have timestamps. Somehow our user messages.
+    """
     if not messages:
         raise RuntimeError("Cannot derive session bounds from an empty message list")
-    return messages[0]["timestamp"], messages[-1]["timestamp"]
+    first = 0
+    for message in messages:
+        if "timestamp" in message:
+            first = message["timestamp"]
+            break
+    # last message always has timestamp because it's either bot or recommendation_previews
+    return first, messages[-1]["timestamp"]
 
 
 T = TypeVar("T")
@@ -225,7 +236,7 @@ def log_messages(session_id: SessionID, messages: ChatHistory) -> None:
 
         db_id: str = first_row["id"]  # type: ignore
 
-        if "localhost" in LOGGING_URL:
+        if DEBUG:
             print(f"Inserted chat log: {db_id} with messages: {messages}")
 
         now = time.time()
@@ -296,37 +307,3 @@ def _log_worker():
 
 # Start exactly ONE worker thread at module load time
 threading.Thread(target=_log_worker, daemon=True, name="log-worker").start()
-
-######## Old Logging ####################################
-
-import json
-
-import requests
-from requests.auth import HTTPBasicAuth
-
-LOGGING_URL = os.environ.get("LOGGING_URL", "http://localhost:5000/log")
-LOGGING_USERNAME = os.environ.get("LOGGING_USERNAME")
-LOGGING_PASSWORD = os.environ.get("LOGGING_PASSWORD")
-
-
-def logging_old(logging_messages):
-    if "localhost" in LOGGING_URL:
-        return
-    # Add authentication if not localhost
-    auth = None
-    if (
-        "localhost" not in LOGGING_URL
-        and "127.0.0.1" not in LOGGING_URL
-        and LOGGING_USERNAME
-        and LOGGING_PASSWORD
-    ):
-        auth = HTTPBasicAuth(LOGGING_USERNAME, LOGGING_PASSWORD)
-
-    response = requests.post(
-        LOGGING_URL,
-        data=json.dumps(logging_messages),
-        headers={"Content-Type": "application/json"},
-        auth=auth,
-    )
-    if response.status_code != 200:
-        print(f"Error logging messages: {response.text}")
