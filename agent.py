@@ -1,3 +1,5 @@
+import re
+
 import mistune
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
@@ -83,6 +85,22 @@ def convert_messages_to_langchain(messages: list) -> list:
         elif msg["role"] == "assistant":
             chat_history.append(AIMessage(content=msg["content"]))
     return chat_history
+
+
+# Single '*' between two word characters is the German Genderstern (e.g.
+# "Berater*innen"), not Markdown emphasis. Escape it so mistune doesn't render
+# the text between two such stars as italics, but only outside HTML tags so
+# that '*' inside e.g. an href stays untouched.
+_genderstern_pattern = re.compile(r"(?<=\w)\*(?=\w)")
+_html_tag_pattern = re.compile(r"(<[^>]*>)")
+
+
+def escape_genderstern(text: str) -> str:
+    """Escape Genderstern asterisks outside HTML tags before Markdown rendering."""
+    parts = _html_tag_pattern.split(text)
+    for i in range(0, len(parts), 2):  # even indices are text outside tags
+        parts[i] = _genderstern_pattern.sub(r"\\*", parts[i])
+    return "".join(parts)
 
 
 def call_stream(
@@ -188,6 +206,9 @@ def call_stream(
 
         # Extract recommendations
         recommendations.update(detect_recommendation_links(reply))
+
+        # Genderstern (z.B. "Berater*innen") nicht als Markdown-Kursiv rendern
+        reply = escape_genderstern(reply)
 
         reply = mistune.markdown(
             reply, escape=False
