@@ -10,6 +10,7 @@ from flask_cors import CORS
 
 from agent import call_stream
 import dashboard
+import rate_limit
 from db_logging import Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
@@ -38,8 +39,13 @@ CORS(
 )
 
 
+# Rate limiting (flask-limiter): keyed by client IP, loopback (dev) exempt.
+limiter = rate_limit.init_app(app)
+
+
 # --- Streaming Chatbot API Endpoint ---
 @app.route("/chat/stream", methods=["POST"])
+@limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
 def chat_stream():
     data = request.get_json()
     session_id = data.get("session_id")
