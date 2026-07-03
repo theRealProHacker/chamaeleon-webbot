@@ -440,7 +440,7 @@ Der Kunde befindet sich gerade auf folgender Webseite: {{endpoint}}. Gehe davon 
 """.strip()
 
 # URL patterns for link processing
-site_link_pattern = re.compile(r"(?:/[a-zA-Z\-\_]+)*")
+site_link_pattern = re.compile(r"(?:/[a-zA-Z0-9\-\_]+)*")
 assert all(site_link_pattern.match(url) for url in all_sites)
 url_pattern = re.compile(
     r"\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))"
@@ -473,7 +473,7 @@ def detect_recommendation_links(reply: str) -> set[str]:
         if link in trip_sites:
             # check if the link is to #termine
             _, end = match.span(0)
-            if len(reply) > end + 9 and reply[end : end + 8] == "#termine":
+            if reply[end : end + 8] == "#termine":
                 link += "#termine"
             links.add(link)
     return links
