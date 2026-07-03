@@ -11,6 +11,7 @@ from flask_cors import CORS
 from agent import call_stream
 import dashboard
 import rate_limit
+import sitemap_sync
 from db_logging import Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
@@ -267,6 +268,13 @@ def proxy(path):
     except requests.exceptions.RequestException as e:
         print(f"Request failed: {e}")
         return f"Request failed: {e}", 502
+
+
+# Start the daily in-memory sitemap sync (02:00 Europe/Berlin) only in a real
+# server process: the container has $PORT (gunicorn on Railway), or the Werkzeug
+# reloader child (dev). A plain `import app` (tests, scripts) does not start it.
+if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    sitemap_sync.start_scheduler()
 
 
 if __name__ == "__main__":

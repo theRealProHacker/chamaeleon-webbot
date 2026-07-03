@@ -20,5 +20,7 @@ langgraph==0.6.3
 smolagents[litellm,gradio]==1.20.0
 # mistune for markdown processing
 mistune==3.1.3
+# scheduler (daily in-memory sitemap sync)
+APScheduler==3.10.4
 # testing
 pytest==8.4.1

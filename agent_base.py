@@ -37,18 +37,26 @@ trip_sites: list[str] = []
 # country in URL to country name
 all_countries: dict[str, str] = {}
 
-with open("sitemap.txt", "r", encoding="utf-8") as f:
-    sitemap = f.read()
+
+def _parse_sitemap(text: str) -> tuple[list[str], list[str], dict[str, str]]:
+    """Parse sitemap text into (all_sites, trip_sites, all_countries).
+
+    Trips and countries are the URLs between the '## Reiseziele' and
+    '## Nachhaltigkeit' headers: depth >= 3 is a trip, depth == 2 a country.
+    """
+    parsed_sites: list[str] = []
+    parsed_trips: list[str] = []
+    parsed_countries: dict[str, str] = {}
     recording_trip_sites = False
-    for line in sitemap.splitlines():
+    for line in text.splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
-            all_sites.append(line)
+            parsed_sites.append(line)
             if recording_trip_sites and line.count("/") >= 3:
-                trip_sites.append(line)
+                parsed_trips.append(line)
             elif recording_trip_sites and line.count("/") == 2:
                 country = line.split("/")[-1]
-                all_countries[country] = (
+                parsed_countries[country] = (
                     country.replace("ae", "ä")
                     .replace("Ae", "Ä")
                     .replace("ue", "ü")
@@ -59,10 +67,17 @@ with open("sitemap.txt", "r", encoding="utf-8") as f:
             recording_trip_sites = True
         elif line == "## Nachhaltigkeit":
             recording_trip_sites = False
+    return parsed_sites, parsed_trips, parsed_countries
 
-# print(len(all_sites), "total URLs found in sitemap")
-# print(len(trip_sites), "trip URLs found in sitemap")
-# print([*all_countries.keys()])
+
+with open("sitemap.txt", "r", encoding="utf-8") as f:
+    sitemap = f.read()
+
+_a, _t, _c = _parse_sitemap(sitemap)
+all_sites.extend(_a)
+trip_sites.extend(_t)
+all_countries.update(_c)
+
 country_name2upper = {name.lower(): name for name in all_countries.values()}
 
 
@@ -192,7 +207,8 @@ def visa_tool_base(country: str) -> str:
 
 
 # Website tool description
-website_tool_description = f"""
+def build_website_tool_description() -> str:
+    return f"""
 Tool für direkten Zugriff auf chamaeleon-reisen.de Webseiten. Der Kunde sieht jedoch nicht, dass du dieses Tool benutzt.
 
 Auf den Reiseseiten (/Kontinent/Land/Reise) findest du Informationen 
@@ -210,6 +226,32 @@ Args:
 Returns:
     dict: Enthält 'main_content' (als Markdown) und 'title'
 """.strip()
+
+
+website_tool_description = build_website_tool_description()
+
+
+def apply_sitemap(new_text: str) -> str:
+    """Replace the in-memory sitemap with ``new_text`` and re-derive all lookups.
+
+    Mutates all_sites / trip_sites / all_countries in place so existing
+    references stay valid, rebuilds the website tool description, and returns it
+    so the caller can push it onto the live LangChain tool.
+    """
+    global sitemap, website_tool_description
+    parsed_sites, parsed_trips, parsed_countries = _parse_sitemap(new_text)
+    all_sites[:] = parsed_sites
+    trip_sites[:] = parsed_trips
+    all_countries.clear()
+    all_countries.update(parsed_countries)
+    country_name2upper.clear()
+    country_name2upper.update(
+        {name.lower(): name for name in all_countries.values()}
+    )
+    sitemap = new_text
+    website_tool_description = build_website_tool_description()
+    return website_tool_description
+
 
 BASE_URL = "https://www.chamaeleon-reisen.de"
 
