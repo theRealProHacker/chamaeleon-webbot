@@ -552,6 +552,12 @@ def dashboard_index():
     return send_from_directory("static/dashboard", "index.html")
 
 
+@auth_required
+def admin_index():
+    # Hidden admin page: no link from the dashboard, same Basic-Auth gate.
+    return send_from_directory("static/admin", "index.html")
+
+
 # Load cache on startup
 month_cache.load_all()
 
@@ -561,4 +567,6 @@ routes = [
     ("/api/dashboard/<string:month>", dashboard_month),
     ("/dashboard", dashboard_index),
     ("/dashboard/", dashboard_index),
+    ("/admin", admin_index),
+    ("/admin/", admin_index),
 ]
