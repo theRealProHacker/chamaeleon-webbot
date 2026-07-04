@@ -1,7 +1,19 @@
 {
   "_comment": "Manual URL->reisecode overrides for travels the automatic derivation (/{land2.seo}/{slugify(titel)} validated against the sitemap) misses: combos, renamed slugs, trips whose website slug differs from the TourOne title. Value is a reisecode string or a list of reisecodes. Keys starting with _ are ignored. Seed this by running `python travel_index.py` and reviewing the 'unmatched' list.",
-  "_format_example": {
-    "/Europa/Island/Joekulsarloen": "ISJOK",
-    "/Ozeanien/Neuseeland/Kiwi": ["NZHKI"]
-  }
+  "_seeded": "2026-07-04 from the live dry run: sitemap URLs whose TourOne land2.seo path differs from the website's country path (Kap-Verde vs Kapverden, Europa vs Asien Kaukasus, Albanien-Nordmazedonien vs Albanien, ...) or whose suffix defeats canonical matching (Limpopo_ALL underscore, Vestfirdir-LH).",
+  "/Afrika/Kapverden/Cabo-Verde-ALL": "CVCAB_NEU",
+  "/Afrika/Namibia-Suedafrika-Botswana/Limpopo_ALL": [
+    "NALIM",
+    "NALIM_ZM",
+    "NALIM_ALL",
+    "NALIM_FRA",
+    "NALIM_OKA",
+    "NALIM_NEU",
+    "NALIM_OVL",
+    "NALIM_MOY"
+  ],
+  "/Asien/Aserbaidschan-Georgien-Armenien/Kaukasus": "AMKAU_NEU",
+  "/Europa/Albanien/Gjirokaster-NEU": ["ALGJI", "ALGJI_NEU", "ALGJI_ALL"],
+  "/Europa/Grossbritannien-Schottland/Schottland": "GBSCH_NEU",
+  "/Europa/Island/Vestfirdir-LH-ALL": "ISVES_LH"
 }
