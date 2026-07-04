@@ -329,8 +329,12 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
     # Map override URL -> travel by code for a quick lookup.
     by_code = {t.get("code"): t for t in travels if t.get("code")}
 
+    # Only index active travels. Retired ones (aktiv=0) have no termine and would
+    # otherwise flood the unmatched list as false gaps (e.g. TZMIG "Migration").
+    active = [t for t in travels if t.get("aktiv")]
+
     pending: list[tuple[dict, list[str]]] = []  # (travel, candidates) for 200-check
-    for travel in travels:
+    for travel in active:
         cands = candidate_urls(travel)
         real_urls: list[str] = []
         for c in cands:
@@ -386,6 +390,7 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
     total_trip_urls = len(agent_base.trip_sites)
     summary = {
         "total_travels": len(travels),
+        "active_travels": len(active),
         "total_trip_urls": total_trip_urls,
         "matched_urls": len(index),
         "url_coverage_pct": round(100 * len(index) / total_trip_urls, 1) if total_trip_urls else 0,
@@ -515,7 +520,7 @@ if __name__ == "__main__":
     # unmatched travels (to seed travel_overrides.json). No scheduler, no server.
     travels = fetch_all_travels()
     _, _, summary = _build_index(travels)
-    print(f"travels: {summary['total_travels']}")
+    print(f"travels: {summary['total_travels']} ({summary['active_travels']} active)")
     print(
         f"urls in index: {summary['matched_urls']} "
         f"(sitemap-derived {summary['derived_hits']}, live-added {summary['live_added']}); "

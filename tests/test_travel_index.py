@@ -66,16 +66,26 @@ def test_derive_url_missing_pieces():
 # --- matcher against the REAL sitemap ---------------------------------------
 
 
-def _travel(code, titel, landseo, seo=None, termine=None, land="Nepal"):
+def _travel(code, titel, landseo, seo=None, termine=None, land="Nepal", aktiv=1):
     return {
         "code": code,
         "titel": titel,
         "seo": seo,
+        "aktiv": aktiv,
         "land2": {"seo": landseo, "bezeichnung": land},
         "kategorie": {"lang": "de"},
         "berater": {},
         "termine": termine or [],
     }
+
+
+def test_build_index_skips_inactive_travel():
+    # A retired travel (aktiv=0) must not be indexed even if its URL would match.
+    index, _n, summary = ti._build_index(
+        [_travel("TZMIG", "Lumbini", "Asien/Nepal", aktiv=0)], check_live=False
+    )
+    assert "/Asien/Nepal/Lumbini" not in index
+    assert summary["active_travels"] == 0
 
 
 def test_candidate_urls_prefers_seo_then_title():
