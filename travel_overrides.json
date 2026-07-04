@@ -1,0 +1,7 @@
+{
+  "_comment": "Manual URL->reisecode overrides for travels the automatic derivation (/{land2.seo}/{slugify(titel)} validated against the sitemap) misses: combos, renamed slugs, trips whose website slug differs from the TourOne title. Value is a reisecode string or a list of reisecodes. Keys starting with _ are ignored. Seed this by running `python travel_index.py` and reviewing the 'unmatched' list.",
+  "_format_example": {
+    "/Europa/Island/Joekulsarloen": "ISJOK",
+    "/Ozeanien/Neuseeland/Kiwi": ["NZHKI"]
+  }
+}

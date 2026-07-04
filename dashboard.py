@@ -12,6 +12,7 @@ All datetimes in local timezone, i.e. German local time.
 
 import os
 import time
+import travel_index
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -558,6 +559,18 @@ def admin_index():
     return send_from_directory("static/admin", "index.html")
 
 
+@auth_required
+def reindex_travels():
+    """Trigger a TourOne travel-index rebuild off the request thread.
+
+    Rebuilding fetches all travels and can take seconds; running it inline would
+    block the catch-all proxy (the whole site) on the single worker, so it runs
+    in a background thread and this returns immediately with the last summary.
+    """
+    travel_index.rebuild_async()
+    return jsonify({"status": "started", "last": travel_index.last_summary()})
+
+
 # Load cache on startup
 month_cache.load_all()
 
@@ -569,4 +582,5 @@ routes = [
     ("/dashboard/", dashboard_index),
     ("/admin", admin_index),
     ("/admin/", admin_index),
+    ("/admin/reindex", reindex_travels, ["POST"]),
 ]

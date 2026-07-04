@@ -28,8 +28,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 #     raise ValueError("OPENAI_API_KEY not found in environment variables")
 
 TOURONE_API_KEY = os.getenv("TOURONE_BEARER_TOKEN")
-# if not TOURONE_API_KEY:
-# raise ValueError("TOURONE_API_KEY not found in environment variables")
+if not TOURONE_API_KEY:
+    # Non-fatal: TourOne termine injection just stays off (the bot still works).
+    # Loud so a forgotten Railway env var is visible in the logs, not silent.
+    print("[agent_base] WARNING: TOURONE_BEARER_TOKEN not set — TourOne termine disabled")
 
 # Load sitemap URLs
 all_sites: list[str] = []
@@ -298,11 +300,25 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         # Remove multiple line breaks
         markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
-        return f"""
+        # Append current termine from TourOne for trip pages. Scraped HTML does
+        # not contain them (they are rendered client-side), so this is the only
+        # way the bot sees real dates. Must never break the page tool.
+        termine_md = ""
+        try:
+            import travel_index
+
+            termine_md = travel_index.get_termine_markdown(url_path)
+        except Exception as e:
+            print(f"[agent_base] termine lookup failed for {url_path}: {e}")
+
+        result = f"""
         # {title_text}
 
         {markdown_content}
         """.strip()
+        if termine_md:
+            result += "\n\n" + termine_md
+        return result
 
     except requests.RequestException as e:
         return f"Fehler beim Abrufen der Seite: {str(e)}"

@@ -12,6 +12,7 @@ from agent import call_stream
 import dashboard
 import rate_limit
 import sitemap_sync
+import travel_index
 from db_logging import Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
@@ -147,8 +148,9 @@ def chat_stream():
 
 # --- Dashboard routes ---
 
-for route, view_func in dashboard.routes:
-    app.add_url_rule(route, view_func=view_func)
+for route, view_func, *rest in dashboard.routes:
+    methods = rest[0] if rest else ["GET"]
+    app.add_url_rule(route, view_func=view_func, methods=methods)
 
 # --- End Dashboard routes ---
 
@@ -275,6 +277,11 @@ def proxy(path):
 # reloader child (dev). A plain `import app` (tests, scripts) does not start it.
 if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     sitemap_sync.start_scheduler()
+    # Travel index: build now (in a background thread so boot is not blocked) and
+    # refresh daily. Without the startup build the index would be empty from
+    # process start until the first scheduled rebuild.
+    travel_index.start_scheduler()
+    travel_index.warm_async()
 
 
 if __name__ == "__main__":
