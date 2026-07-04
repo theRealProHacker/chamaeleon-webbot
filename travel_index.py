@@ -31,11 +31,19 @@ import os
 import re
 import threading
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from cachetools.func import ttl_cache
 
 BASE_URL = "https://api.tourone.de"
+WEBSITE_URL = "https://www.chamaeleon-reisen.de"
+_WEBSITE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    )
+}
 OVERRIDES_PATH = os.path.join(os.path.dirname(__file__), "travel_overrides.json")
 
 # reiseliste pagination page size and per-trip termine cache TTL (seconds).
@@ -86,6 +94,50 @@ def derive_url(travel: dict) -> str | None:
     if not land or not titel:
         return None
     return "/" + land.strip("/") + "/" + slugify(titel)
+
+
+def candidate_urls(travel: dict) -> list[str]:
+    """Candidate website paths for a travel, best first.
+
+    The `seo` field is the website's own slug with the site's transliteration
+    (e.g. 'Jokulsarlon-2024', 'Machu-Picchu-2025') and is the authoritative
+    source; the title slug is a fallback for travels whose seo is missing. Both
+    are validated by the caller, so extra candidates only ever help.
+    """
+    land = (travel.get("land2") or {}).get("seo")
+    if not land:
+        return []
+    base = "/" + land.strip("/")
+    slugs: list[str] = []
+    if travel.get("seo"):
+        slugs.append(travel["seo"])
+    if travel.get("titel"):
+        s = slugify(travel["titel"])
+        if s and s not in slugs:
+            slugs.append(s)
+    return [f"{base}/{s}" for s in slugs]
+
+
+def _page_exists(path: str, timeout: int = 10) -> bool:
+    """True only if the website serves a 200 for this path (following redirects).
+
+    Strict on purpose: any error or non-200 returns False, so a page is only
+    added to the index when it demonstrably exists (the opposite bias to
+    sitemap_sync.is_alive, which is conservative about *removing* pages)."""
+    url = WEBSITE_URL + path
+    try:
+        r = requests.head(
+            url, headers=_WEBSITE_HEADERS, timeout=timeout, allow_redirects=True
+        )
+        if r.status_code in (403, 405, 501):  # some servers dislike HEAD
+            r = requests.get(
+                url, headers=_WEBSITE_HEADERS, timeout=timeout,
+                allow_redirects=True, stream=True,
+            )
+            r.close()
+        return r.status_code == 200
+    except requests.RequestException:
+        return False
 
 
 def _load_overrides() -> dict[str, str]:
@@ -208,25 +260,40 @@ _built = False
 _last_summary: dict = {}
 
 
-# Variant suffixes the website appends to a trip slug that the TourOne title
-# does not carry: -ALL / -NEU / -ALT masters and trailing year/version tags
-# (-2024, -23, -16NF). Stripped for matching only; the real URL is preserved.
-_VARIANT_SUFFIX = re.compile(r"-(?:ALL|NEU|ALT|\d+[A-Za-z]*)$", re.IGNORECASE)
+# Variant suffixes the website / seo field append to a trip slug: -ALL / -ALLG /
+# -NEU / -ALT masters, and trailing year/version tags with or without a hyphen
+# (-2024, Lumbini26, -16NF). Stripped for matching only; the real URL is kept.
+_VARIANT_SUFFIX = re.compile(r"-(?:ALL|ALLG|NEU|ALT)$", re.IGNORECASE)
+_VERSION_SUFFIX = re.compile(r"-?\d{2,4}[A-Za-z]{0,2}$")
 
 
 def _canon(url: str) -> str:
-    """Canonical match key: strip a trailing variant suffix from the last segment."""
+    """Canonical match key: strip trailing variant/version suffixes from the last
+    segment, looping so 'Machu-Picchu-2025' and 'Lumbini26' reduce to the base."""
     head, _, last = url.rpartition("/")
-    return f"{head}/{_VARIANT_SUFFIX.sub('', last)}"
+    prev = None
+    while last != prev:
+        prev = last
+        last = _VARIANT_SUFFIX.sub("", last)
+        last = _VERSION_SUFFIX.sub("", last)
+    return f"{head}/{last}"
 
 
-def _build_index(travels: list[dict]) -> tuple[dict, dict, dict]:
-    """Pure builder: returns (index, name_to_url, summary). No shared state.
+def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, dict, dict]:
+    """Build (index, name_to_url, summary) from the travel list.
 
-    Matches a travel's derived path to real sitemap trip URLs by canonical key
-    (suffix-stripped), so `Tempel und Tiger` maps to `…-2024` and `…-ALL`. One
-    URL can collect several reisecodes (season/package variants) — that is the
-    intended 1:N.
+    Matching, best first:
+    1. Each travel yields candidate paths from its seo slug and its title slug
+       (candidate_urls); a candidate is matched to real sitemap trip URLs by
+       canonical key (suffix-stripped), so `Machu-Picchu-2025` maps to the
+       sitemap's `…-2025`/`…-ALL`. One URL can collect several reisecodes
+       (season/package variants) — the intended 1:N.
+    2. A travel that has termine but no sitemap match is a real bookable trip
+       missing from the sitemap: if `check_live`, its candidate URL is verified
+       by HTTP 200 and added anyway.
+    3. travel_overrides.json fills whatever is left.
+
+    `check_live=False` skips the network step (used by tests).
     """
     import agent_base
 
@@ -262,15 +329,50 @@ def _build_index(travels: list[dict]) -> tuple[dict, dict, dict]:
     # Map override URL -> travel by code for a quick lookup.
     by_code = {t.get("code"): t for t in travels if t.get("code")}
 
+    pending: list[tuple[dict, list[str]]] = []  # (travel, candidates) for 200-check
     for travel in travels:
-        url = derive_url(travel)
-        real_urls = canon_to_urls.get(_canon(url)) if url else None
+        cands = candidate_urls(travel)
+        real_urls: list[str] = []
+        for c in cands:
+            real_urls += canon_to_urls.get(_canon(c), [])
         if real_urls:
-            for real in real_urls:
+            for real in dict.fromkeys(real_urls):  # dedupe, keep order
                 add(real, travel)
             derived += 1
+        elif travel.get("termine") and cands:
+            pending.append((travel, cands))  # real page, maybe missing from sitemap
         else:
-            unmatched.append(f"{travel.get('code')} / {travel.get('titel')} -> {url}")
+            unmatched.append(
+                f"{travel.get('code')} / {travel.get('titel')} -> {cands[0] if cands else None}"
+            )
+
+    # 200 + has-termine fallback: verify candidate pages that are not in the
+    # sitemap and add the ones that really exist.
+    live_added = 0
+    if check_live and pending:
+
+        def _resolve(item: tuple[dict, list[str]]):
+            travel, cands = item
+            tried: list[str] = []
+            for c in cands:
+                for u in (_canon(c), c):  # prefer the clean base slug
+                    if u not in tried:
+                        tried.append(u)
+            for u in tried:
+                if _page_exists(u):
+                    return travel, u
+            return travel, None
+
+        with ThreadPoolExecutor(max_workers=16) as ex:
+            for travel, u in ex.map(_resolve, pending):
+                if u:
+                    add(u, travel)
+                    live_added += 1
+                else:
+                    unmatched.append(f"{travel.get('code')} / {travel.get('titel')} (no 200)")
+    else:
+        for travel, cands in pending:  # network skipped: report as unmatched
+            unmatched.append(f"{travel.get('code')} / {travel.get('titel')} (unchecked)")
 
     # Apply overrides ({url: code} or {url: [codes]}). These win / add.
     for url, codes in overrides.items():
@@ -288,6 +390,7 @@ def _build_index(travels: list[dict]) -> tuple[dict, dict, dict]:
         "matched_urls": len(index),
         "url_coverage_pct": round(100 * len(index) / total_trip_urls, 1) if total_trip_urls else 0,
         "derived_hits": derived,
+        "live_added": live_added,
         "override_hits": overridden,
         "unmatched": unmatched,
     }
@@ -414,10 +517,10 @@ if __name__ == "__main__":
     _, _, summary = _build_index(travels)
     print(f"travels: {summary['total_travels']}")
     print(
-        f"trip urls covered: {summary['matched_urls']}/{summary['total_trip_urls']} "
-        f"({summary['url_coverage_pct']}%)"
+        f"urls in index: {summary['matched_urls']} "
+        f"(sitemap-derived {summary['derived_hits']}, live-added {summary['live_added']}); "
+        f"sitemap trip urls: {summary['total_trip_urls']}"
     )
-    print(f"travels matched by derivation: {summary['derived_hits']}")
     print(f"travels unmatched: {len(summary['unmatched'])}")
     for u in summary["unmatched"]:
         print("  ?", u)

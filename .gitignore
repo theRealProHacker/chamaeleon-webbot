@@ -4,3 +4,4 @@ __pycache__/
 
 test_faq_progress_*.json
 test_faq_results_*.json
+.gstack/

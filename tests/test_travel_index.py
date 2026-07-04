@@ -36,6 +36,10 @@ def test_canon_strips_variant_suffixes():
     assert ti._canon("/Afrika/Aegypten/Nofretete-ALL") == "/Afrika/Aegypten/Nofretete"
     assert ti._canon("/Asien/Japan/Kyoto-NEU") == "/Asien/Japan/Kyoto"
     assert ti._canon("/Asien/Japan/Kyoto-alt") == "/Asien/Japan/Kyoto"
+    # bare (hyphenless) year suffix from the seo field, and -ALLG masters
+    assert ti._canon("/Asien/Nepal/Lumbini26") == "/Asien/Nepal/Lumbini"
+    assert ti._canon("/Amerika/Peru/Machu-Picchu-2025") == "/Amerika/Peru/Machu-Picchu"
+    assert ti._canon("/Asien/Mongolei/Gobi-ALLG") == "/Asien/Mongolei/Gobi"
 
 
 def test_canon_preserves_real_slugs():
@@ -62,28 +66,54 @@ def test_derive_url_missing_pieces():
 # --- matcher against the REAL sitemap ---------------------------------------
 
 
-def _travel(code, titel, seo, land="Nepal"):
+def _travel(code, titel, landseo, seo=None, termine=None, land="Nepal"):
     return {
         "code": code,
         "titel": titel,
-        "land2": {"seo": seo, "bezeichnung": land},
+        "seo": seo,
+        "land2": {"seo": landseo, "bezeichnung": land},
         "kategorie": {"lang": "de"},
         "berater": {},
+        "termine": termine or [],
     }
+
+
+def test_candidate_urls_prefers_seo_then_title():
+    t = _travel("X", "Jökulsárlón", "Europa/Island", seo="Jokulsarlon-2024")
+    cands = ti.candidate_urls(t)
+    assert cands[0] == "/Europa/Island/Jokulsarlon-2024"  # seo first
+    assert "/Europa/Island/Joekulsarlon" in cands  # title slug fallback
+    # no land2.seo -> no candidates
+    assert ti.candidate_urls({"titel": "x", "seo": "y"}) == []
 
 
 def test_build_index_exact_match():
     # /Asien/Nepal/Lumbini exists verbatim in the sitemap.
-    index, _names, summary = ti._build_index([_travel("NPLUM", "Lumbini", "Asien/Nepal")])
+    index, _names, summary = ti._build_index(
+        [_travel("NPLUM", "Lumbini", "Asien/Nepal")], check_live=False
+    )
     assert "/Asien/Nepal/Lumbini" in index
     assert "NPLUM" in index["/Asien/Nepal/Lumbini"]["codes"]
     assert summary["matched_urls"] >= 1
 
 
+def test_build_index_uses_seo_field_when_title_slug_differs():
+    # Title slug is 'Joekulsarlon' (ö->oe) which is NOT in the sitemap; the seo
+    # field 'Jokulsarlon-2024' (ö->o) is. The seo candidate must win.
+    t = _travel("ISJOK", "Jökulsárlón", "Europa/Island", seo="Jokulsarlon-2024")
+    index, _n, _s = ti._build_index([t], check_live=False)
+    matched = [u for u in index if u.startswith("/Europa/Island/Jokulsarlon")]
+    assert matched, "seo field should resolve trips the title slug misses"
+    for u in matched:
+        assert "ISJOK" in index[u]["codes"]
+
+
 def test_build_index_canonical_variant_match():
     # Sitemap only has /Asien/Nepal/Tempel-und-Tiger-2024 and -ALL; the title
     # derives to the base, which must resolve via canonical matching.
-    index, _n, _s = ti._build_index([_travel("NPYAN", "Tempel und Tiger", "Asien/Nepal")])
+    index, _n, _s = ti._build_index(
+        [_travel("NPYAN", "Tempel und Tiger", "Asien/Nepal")], check_live=False
+    )
     matched = [u for u in index if u.startswith("/Asien/Nepal/Tempel-und-Tiger")]
     assert matched, "canonical matching should map the base title to suffixed sitemap URLs"
     for u in matched:
@@ -93,16 +123,43 @@ def test_build_index_canonical_variant_match():
 def test_build_index_one_url_many_codes():
     # Two travels with the same title/land collapse onto the same URL(s).
     travels = [_travel("A1", "Lumbini", "Asien/Nepal"), _travel("A2", "Lumbini", "Asien/Nepal")]
-    index, _n, _s = ti._build_index(travels)
+    index, _n, _s = ti._build_index(travels, check_live=False)
     codes = index["/Asien/Nepal/Lumbini"]["codes"]
     assert "A1" in codes and "A2" in codes
 
 
 def test_build_index_unmatched_is_not_indexed():
     # A derived URL that is not in the sitemap must never be indexed.
-    index, _n, summary = ti._build_index([_travel("ZZZ", "Definitely Not A Real Trip", "Asien/Nepal")])
+    index, _n, summary = ti._build_index(
+        [_travel("ZZZ", "Definitely Not A Real Trip", "Asien/Nepal")], check_live=False
+    )
     assert "/Asien/Nepal/Definitely-Not-A-Real-Trip" not in index
     assert any("ZZZ" in u for u in summary["unmatched"])
+
+
+def test_build_index_live_adds_page_missing_from_sitemap(monkeypatch):
+    # A travel WITH termine whose page is not in the sitemap but returns 200
+    # gets added; one whose page 404s does not.
+    calls = {"/Amerika/Bolivien/Uyuni": True, "/Amerika/Bolivien/Ghost": False}
+    monkeypatch.setattr(ti, "_page_exists", lambda path, **k: calls.get(path, False))
+    travels = [
+        _travel("BOUYU", "Uyuni", "Amerika/Bolivien", seo="Uyuni", termine=[{"von": "2026-01-01"}]),
+        _travel("GHOST", "Ghost", "Amerika/Bolivien", seo="Ghost", termine=[{"von": "2026-01-01"}]),
+    ]
+    index, _n, summary = ti._build_index(travels, check_live=True)
+    assert "/Amerika/Bolivien/Uyuni" in index and "BOUYU" in index["/Amerika/Bolivien/Uyuni"]["codes"]
+    assert "/Amerika/Bolivien/Ghost" not in index
+    assert summary["live_added"] == 1
+
+
+def test_build_index_live_skipped_without_termine(monkeypatch):
+    # No termine -> never a 200-check candidate, even if the page would 200.
+    monkeypatch.setattr(ti, "_page_exists", lambda path, **k: True)
+    index, _n, summary = ti._build_index(
+        [_travel("NOTM", "Uyuni", "Amerika/Bolivien", seo="Uyuni")], check_live=True
+    )
+    assert "/Amerika/Bolivien/Uyuni" not in index
+    assert summary["live_added"] == 0
 
 
 # --- termine markdown --------------------------------------------------------
