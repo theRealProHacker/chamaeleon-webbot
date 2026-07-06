@@ -31,9 +31,9 @@
 /Vorbestellung
 
 ### Reisen
-/Abenteuer-Reisen
-/Erlebnis-Reisen
-/Geniesser-Reisen
+/Erlebnisreisen
+/Erlebnisreisen/Erlebnisreisen-aktiv
+/Erlebnisreisen/Erlebnisreisen-geniessen
 /Merkzettel
 
 ## Kurzfristige Abreisen

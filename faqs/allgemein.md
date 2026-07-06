@@ -1,3 +1,8 @@
+## Reisearten
+
+**F: Welche Reisearten gibt es?**
+A: Chamäleon ist dein Spezialist für Erlebnisreisen (https://www.chamaeleon-reisen.de/Erlebnisreisen). Alle Reisen überzeugen durch besondere Unterkünfte, deutschsprachige Reiseleiter*innen und maximal 12 Gäste. Es gibt auch Reisen, bei denen du aktiver sein oder besonders viele entspannte Momente genießen kannst. Du erkennst diese Reisen am Zusatz »aktiv« (https://www.chamaeleon-reisen.de/Erlebnisreisen/Erlebnisreisen-aktiv) und »genießen« (https://www.chamaeleon-reisen.de/Erlebnisreisen/Erlebnisreisen-geniessen).
+
 ## Kataloge
 
 **F: Wohin werden Kataloge verschickt?**
