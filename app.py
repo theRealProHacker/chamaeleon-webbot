@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 import traceback
 from functools import cache
@@ -219,14 +220,24 @@ def proxy(path):
 # reloader child (dev). A plain `import app` (tests, scripts) does not start it.
 if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     # Restore the newest persisted sitemap (incl. /admin curation) BEFORE the
-    # travel-index warm build, so the index derives against the curated URLs.
+    # sync and the travel-index build, so both start from the curated URLs.
     sitemap_sync.restore_from_db()
     sitemap_sync.start_scheduler()
-    # Travel index: build now (in a background thread so boot is not blocked) and
-    # refresh daily. Without the startup build the index would be empty from
-    # process start until the first scheduled rebuild.
     travel_index.start_scheduler()
-    travel_index.warm_async()
+
+    # Boot warm-up in a background thread (boot itself must not block):
+    # run the sitemap sync immediately — a fresh deploy should know today's
+    # pages, not wait for the 02:00 job — and only THEN build the travel
+    # index, so it derives against the just-synced sitemap instead of racing
+    # it. Both steps fail open; the daily schedulers repeat them anyway.
+    def _startup_warm():
+        try:
+            sitemap_sync.sync()
+        except Exception as e:
+            print(f"[app] startup sitemap sync failed: {e}")
+        travel_index.rebuild()
+
+    threading.Thread(target=_startup_warm, name="startup-warm", daemon=True).start()
 
 
 if __name__ == "__main__":
