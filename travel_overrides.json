@@ -15,5 +15,7 @@
   "/Asien/Aserbaidschan-Georgien-Armenien/Kaukasus": "AMKAU_NEU",
   "/Europa/Albanien/Gjirokaster-NEU": ["ALGJI", "ALGJI_NEU", "ALGJI_ALL"],
   "/Europa/Grossbritannien-Schottland/Schottland": "GBSCH_NEU",
-  "/Europa/Island/Vestfirdir-LH-ALL": "ISVES_LH"
+  "/Europa/Island/Vestfirdir-LH-ALL": "ISVES_LH",
+  "_20260705": "Queen-Charlotte: the derived code carries no termine while the site shows 23 rows fed by NZQUE+NZQUE_UR (found by the live drift canary; verified against the page's sku attribute and the feed).",
+  "/Ozeanien/Neuseeland/Queen-Charlotte": ["NZQUE", "NZQUE_UR"]
 }

@@ -1,0 +1,7 @@
+# Dev-only dependencies — NOT installed on Railway (deploy uses requirements.txt).
+-r requirements.txt
+
+# Live drift canary (tests/test_termine_live.py): real-browser comparison of
+# the injected termine table against the website. After installing, fetch the
+# browser once with: playwright install chromium
+playwright==1.58.0
