@@ -1,5 +1,24 @@
 # Backlog
 
+## Chatbot / Agenturbereich (deferred from 2026-07-06 ship review)
+- [ ] **Log the `is_agentur` flag with chat messages** so agentur conversations
+      are distinguishable in the dashboard/Supabase when detection came via
+      Origin/Referer (today only the url is logged). Check first whether the
+      message-log schema tolerates an extra field.
+- [ ] **Test isolation:** `import app` in tests triggers live Supabase reads at
+      import time (`month_cache.load_all()` fetches ~11k chat rows,
+      `active_session_count()`), so tests are slow and need prod credentials.
+      Pre-existing; gate the import-time work like the schedulers ($PORT /
+      WERKZEUG_RUN_MAIN) or stub supabase in a fixture.
+- [ ] **No local way to exercise the agentur path:** the dev proxy only fronts
+      www, so the agentur prompt variant can only be tested on the live agt.
+      hosts. Consider a loopback-only override (e.g. explicit `agentur` flag).
+- [ ] **Content notes for the KB owner (faqs/agentur.md):** (a) KB §1.2 wants
+      login answers available OUTSIDE the agt area too — move section 2 into
+      the general FAQs? (b) Option vs. Reservierung: only "Option" states the
+      after-7-days auto-conversion to Festbuchung; asked about a "Reservierung"
+      the bot may answer it lapses. Confirm intended wording.
+
 ## Travel index / termine
 - [x] **Drift canary scheduled 2026-07-06:** monthly user-crontab entry on the
       dev machine (1st of month, 10:00 — daytime on purpose) running
