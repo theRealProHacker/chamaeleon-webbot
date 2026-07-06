@@ -11,22 +11,20 @@
 - [ ] Reuse the TourOne `berater` data (name/telefon/email already captured in the
       travel index) to populate the bot's kundenberater answers instead of the
       static values.
-- [ ] Confirm with the TourOne/chamdev owner whether a per-travel website-path key
-      exists (bookingURL carries `REICODE=...`); it would replace URL derivation +
-      overrides entirely.
-      **Lead found 2026-07-05:** every trip page embeds its full reisecode list in
-      the server-rendered HTML — the Trustpilot widget attribute
-      `sku="MAMAR,MAMAR_RAK,MAMAR_FRA,MAMAR_ALL,…,Marrakesch"` — fetchable with
-      plain `requests` (no JS needed). Parsing that per sitemap URL would give an
-      authoritative URL→codes mapping and could retire derivation + most of
-      travel_overrides.json (intersect with active travels to drop retired codes).
-      **Nuance found 2026-07-06 (canary):** `sku` lists the whole code FAMILY,
-      not what the page's termine widget shows — the widget queries ONE code
-      (`data-terminliste='{"reisecode": "NASAM_ALL"}'`) and its backend expands
-      it. Gjirokaster-NEU has sku=ALGJI,ALGJI_NEU,ALGJI_ALL but renders only the
-      NEU season; our override merges all three, so the bot would show 9 extra
-      2026 rows there. For season-suffixed URLs, `data-terminliste` (also plain
-      server HTML) is the better key than `sku`.
+- [x] ~~Authoritative URL→codes mapping~~ **SHIPPED 2026-07-06** as the
+      widget-code refinement in `travel_index._build_index`: each trip page's
+      server-rendered `data-terminliste` code (the ONE code the site's own
+      termine widget queries), expanded like the site does — the code itself
+      if aktiv plus aktiv travels whose `masterCode` points at it. 54 URLs
+      refined on the first live build; Queen-Charlotte's manual override
+      retired; Gjirokaster-NEU trimmed to its season code (was +9 stale rows).
+      Canary 11/11. Derivation + travel_overrides.json remain as fallback for
+      widget-less pages (subpackage choosers like Limpopo_ALL, stale 404s) and
+      fetch-failure days. (The `sku` attribute lists the whole code family —
+      wrong key for season pages; `data-terminliste` is the truth.)
+- [ ] Still worth asking the TourOne/chamdev owner: is there a per-travel
+      website-path key in the API itself (bookingURL carries `REICODE=...`)?
+      Would replace the page-fetch refinement with pure API data.
 
 ## Sitemap sync
 - [ ] Move the sitemap sync out of memory into Supabase and make it human-editable.
