@@ -175,6 +175,87 @@ def test_build_index_live_skipped_without_termine(monkeypatch):
     assert summary["live_added"] == 0
 
 
+# --- widget-code refinement ---------------------------------------------------
+
+
+def test_page_widget_code_parsing():
+    # the server-rendered form (single-quoted attribute, clean JSON)
+    html = "<ul class=\"list uk-list\"\n data-terminliste='{\"reisecode\": \"MAMAR_ALL\"}'\n data-texte='{}'>"
+    assert ti._page_widget_code(html) == "MAMAR_ALL"
+    # the DOM re-serialized form (double quotes, &quot; entities)
+    html = '<ul data-terminliste="{&quot;reisecode&quot;: &quot;NALIM_ALL&quot;}">'
+    assert ti._page_widget_code(html) == "NALIM_ALL"
+    # valueless attrs like data-terminliste-filter must not match
+    assert ti._page_widget_code("<div data-terminliste-filter uk-grid>") is None
+    assert ti._page_widget_code("<html>no widget</html>") is None
+    assert ti._page_widget_code('<ul data-terminliste="not json">') is None
+    assert ti._page_widget_code('<ul data-terminliste="{}">') is None
+
+
+def _master_family():
+    """Master M_ALL (aktiv, no termine) + two aktiv children + one retired."""
+    termin = {"von": "2099-01-01 00:00:00"}
+    master = _travel("M_ALL", "Lumbini", "Asien/Nepal", seo="Lumbini")
+    child_a = _travel("M_A", "Lumbini A", "Asien/Nepal", termine=[termin])
+    child_b = _travel("M_B", "Lumbini B", "Asien/Nepal", termine=[dict(termin)])
+    retired = _travel("M_OLD", "Lumbini Old", "Asien/Nepal", termine=[dict(termin)], aktiv=0)
+    for t in (child_a, child_b, retired):
+        t["masterCode"] = "M_ALL"
+    return [master, child_a, child_b, retired]
+
+
+def test_widget_refinement_replaces_codes(monkeypatch):
+    # The page's widget code wins over derivation: master + aktiv children,
+    # in feed order; retired children excluded.
+    monkeypatch.setattr(ti, "_page_exists", lambda *a, **k: False)
+    monkeypatch.setattr(
+        ti, "_fetch_widget_code",
+        lambda path, **k: "M_ALL" if path == "/Asien/Nepal/Lumbini" else None,
+    )
+    index, _n, summary = ti._build_index(_master_family(), check_live=True)
+    assert index["/Asien/Nepal/Lumbini"]["codes"] == ["M_ALL", "M_A", "M_B"]
+    assert summary["widget_refined"] == 1
+
+
+def test_widget_refinement_maps_underivable_url(monkeypatch):
+    # A URL derivation cannot reach (title/seo do not match) still gets mapped
+    # when its page carries a widget code (the Gjirokaster-NEU case).
+    travels = _master_family()
+    for t in travels:  # break derivation entirely
+        t["seo"] = None
+        t["titel"] = "Nicht Ableitbar " + t["code"]
+    monkeypatch.setattr(ti, "_page_exists", lambda *a, **k: False)
+    monkeypatch.setattr(
+        ti, "_fetch_widget_code",
+        lambda path, **k: "M_A" if path == "/Asien/Nepal/Lumbini" else None,
+    )
+    index, _n, summary = ti._build_index(travels, check_live=True)
+    assert index["/Asien/Nepal/Lumbini"]["codes"] == ["M_A"]  # season page: no family
+    assert summary["widget_added"] == 1
+
+
+def test_widget_refinement_keeps_base_when_expansion_empty(monkeypatch):
+    # Widget code with no aktiv travels / no termine (Cabo-Verde-ALL case):
+    # the derived/override mapping stays.
+    travels = _master_family()
+    travels[0]["aktiv"] = 0  # master retired; children keep master=M_ALL but aktiv filter...
+    for t in travels[1:3]:
+        t["aktiv"] = 0  # no aktiv members at all
+    monkeypatch.setattr(ti, "_page_exists", lambda *a, **k: False)
+    monkeypatch.setattr(ti, "_fetch_widget_code", lambda path, **k: "M_ALL")
+    index, _n, summary = ti._build_index(
+        travels + [_travel("NPLUM", "Lumbini", "Asien/Nepal")], check_live=True
+    )
+    # base derivation for NPLUM survives untouched
+    assert "NPLUM" in index["/Asien/Nepal/Lumbini"]["codes"]
+    assert summary["widget_refined"] == 0 and summary["widget_added"] == 0
+
+
+def test_widget_refinement_skipped_offline():
+    index, _n, summary = ti._build_index(_master_family(), check_live=False)
+    assert summary["widget_refined"] == 0 and summary["widget_added"] == 0
+
+
 # --- termine: synthetic fixtures ---------------------------------------------
 #
 # Owner rule (eng review 2026-07-05, D9): SYNTHETIC fixtures only, dates
@@ -221,9 +302,12 @@ def _table_rows(md: str) -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def _fresh_termine_state():
+def _fresh_termine_state(monkeypatch):
     ti._fetch_termine_filtered.cache_clear()
     ti._unknown_statuses_logged.clear()
+    # Unit tests never hit the website for widget codes; the refinement tests
+    # override this stub explicitly.
+    monkeypatch.setattr(ti, "_fetch_widget_code", lambda path, **k: None)
     yield
 
 

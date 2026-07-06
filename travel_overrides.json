@@ -13,9 +13,8 @@
     "NALIM_MOY"
   ],
   "/Asien/Aserbaidschan-Georgien-Armenien/Kaukasus": "AMKAU_NEU",
-  "/Europa/Albanien/Gjirokaster-NEU": ["ALGJI", "ALGJI_NEU", "ALGJI_ALL"],
+  "/Europa/Albanien/Gjirokaster-NEU": "ALGJI_NEU",
   "/Europa/Grossbritannien-Schottland/Schottland": "GBSCH_NEU",
   "/Europa/Island/Vestfirdir-LH-ALL": "ISVES_LH",
-  "_20260705": "Queen-Charlotte: the derived code carries no termine while the site shows 23 rows fed by NZQUE+NZQUE_UR (found by the live drift canary; verified against the page's sku attribute and the feed).",
-  "/Ozeanien/Neuseeland/Queen-Charlotte": ["NZQUE", "NZQUE_UR"]
+  "_20260706": "Since the widget-code refinement (data-terminliste + masterCode expansion) these overrides are FALLBACKS for days the page fetch fails, plus the primary mapping for widget-less pages (Limpopo_ALL chooser, Kaukasus 404). Queen-Charlotte's 2026-07-05 entry was removed: the refinement derives NZQUE+NZQUE_UR from the page itself. Gjirokaster-NEU trimmed to the season code its widget queries — the old 3-code family over-injected 9 rows of the previous season."
 }

@@ -49,20 +49,18 @@ REFERENCE_PAGES = [
     ("/Europa/Spanien/Alhambra-ALL", "-ALL master with a real termine list"),
     ("/Afrika/Suedafrika-Eswatini/Addo", "RQ x2 at volume 102, J4Y"),
     ("/Europa/Grossbritannien-Schottland/Schottland", "override-mapped URL"),
-    ("/Ozeanien/Neuseeland/Queen-Charlotte", "override-repaired mapping (NZQUE+NZQUE_UR)"),
+    ("/Ozeanien/Neuseeland/Queen-Charlotte", "widget-refined mapping (was a gap)"),
     ("/Amerika/Peru/Machu-Picchu-ALL", "-ALL master, VM-heavy, seo-suffix match"),
+    ("/Europa/Albanien/Gjirokaster-NEU", "season page: widget code trims the family"),
 ]
 
 # Not every page qualifies as a reference (verified 2026-07-05):
 # /Afrika/Marokko/Atlas-ALL is a stale sitemap URL (the site 404s it);
 # /Afrika/Kapverden/Cabo-Verde-ALL renders a subpackage chooser instead of a
-# termine list; /Europa/Albanien/Gjirokaster-NEU renders only the NEU season
-# while its mapping (and even its sku attribute) carries the whole ALGJI
-# family — season-page granularity is a mapping question, not display drift;
-# /Asien/Aserbaidschan-Georgien-Armenien/Kaukasus has no #TERMINLISTE widget.
-# No genuinely dead-season page exists right now (the one candidate,
-# Queen-Charlotte, turned out to be a mapping gap) — the explicit empty state
-# is covered synthetically in test_travel_index.py.
+# termine list; /Asien/Aserbaidschan-Georgien-Armenien/Kaukasus has no
+# #TERMINLISTE widget. No genuinely dead-season page exists right now (the
+# one candidate, Queen-Charlotte, turned out to be a mapping gap) — the
+# explicit empty state is covered synthetically in test_travel_index.py.
 
 # Site row text is free-form; pull the semantic tokens out with regexes.
 # The site renders von WITHOUT a year ("18.09. - 04.10.26"), the pipeline

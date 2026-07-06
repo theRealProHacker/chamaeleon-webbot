@@ -6,14 +6,20 @@ prices) for the trip the user is looking at. Mirrors the shape of
 ``sitemap_sync.py``: module-level state, a ``rebuild()`` under a lock, a daily
 scheduler, and a ``__main__`` dry run.
 
-Mapping strategy (see the eng-review plan):
-- Derive the website path from ``land2.seo`` + a slug of ``titel`` and keep it
-  only if it is a real URL in the in-memory sitemap (``agent_base.all_sites``).
-  A derived URL that is not in the sitemap is never indexed, so a bad guess can
-  never surface wrong termine.
-- Combos (``/Afrika/Botswana-Namibia/...``) and slug oddities that the
-  derivation misses are fixed by a committed ``travel_overrides.json``
-  (``{website_url: reisecode}``).
+Mapping strategy (see the eng-review plans, 07-04 + 07-05/06):
+- PRIMARY (authoritative): every live trip page embeds the ONE reisecode its
+  own termine widget queries — the server-rendered ``data-terminliste``
+  attribute. The site expands that code to itself plus the aktiv travels
+  whose ``masterCode`` points at it; mirroring that expansion reproduces the
+  page's termine list exactly (canary-verified), including season pages
+  (Gjirokaster-NEU -> ALGJI_NEU only, never the whole family).
+- FALLBACK: derive the website path from ``land2.seo`` + a slug of ``titel``
+  and keep it only if it is a real URL in the in-memory sitemap
+  (``agent_base.all_sites``). A derived URL that is not in the sitemap is
+  never indexed, so a bad guess can never surface wrong termine.
+- Remaining gaps (subpackage-chooser pages without the widget, slug oddities)
+  are fixed by a committed ``travel_overrides.json`` (``{website_url:
+  reisecode}``).
 - One URL can map to several reisecodes (an ``-ALL`` master over sub-packages),
   so the index value is a LIST of codes.
 
@@ -150,6 +156,43 @@ def _page_exists(path: str, timeout: int = 10) -> bool:
         return r.status_code == 200
     except requests.RequestException:
         return False
+
+
+def _page_widget_code(html: str) -> str | None:
+    """The reisecode the page's own termine widget queries.
+
+    Server-rendered ``data-terminliste="{&quot;reisecode&quot;: &quot;X&quot;}"``
+    — the authoritative source for WHICH termine the site shows on that URL.
+    Season pages carry their season's code, regular pages the family master.
+    Subpackage-chooser pages and 404s have no attribute -> None.
+    """
+    # Server HTML single-quotes the attribute (clean JSON inside); a DOM
+    # re-serialization double-quotes it with &quot; entities. Accept both.
+    m = re.search(r'data-terminliste="([^"]*)"', html) or re.search(
+        r"data-terminliste='([^']*)'", html
+    )
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1).replace("&quot;", '"'))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data.get("reisecode") or None
+
+
+def _fetch_widget_code(path: str, timeout: int = 15) -> str | None:
+    """Widget code for a website path, or None (non-200, no widget, error)."""
+    try:
+        r = requests.get(
+            WEBSITE_URL + path, headers=_WEBSITE_HEADERS, timeout=timeout
+        )
+        if r.status_code != 200:
+            return None
+        return _page_widget_code(r.text)
+    except requests.RequestException:
+        return None
 
 
 def _load_overrides() -> dict[str, str]:
@@ -466,8 +509,11 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
        missing from the sitemap: if `check_live`, its candidate URL is verified
        by HTTP 200 and added anyway.
     3. travel_overrides.json fills whatever is left.
+    4. If `check_live`, the widget-code refinement then overrides 1-3 wherever
+       a page's own ``data-terminliste`` code yields a usable expansion — the
+       authoritative per-URL truth.
 
-    `check_live=False` skips the network step (used by tests).
+    `check_live=False` skips both network steps (used by tests).
     """
     import agent_base
 
@@ -561,6 +607,45 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
                 add(url, travel)
                 overridden += 1
 
+    # Widget-code refinement (the PRIMARY mapping, see module docstring):
+    # fetch every sitemap trip page and read the reisecode its termine widget
+    # queries; expand it like the site does (the code itself if aktiv, plus
+    # aktiv travels whose masterCode points at it). Where the expansion holds
+    # any termine it REPLACES the derived/override codes for that URL — and
+    # maps URLs derivation could not reach at all. Pages without a usable
+    # widget (choosers, 404s, empty expansions) keep the mapping from above.
+    widget_refined = widget_added = 0
+    if check_live:
+        children_by_master: dict[str, list[dict]] = {}
+        for t in travels:
+            if t.get("aktiv") and t.get("code") and t.get("masterCode"):
+                children_by_master.setdefault(t["masterCode"], []).append(t)
+
+        def _widget_family(path: str) -> tuple[str, list[dict] | None]:
+            w = _fetch_widget_code(path)
+            if not w:
+                return path, None
+            w_travel = by_code.get(w)
+            fam = [w_travel] if (w_travel and w_travel.get("aktiv")) else []
+            fam += [t for t in children_by_master.get(w, ()) if t is not w_travel]
+            if not any(t.get("termine") for t in fam):
+                return path, None  # widget shows nothing usable: keep base
+            return path, fam
+
+        with ThreadPoolExecutor(max_workers=16) as ex:
+            for path, fam in ex.map(_widget_family, agent_base.trip_sites):
+                if not fam:
+                    continue
+                fam_codes = [t["code"] for t in fam]
+                entry = index.get(path)
+                if entry is None:
+                    for t in fam:
+                        add(path, t)
+                    widget_added += 1
+                elif entry["codes"] != fam_codes:
+                    entry["codes"] = fam_codes
+                    widget_refined += 1
+
     total_trip_urls = len(agent_base.trip_sites)
     summary = {
         "total_travels": len(travels),
@@ -571,6 +656,8 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
         "derived_hits": derived,
         "live_added": live_added,
         "override_hits": overridden,
+        "widget_refined": widget_refined,
+        "widget_added": widget_added,
         "unmatched": unmatched,
     }
     return index, name_to_url, summary
@@ -598,6 +685,8 @@ def rebuild() -> dict:
     print(
         f"[travel-index] rebuilt: {summary['matched_urls']} urls, "
         f"{summary['override_hits']} via overrides, "
+        f"{summary['widget_refined']} widget-refined, "
+        f"{summary['widget_added']} widget-added, "
         f"{len(summary['unmatched'])} unmatched"
     )
     return summary
@@ -706,7 +795,8 @@ if __name__ == "__main__":
     print(f"travels: {summary['total_travels']} ({summary['active_travels']} active)")
     print(
         f"urls in index: {summary['matched_urls']} "
-        f"(sitemap-derived {summary['derived_hits']}, live-added {summary['live_added']}); "
+        f"(sitemap-derived {summary['derived_hits']}, live-added {summary['live_added']}, "
+        f"widget-refined {summary['widget_refined']}, widget-added {summary['widget_added']}); "
         f"sitemap trip urls: {summary['total_trip_urls']}"
     )
     print(f"travels unmatched: {len(summary['unmatched'])}")
