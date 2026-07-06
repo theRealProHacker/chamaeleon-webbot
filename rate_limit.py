@@ -89,6 +89,9 @@ def init_app(app) -> Limiter:
         app=app,
         default_limits=[],
         storage_uri="memory://",
+        # Rate limiting ausgesetzt (2026-07-06): enabled=True setzen, um das
+        # 15/h-Limit wieder scharf zu schalten.
+        enabled=False,
     )
     app.register_error_handler(RateLimitExceeded, _on_rate_limit)
     return limiter
