@@ -6,12 +6,18 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Admin</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1rem; color: #222; }
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; color: #222; }
     h1 { font-size: 1.4rem; }
     button { font-size: 1rem; padding: .6rem 1.1rem; cursor: pointer; }
     button[disabled] { opacity: .5; cursor: default; }
     pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; }
     .muted { color: #666; font-size: .9rem; }
+    textarea { width: 100%; height: 24rem; font-family: ui-monospace, monospace; font-size: .85rem;
+               box-sizing: border-box; padding: .6rem; border: 1px solid #ccc; border-radius: 6px; }
+    ul.versions { padding-left: 1.2rem; font-size: .9rem; }
+    ul.versions li { margin-bottom: .25rem; }
+    .ok { color: #1a7f37; }
+    .err { color: #b91c1c; }
   </style>
 </head>
 <body>
@@ -25,6 +31,24 @@
     </p>
     <button id="reindex">Reise-Index neu laden</button>
     <pre id="result" hidden></pre>
+  </section>
+
+  <section>
+    <h2>Sitemap</h2>
+    <p class="muted">
+      Die URL-Liste, die der Bot kennt (Grundlage für Seitenzugriff, Reise-Index
+      und Termine). Der tägliche Sync (02:00) ergänzt neue Seiten automatisch;
+      Änderungen hier gelten sofort, werden gespeichert und überleben Deploys.
+      Zeilen mit <code>#</code> sind Abschnitts-Überschriften.
+    </p>
+    <p class="muted" id="sitemap-stats"></p>
+    <textarea id="sitemap-text" spellcheck="false" placeholder="Wird geladen…"></textarea>
+    <p>
+      <button id="sitemap-save">Sitemap speichern</button>
+      <span id="sitemap-msg"></span>
+    </p>
+    <h3>Letzte Änderungen</h3>
+    <ul class="versions" id="sitemap-versions"><li class="muted">Wird geladen…</li></ul>
   </section>
 
   <script>
@@ -44,6 +68,70 @@
         btn.disabled = false;
       }
     });
+
+    // --- Sitemap curation ---
+    const smText = document.getElementById("sitemap-text");
+    const smStats = document.getElementById("sitemap-stats");
+    const smMsg = document.getElementById("sitemap-msg");
+    const smSave = document.getElementById("sitemap-save");
+    const smVersions = document.getElementById("sitemap-versions");
+
+    function renderVersions(versions) {
+      if (!versions || !versions.length) {
+        smVersions.innerHTML = '<li class="muted">Noch keine gespeicherten Versionen' +
+          ' (Tabelle sitemap_versions vorhanden?).</li>';
+        return;
+      }
+      smVersions.innerHTML = versions.map(v => {
+        const when = (v.created_at || "").replace("T", " ").slice(0, 16);
+        const who = v.source === "human" ? "manuell" : "Sync";
+        const plus = (v.added || []).length, minus = (v.dropped || []).length;
+        const diff = v.source === "human" ? "" : ` (+${plus} / −${minus})`;
+        return `<li><strong>${when}</strong> — ${who}${diff}</li>`;
+      }).join("");
+    }
+
+    async function loadSitemap() {
+      try {
+        const resp = await fetch("/admin/sitemap");
+        const data = await resp.json();
+        smText.value = data.text || "";
+        smStats.textContent = `${data.paths} URLs, davon ${data.trip_paths} Reiseseiten.`;
+        renderVersions(data.versions);
+      } catch (e) {
+        smStats.textContent = "Fehler beim Laden: " + e;
+      }
+    }
+
+    smSave.addEventListener("click", async () => {
+      if (!confirm("Sitemap wirklich überschreiben? Die Änderung gilt sofort für den Bot.")) return;
+      smSave.disabled = true;
+      smMsg.textContent = "";
+      try {
+        const resp = await fetch("/admin/sitemap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: smText.value }),
+        });
+        const data = await resp.json();
+        if (data.error) {
+          smMsg.textContent = "Abgelehnt: " + data.error;
+          smMsg.className = "err";
+        } else {
+          smMsg.textContent = `Gespeichert (${data.paths} URLs` +
+            (data.persisted ? ", in DB gesichert)." : ") — DB-Sicherung fehlgeschlagen, gilt nur bis zum nächsten Deploy!");
+          smMsg.className = data.persisted ? "ok" : "err";
+          loadSitemap();
+        }
+      } catch (e) {
+        smMsg.textContent = "Fehler: " + e;
+        smMsg.className = "err";
+      } finally {
+        smSave.disabled = false;
+      }
+    });
+
+    loadSitemap();
   </script>
 </body>
 </html>

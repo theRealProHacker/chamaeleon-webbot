@@ -560,6 +560,32 @@ def admin_index():
 
 
 @auth_required
+def admin_sitemap_get():
+    """Current in-memory sitemap text + persisted version history."""
+    import agent_base
+    import sitemap_store
+
+    return jsonify(
+        {
+            "text": agent_base.sitemap,
+            "paths": len(agent_base.all_sites),
+            "trip_paths": len(agent_base.trip_sites),
+            "versions": sitemap_store.recent_versions(),
+        }
+    )
+
+
+@auth_required
+def admin_sitemap_post():
+    """Apply + persist a hand-curated sitemap text (validated, fail-safe)."""
+    import sitemap_sync
+
+    data = request.get_json(silent=True) or {}
+    result = sitemap_sync.apply_human_edit(data.get("text") or "")
+    return jsonify(result), (400 if "error" in result else 200)
+
+
+@auth_required
 def reindex_travels():
     """Trigger a TourOne travel-index rebuild off the request thread.
 
@@ -583,4 +609,6 @@ routes = [
     ("/admin", admin_index),
     ("/admin/", admin_index),
     ("/admin/reindex", reindex_travels, ["POST"]),
+    ("/admin/sitemap", admin_sitemap_get),
+    ("/admin/sitemap", admin_sitemap_post, ["POST"]),
 ]

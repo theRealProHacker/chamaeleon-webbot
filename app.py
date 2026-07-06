@@ -276,6 +276,9 @@ def proxy(path):
 # server process: the container has $PORT (gunicorn on Railway), or the Werkzeug
 # reloader child (dev). A plain `import app` (tests, scripts) does not start it.
 if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    # Restore the newest persisted sitemap (incl. /admin curation) BEFORE the
+    # travel-index warm build, so the index derives against the curated URLs.
+    sitemap_sync.restore_from_db()
     sitemap_sync.start_scheduler()
     # Travel index: build now (in a background thread so boot is not blocked) and
     # refresh daily. Without the startup build the index would be empty from

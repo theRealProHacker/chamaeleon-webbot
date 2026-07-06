@@ -29,9 +29,11 @@
       Would replace the page-fetch refinement with pure API data.
 
 ## Sitemap sync
-- [ ] Move the sitemap sync out of memory into Supabase and make it human-editable.
-      Current state: daily 2am APScheduler job merges the live sitemap into an
-      **in-memory** set only (no persistence, diff to logs).
-      Future:
-      - Persist the merged sitemap + each day's diff to Supabase.
-      - Auth-protected dashboard view to curate / edit URLs by hand.
+- [x] **Supabase persistence + curation shipped 2026-07-06.** Changed syncs and
+      human edits append versioned text rows to `sitemap_versions` (latest wins,
+      full history, revert = re-save an old version); the newest version is
+      restored at startup before the travel-index warm build; /admin got a
+      sitemap textarea with guard rails (refuses truncated pastes and texts
+      without Reiseziele URLs). Everything fails open until the table exists —
+      **one manual step left: run the DDL from sitemap_store.py's docstring in
+      the Supabase SQL editor** (the API key cannot create tables).

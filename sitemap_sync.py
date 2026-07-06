@@ -1,10 +1,13 @@
-"""Daily in-memory sitemap sync.
+"""Daily in-memory sitemap sync, persisted to Supabase.
 
 Fetches the live HTML sitemap from chamaeleon-reisen.de, diffs it against the
 in-memory sitemap the bot uses, and merges the result back into memory so the
-bot immediately knows about new pages. Nothing is written to disk.
+bot immediately knows about new pages. Versions that changed something are
+appended to Supabase (``sitemap_store``), the newest persisted version is
+restored at server startup (``restore_from_db``), and /admin offers a
+curation textarea whose saves go through ``apply_human_edit``.
 
-Rules (see TODOS.md for the planned Supabase/human-editable follow-up):
+Rules:
 - Canonicalisation strips a trailing "-ALL" for comparison only. Existing URL
   forms are left untouched.
 - Additions (live URLs not in the current set) are merged in, labelled by
@@ -241,9 +244,96 @@ def sync(verbose: bool = True) -> dict:
             print(f"[sitemap-sync] could not update tool description: {e}")
 
         summary = {"added": additions, "dropped_404": dead, "kept_despite_absent": kept}
+        # Persist only versions that changed something — a no-change day would
+        # add a full-text row for nothing. Fail-open: persistence never blocks
+        # or fails the sync itself.
+        if additions or dead:
+            try:
+                import sitemap_store
+
+                sitemap_store.save_version(new_text, "sync", summary)
+            except Exception as e:
+                print(f"[sitemap-sync] persist failed: {e}")
         if verbose:
             _log_summary(summary)
         return summary
+
+
+def restore_from_db() -> bool:
+    """Load the newest persisted sitemap (incl. human edits) into memory.
+
+    Called once at server startup so curation survives restarts/deploys; the
+    daily sync keeps evolving the restored text from there. Fail-open: no
+    row, missing table, or Supabase being down keeps the sitemap.txt baseline.
+    """
+    import agent
+    import agent_base
+
+    try:
+        import sitemap_store
+
+        latest = sitemap_store.load_latest()
+    except Exception as e:
+        print(f"[sitemap-sync] restore failed: {e}")
+        return False
+    text = (latest or {}).get("sitemap_text") or ""
+    if not text.strip():
+        return False
+    with _lock:
+        if text == agent_base.sitemap:
+            return False
+        new_desc = agent_base.apply_sitemap(text)
+        try:
+            agent.chamaeleon_website_tool.description = new_desc
+        except Exception as e:
+            print(f"[sitemap-sync] could not update tool description: {e}")
+    print(
+        f"[sitemap-sync] restored persisted sitemap "
+        f"({latest.get('source')}, {latest.get('created_at')})"
+    )
+    return True
+
+
+def apply_human_edit(new_text: str) -> dict:
+    """Validate, apply, and persist an admin-edited sitemap text.
+
+    Guard rails: an accidental empty/truncated paste must never nuke the
+    bot's world — require a sane URL count and at least one trip URL (the
+    Reiseziele section feeds the travel index and termine display).
+    """
+    import agent
+    import agent_base
+
+    paths = static_paths(new_text)
+    bad = [p for p in paths if not p.startswith("/")]
+    if bad:
+        return {"error": f"Zeilen ohne führenden '/': {bad[:3]}"}
+    if len(paths) < 20:
+        return {"error": f"nur {len(paths)} URLs — abgelehnt (Schutz gegen versehentliches Leeren)"}
+    parsed_sites, parsed_trips, _countries = agent_base._parse_sitemap(new_text)
+    if not parsed_trips:
+        return {"error": "keine Reise-URLs unter '## Reiseziele' — abgelehnt"}
+
+    with _lock:
+        new_desc = agent_base.apply_sitemap(new_text)
+        try:
+            agent.chamaeleon_website_tool.description = new_desc
+        except Exception as e:
+            print(f"[sitemap-sync] could not update tool description: {e}")
+
+    try:
+        import sitemap_store
+
+        persisted = sitemap_store.save_version(new_text, "human")
+    except Exception as e:
+        print(f"[sitemap-sync] persist failed: {e}")
+        persisted = False
+    return {
+        "applied": True,
+        "persisted": persisted,
+        "paths": len(parsed_sites),
+        "trip_paths": len(parsed_trips),
+    }
 
 
 _scheduler = None
