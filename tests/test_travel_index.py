@@ -175,6 +175,52 @@ def test_build_index_live_skipped_without_termine(monkeypatch):
     assert summary["live_added"] == 0
 
 
+# --- berater ------------------------------------------------------------------
+
+
+def test_get_berater_from_index(monkeypatch):
+    # get_berater peeks without building (never blocks a chat reply)
+    monkeypatch.setattr(ti, "_index", {
+        "/Asien/Nepal/Lumbini": {
+            "codes": ["NPLUM"],
+            "berater": {"name": "Maxi Muster", "telefon": "+49 30 1234", "email": "m@x.de"},
+        }
+    })
+    assert ti.get_berater("/Asien/Nepal/Lumbini#termine")["name"] == "Maxi Muster"
+    assert ti.get_berater("/Asien/Nepal/Lumbini/")["telefon"] == "+49 30 1234"
+    assert ti.get_berater("/unbekannt") == {}
+
+
+def test_system_prompt_berater_fallback(monkeypatch):
+    import agent_base
+
+    monkeypatch.setattr(
+        ti, "get_berater",
+        lambda url: {"name": "Maxi Muster", "telefon": "+49 30 1234", "email": ""},
+    )
+    md = agent_base.format_system_prompt("/Asien/Nepal/Lumbini", [])
+    assert "Maxi Muster" in md and "+49 30 1234" in md
+    # page-supplied values always win over the index
+    md = agent_base.format_system_prompt("/x", [], "Explizit E.", "+49 40 9999")
+    assert "Explizit E." in md and "+49 40 9999" in md
+    assert "Maxi Muster" not in md
+    # partial: page passes only the name -> telefon still filled from the index
+    md = agent_base.format_system_prompt("/x", [], "Explizit E.", "")
+    assert "Explizit E." in md and "+49 30 1234" in md
+    assert "Maxi Muster" not in md
+
+
+def test_system_prompt_survives_berater_error(monkeypatch):
+    import agent_base
+
+    def boom(url):
+        raise RuntimeError("index down")
+
+    monkeypatch.setattr(ti, "get_berater", boom)
+    md = agent_base.format_system_prompt("/x", [])
+    assert "Der Kunde befindet sich" in md  # prompt still assembles
+
+
 # --- widget-code refinement ---------------------------------------------------
 
 

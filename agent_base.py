@@ -555,6 +555,19 @@ def format_system_prompt(
     kundenberater_telefon: str = "",
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
+    # The embedding page may pass the advisor with the request; when it does
+    # not, fall back to the TourOne berater captured in the travel index for
+    # this page. Page-supplied values win. Must never break prompt assembly.
+    if not (kundenberater_name and kundenberater_telefon):
+        try:
+            import travel_index
+
+            berater = travel_index.get_berater(endpoint)
+            kundenberater_name = kundenberater_name or berater.get("name", "")
+            kundenberater_telefon = kundenberater_telefon or berater.get("telefon", "")
+        except Exception as e:
+            print(f"[agent_base] berater lookup failed for {endpoint}: {e}")
+
     time_info = get_current_time_info()
     laenderspezifische_faqs = ""
     if countries:

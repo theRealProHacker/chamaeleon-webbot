@@ -704,12 +704,29 @@ def ensure_built() -> None:
             rebuild()
 
 
+def _url_key(url_path: str) -> str:
+    """Index key for a raw page URL: no fragment/query, no trailing slash."""
+    return url_path.split("#")[0].split("?")[0].rstrip("/") or "/"
+
+
 def get_reisecodes(url_path: str) -> list[str]:
     """Reisecode(s) for a website trip URL, or [] if unknown."""
     ensure_built()
-    path = url_path.split("#")[0].split("?")[0].rstrip("/") or "/"
-    entry = _index.get(path)
+    entry = _index.get(_url_key(url_path))
     return list(entry["codes"]) if entry else []
+
+
+def get_berater(url_path: str) -> dict[str, str]:
+    """Erlebnisberater ({name, telefon, email}) for a trip URL, or {}.
+
+    Source: the TourOne travel record captured at index build. Fills the
+    system prompt when the embedding page does not pass an advisor itself.
+    PEEKS at the current index without triggering a build: this runs on
+    every chat message and must never block a reply behind the minute-long
+    index build (startup warm + the website tool's ensure_built cover that).
+    """
+    entry = _index.get(_url_key(url_path))
+    return dict(entry["berater"]) if entry and entry.get("berater") else {}
 
 
 def get_termine_markdown(url_path: str) -> str:
@@ -733,7 +750,7 @@ def get_termine_markdown(url_path: str) -> str:
     md = format_termine_markdown(rows)
     if md:
         return md
-    path = url_path.split("#")[0].split("?")[0].rstrip("/") or "/"
+    path = _url_key(url_path)
     return (
         "## Termine\n\nDerzeit keine buchbaren Termine. "
         f"(Aktuelle Termine: {WEBSITE_URL}{path}#termine)"
