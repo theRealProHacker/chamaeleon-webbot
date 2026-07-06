@@ -19,8 +19,15 @@ Mapping strategy (see the eng-review plan):
 
 Termine come from ``reiseliste`` (the dedicated ``saisonTermineListe`` endpoint
 is 403 for this key). The daily build fetches all travels; ``get_termine()``
-does a cheap per-trip refresh with a short TTL because availability can change
-intra-day.
+refreshes all codes of one trip URL with a SINGLE batched ``reisecode[]``
+union call (short TTL — availability changes intra-day; no ``limit`` param:
+the API default is unlimited, small limits truncate silently). The site's
+visibility filter (status whitelist OK/VM/RQ, no past departures, Europe/
+Berlin) runs INSIDE the cached fetch, so the cache stores filtered rows;
+failures are never cached. ``get_termine_markdown()`` replicates the site's
+full (vakanz-filter-OFF) #termine list as a compact markdown table with the
+site's exact wording tokens — variant twins with identical dates are kept as
+distinct rows (no (von, bis) dedupe; see the 2026-07-05 eng-review plan).
 
 Run ``python travel_index.py`` for a live dry run (needs TOURONE_BEARER_TOKEN):
 prints the derivation hit rate and the unmatched travels to seed overrides.
@@ -32,6 +39,7 @@ import re
 import threading
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import requests
 from cachetools.func import ttl_cache
@@ -46,10 +54,14 @@ _WEBSITE_HEADERS = {
 }
 OVERRIDES_PATH = os.path.join(os.path.dirname(__file__), "travel_overrides.json")
 
-# reiseliste pagination page size and per-trip termine cache TTL (seconds).
+# reiseliste pagination page size and termine cache TTL (seconds).
 # Termine availability can change intra-day, so the refresh TTL is short.
 PAGE_LIMIT = 100
 TERMINE_TTL = int(os.getenv("TOURONE_TERMINE_TTL", "900"))  # 15 min
+# Anomaly cap for the rendered termine table: if more rows survive filtering,
+# render this many plus an explicit "… und N weitere Termine" marker — never
+# truncate silently. (Largest real list observed: Limpopo, 57 rows.)
+TERMINE_CAP = 100
 
 _UMLAUTS = {
     "ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss",
@@ -207,47 +219,209 @@ def fetch_all_travels(show_termine: bool = True) -> list[dict]:
     return travels
 
 
-@ttl_cache(maxsize=1024, ttl=TERMINE_TTL)
-def get_termine(reisecode: str) -> tuple:
-    """Fresh termine for a single reisecode (short-TTL cached).
+# Statuses rendered on the site's full (vakanz-filter-OFF) #termine list. RQ
+# renders like a normal bookable row (observed live: Gobi future RQ, vak=7).
+_STATUS_SHOWN = {"OK", "VM", "RQ"}
+# Known-hidden statuses. Anything outside shown|hidden is hidden too, but
+# logged loudly so a new bookable status cannot disappear silently.
+_STATUS_HIDDEN = {"SPERRE", "SPERRE_TEMP", "J4Y"}
+_unknown_statuses_logged: set = set()  # once per status per process/rebuild
 
-    Fetches only that one travel (never all reise). Returns a tuple of termine
-    dicts (tuple so ttl_cache can key/store it). Fails open: on any error the
-    caller gets an empty tuple and simply shows no termine.
+
+def _today_berlin() -> str:
+    """Today as YYYY-MM-DD in Europe/Berlin — the site's clock for termine."""
+    import pytz
+
+    return datetime.now(pytz.timezone("Europe/Berlin")).strftime("%Y-%m-%d")
+
+
+def _termin_visible(termin: dict, today: str) -> bool:
+    """Site visibility rule: known-shown status AND not departed yet.
+
+    ``von == today`` stays visible; a missing ``von`` is dropped (a row we
+    cannot place in time must not be shown as bookable).
     """
+    von = (termin.get("von") or "")[:10]
+    if not von or von < today:
+        return False
+    status = termin.get("status")
+    if status in _STATUS_SHOWN:
+        return True
+    if status not in _STATUS_HIDDEN and status not in _unknown_statuses_logged:
+        _unknown_statuses_logged.add(status)
+        print(f"[travel-index] unknown termin status: {status}")
+    return False
+
+
+@ttl_cache(maxsize=256, ttl=TERMINE_TTL)
+def _fetch_termine_filtered(codes: tuple) -> tuple:
+    """ONE batched reiseliste call for a code tuple; returns FILTERED termine.
+
+    Raises on any error so failures are never cached — the next call retries
+    (a blip costs one answer, not 15 blank minutes). No ``limit`` param: the
+    API default is unlimited; ``limit=0`` returns 0 rows and small limits
+    truncate silently. The batch may return FEWER travels than codes (master
+    codes like MAMAR_ALL yield nothing) — that is normal. Merge order is the
+    code-tuple order (pinned), so the stable (von, bis) sort downstream
+    reproduces the site's row order for variant twins.
+    """
+    page = _tourone_get(
+        "/get/reiseliste",
+        {"reisecode[]": list(codes), "showtermine": "true"},
+        timeout=10,
+    )
+    by_code: dict = {}
+    for t in _travels_from_page(page):
+        by_code.setdefault(t.get("code"), t)
+    today = _today_berlin()
+    merged: list[dict] = []
+    for code in codes:
+        travel = by_code.get(code)
+        if not travel:
+            continue
+        merged.extend(t for t in (travel.get("termine") or ()) if _termin_visible(t, today))
+    return tuple(merged)
+
+
+def get_termine(codes: tuple) -> tuple:
+    """Visible termine for a tuple of reisecodes (batched, filtered, cached).
+
+    Returns a tuple of termine dicts, already visibility-filtered and merged
+    in code order. Fails open: on any error THIS call gets an empty tuple and
+    the failure is not cached.
+    """
+    if not codes:
+        return ()
     try:
-        page = _tourone_get(
-            "/get/reiseliste",
-            {"reisecode[]": reisecode, "showtermine": "true"},
-            timeout=10,
-        )
-    except requests.RequestException as e:
-        print(f"[travel-index] termine fetch failed for {reisecode}: {e}")
+        return _fetch_termine_filtered(tuple(codes))
+    except Exception as e:
+        print(f"[travel-index] termine fetch failed for {codes}: {e}")
         return ()
-    travels = _travels_from_page(page)
-    if not travels:
-        return ()
-    return tuple(travels[0].get("termine") or ())
 
 
-def format_termine_markdown(termine, limit: int = 4) -> str:
-    """A SHORT markdown summary of the next termine (not a full table).
+def _fmt_date(iso: str) -> str:
+    """'2026-10-16 00:00:00' -> '16.10.26' (the site's date format)."""
+    try:
+        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d.%m.%y")
+    except ValueError:
+        return iso[:10]
 
-    The system prompt enforces 2-4 sentence answers, so we keep this compact and
-    let the model link to #termine for the full, live-bookable list.
+
+def _fmt_tage(von: str, bis: str, dauer) -> str:
+    """Trip length in days INCLUSIVE of both ends: (bis - von) + 1.
+
+    This is what the site displays; the feed's ``dauer`` field (nights, one
+    less) is NOT the displayed value — but its ABSENCE marks a row whose
+    length the feed cannot back (observed 2026-07-05: an OAP add-on termin
+    spanning 21 days that the site labels 27 Tage). For those rows the cell
+    is omitted rather than risk a false claim (owner decision 2026-07-06).
     """
-    upcoming = [t for t in termine if t.get("von")]
-    upcoming.sort(key=lambda t: t.get("von", ""))
-    if not upcoming:
+    if dauer is None:
         return ""
-    lines = []
-    for t in upcoming[:limit]:
-        von = (t.get("von") or "")[:10]
-        bis = (t.get("bis") or "")[:10]
-        preis = t.get("abPreis")
-        preis_s = f" ab {int(preis)} €" if isinstance(preis, (int, float)) else ""
-        lines.append(f"- {von} bis {bis}{preis_s}")
-    return "## Nächste Termine\n" + "\n".join(lines)
+    try:
+        d_von = datetime.strptime(von[:10], "%Y-%m-%d")
+        d_bis = datetime.strptime(bis[:10], "%Y-%m-%d")
+    except ValueError:
+        return ""
+    return f"{(d_bis - d_von).days + 1} Tage"
+
+
+def _fmt_plaetze(gp) -> str:
+    """vakanzSync -> the site's wording; '' when the field is missing/None
+    (never guess availability)."""
+    if not isinstance(gp, (int, float)):
+        return ""
+    gp = int(gp)
+    if gp == 0:
+        return "ausgebucht"
+    if gp == 1:
+        return "1 Platz verfügbar"
+    return f"{gp} Plätze verfügbar"
+
+
+def _fmt_einzelzimmer(ez, gp) -> str:
+    """vakanzSync3 -> the site's wording. Suppressed entirely on sold-out rows
+    (GP==0 shows plain 'ausgebucht' even when the feed still has EZ>0)."""
+    if not isinstance(gp, (int, float)) or int(gp) == 0:
+        return ""
+    if not isinstance(ez, (int, float)):
+        return ""
+    ez = int(ez)
+    if ez == 0:
+        return "Einzelzimmer auf Anfrage"
+    return f"{ez} Einzelzimmer verfügbar"
+
+
+def _fmt_preis(preis) -> str:
+    """abPreis in the site's German format: 4099 -> '4.099 €'."""
+    if not isinstance(preis, (int, float)):
+        return ""
+    return f"{int(preis):,} €".replace(",", ".")
+
+
+def _fmt_hinweis(status, gp) -> str:
+    """VM rows carry the site's CTA token — except sold-out VM rows, which
+    the site renders as plain 'ausgebucht' (observed live 2026-07-05 on
+    Machu-Picchu 2027 rows)."""
+    if status == "VM" and _fmt_plaetze(gp) != "ausgebucht":
+        return "Jetzt vorausbuchen"
+    return ""
+
+
+def _collapse_and_sort(termine) -> list[dict]:
+    """Exact-tuple collapse + stable (von, bis) sort — the table's row order.
+
+    Also used by the live drift canary (tests/test_termine_live.py) so the
+    site comparison sees exactly the rows the table would render.
+    """
+    rows: list[dict] = []
+    seen: set[tuple] = set()
+    for t in termine:
+        key = (
+            t.get("von"), t.get("bis"), t.get("status"),
+            t.get("vakanzSync"), t.get("vakanzSync3"), t.get("abPreis"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(t)
+    rows.sort(key=lambda t: ((t.get("von") or "")[:10], (t.get("bis") or "")[:10]))
+    return rows
+
+
+def format_termine_markdown(termine) -> str:
+    """The site's full (vakanz-filter-OFF) #termine list as a markdown table.
+
+    One row per termin with the site's exact wording tokens. Rows arrive
+    merged in code order; the stable (von, bis) sort keeps that order for
+    variant twins sharing dates — twins are DISTINCT bookable variants and are
+    both kept. Only rows identical in every displayed field are collapsed
+    (safety net against master shells carrying copied termine). Returns ''
+    for zero rows; the caller owns the explicit empty-state wording.
+    """
+    rows = _collapse_and_sort(termine)
+    if not rows:
+        return ""
+    lines = [
+        "## Termine",
+        "",
+        "| Zeitraum | Tage | Verfügbarkeit | Einzelzimmer | Preis | Hinweis |",
+        "|---|---|---|---|---|---|",
+    ]
+    for t in rows[:TERMINE_CAP]:
+        von = t.get("von") or ""
+        bis = t.get("bis") or ""
+        zeitraum = _fmt_date(von) + (f" – {_fmt_date(bis)}" if bis else "")
+        hinweis = _fmt_hinweis(t.get("status"), t.get("vakanzSync"))
+        lines.append(
+            f"| {zeitraum} | {_fmt_tage(von, bis, t.get('dauer'))} "
+            f"| {_fmt_plaetze(t.get('vakanzSync'))} "
+            f"| {_fmt_einzelzimmer(t.get('vakanzSync3'), t.get('vakanzSync'))} "
+            f"| {_fmt_preis(t.get('abPreis'))} | {hinweis} |"
+        )
+    if len(rows) > TERMINE_CAP:
+        lines.append(f"… und {len(rows) - TERMINE_CAP} weitere Termine")
+    return "\n".join(lines)
 
 
 # --- Index -------------------------------------------------------------------
@@ -420,6 +594,7 @@ def rebuild() -> dict:
         _name_to_url = new_names
         _built = True
         _last_summary = summary
+    _unknown_statuses_logged.clear()  # re-arm the once-per-status warning
     print(
         f"[travel-index] rebuilt: {summary['matched_urls']} urls, "
         f"{summary['override_hits']} via overrides, "
@@ -449,23 +624,31 @@ def get_reisecodes(url_path: str) -> list[str]:
 
 
 def get_termine_markdown(url_path: str) -> str:
-    """Short termine markdown for a trip URL, or '' if no match / no termine.
+    """Termine table for a trip URL; '' only when the URL is not indexed.
 
-    Merges termine across every reisecode mapped to the URL (1:N master/subs),
-    deduped by (von, bis). Fails open.
+    ONE batched fetch for all of the URL's reisecodes (1:N master/subs).
+    Codes matched but zero visible rows -> an explicit "keine buchbaren
+    Termine" line, so the model cannot hallucinate dates on dead-season
+    pages. A fetch ERROR also returns '' (skipping the section is honest;
+    claiming "keine Termine" during an API blip would be a false statement)
+    — the failure is never cached, the next call retries.
     """
     codes = get_reisecodes(url_path)
     if not codes:
         return ""
-    seen: set[tuple] = set()
-    merged: list[dict] = []
-    for code in codes:
-        for t in get_termine(code):
-            key = (t.get("von"), t.get("bis"))
-            if key not in seen:
-                seen.add(key)
-                merged.append(t)
-    return format_termine_markdown(merged)
+    try:
+        rows = _fetch_termine_filtered(tuple(codes))
+    except Exception as e:
+        print(f"[travel-index] termine fetch failed for {codes}: {e}")
+        return ""
+    md = format_termine_markdown(rows)
+    if md:
+        return md
+    path = url_path.split("#")[0].split("?")[0].rstrip("/") or "/"
+    return (
+        "## Termine\n\nDerzeit keine buchbaren Termine. "
+        f"(Aktuelle Termine: {WEBSITE_URL}{path}#termine)"
+    )
 
 
 def last_summary() -> dict:

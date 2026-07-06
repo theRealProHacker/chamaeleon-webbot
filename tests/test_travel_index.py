@@ -8,6 +8,9 @@ mocked — no live TourOne requests here.
 
 import common as _  # noqa: F401  (adds repo root to sys.path)
 
+from datetime import datetime, timedelta
+
+import pytest
 import requests
 
 import travel_index as ti
@@ -172,70 +175,313 @@ def test_build_index_live_skipped_without_termine(monkeypatch):
     assert summary["live_added"] == 0
 
 
-# --- termine markdown --------------------------------------------------------
+# --- termine: synthetic fixtures ---------------------------------------------
+#
+# Owner rule (eng review 2026-07-05, D9): SYNTHETIC fixtures only, dates
+# computed relative to now so the tests never rot. No live-data copies.
 
 
-def test_format_termine_markdown():
-    termine = [
-        {"von": "2026-09-30 00:00:00", "bis": "2026-10-15 00:00:00", "abPreis": 4899.0},
-        {"von": "2026-08-01 00:00:00", "bis": "2026-08-16 00:00:00", "abPreis": 4699.0},
+def _d(days: int) -> str:
+    """Feed-format date `days` from today (Europe/Berlin, the code's clock)."""
+    base = datetime.strptime(ti._today_berlin(), "%Y-%m-%d")
+    return (base + timedelta(days=days)).strftime("%Y-%m-%d 00:00:00")
+
+
+def _termin(von=30, tage=14, status="OK", gp=5, ez=2, preis=4099.0):
+    """Minimal synthetic feed termin. von/tage in days relative to today."""
+    return {
+        "von": _d(von),
+        "bis": _d(von + tage - 1),
+        "status": status,
+        "dauer": tage - 1,  # feed field = nights; the site displays Tage
+        "vakanzSync": gp,
+        "vakanzSync2": 0,
+        "vakanzSync3": ez,
+        "abPreis": preis,
+    }
+
+
+def _page(*travels):
+    """reiseliste response shape: digit keys + counters."""
+    page = {str(i): t for i, t in enumerate(travels)}
+    page["anzahl"] = len(travels)
+    return page
+
+
+def _travel_t(code, *termine):
+    return {"code": code, "termine": list(termine)}
+
+
+def _table_rows(md: str) -> list[str]:
+    """Data rows of the rendered markdown table (header/separator excluded)."""
+    return [
+        ln for ln in md.splitlines()
+        if ln.startswith("| ") and not ln.startswith("| Zeitraum")
     ]
+
+
+@pytest.fixture(autouse=True)
+def _fresh_termine_state():
+    ti._fetch_termine_filtered.cache_clear()
+    ti._unknown_statuses_logged.clear()
+    yield
+
+
+# --- get_termine: batched fetch + filter + cache (mocked network) -------------
+
+
+def test_get_termine_batched_single_call_merges_across_travels(monkeypatch):
+    calls = []
+
+    def fake_get(path, params, **kw):
+        calls.append((path, params))
+        # API return order differs from code order; master code yields nothing.
+        return _page(
+            _travel_t("B", _termin(von=40)),
+            _travel_t("A", _termin(von=10), _termin(von=20)),
+        )
+
+    monkeypatch.setattr(ti, "_tourone_get", fake_get)
+    out = ti.get_termine(("A", "B", "MAMAR_ALL"))
+    assert len(calls) == 1  # ONE union call, never per-code
+    assert calls[0][1]["reisecode[]"] == ["A", "B", "MAMAR_ALL"]
+    # fewer travels than codes is normal; merge order pinned to the code tuple
+    assert [t["von"] for t in out] == [_d(10), _d(20), _d(40)]
+
+
+def test_get_termine_empty_codes_no_network(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("network must not be called for empty codes")
+
+    monkeypatch.setattr(ti, "_tourone_get", boom)
+    assert ti.get_termine(()) == ()
+
+
+def test_get_termine_error_not_cached_next_call_retries(monkeypatch):
+    calls = {"n": 0}
+
+    def flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise requests.RequestException("boom")
+        return _page(_travel_t("A", _termin()))
+
+    monkeypatch.setattr(ti, "_tourone_get", flaky)
+    assert ti.get_termine(("A",)) == ()  # fails open, no exception
+    assert len(ti.get_termine(("A",))) == 1  # failure was NOT cached
+    assert calls["n"] == 2
+
+
+def test_get_termine_success_cached(monkeypatch):
+    calls = {"n": 0}
+
+    def once(*a, **k):
+        calls["n"] += 1
+        return _page(_travel_t("A", _termin()))
+
+    monkeypatch.setattr(ti, "_tourone_get", once)
+    ti.get_termine(("A",))
+    ti.get_termine(("A",))
+    assert calls["n"] == 1  # tuple-keyed ttl_cache
+
+
+def test_get_termine_travel_without_termine_key_skipped(monkeypatch):
+    page = _page({"code": "A"}, _travel_t("B", _termin()))
+    monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: page)
+    assert len(ti.get_termine(("A", "B"))) == 1
+
+
+def test_get_termine_status_whitelist_and_unknown_logged(monkeypatch, capsys):
+    termine = [
+        _termin(von=10, status="OK"),
+        _termin(von=11, status="VM"),
+        _termin(von=12, status="RQ"),  # RQ renders like a bookable row
+        _termin(von=13, status="SPERRE_TEMP"),
+        _termin(von=14, status="SPERRE"),
+        _termin(von=15, status="J4Y"),
+        _termin(von=16, status="WAT"),
+        _termin(von=17, status="WAT"),  # second occurrence: logged only once
+    ]
+    monkeypatch.setattr(
+        ti, "_tourone_get", lambda *a, **k: _page(_travel_t("A", *termine))
+    )
+    out = ti.get_termine(("A",))
+    assert [t["status"] for t in out] == ["OK", "VM", "RQ"]
+    assert capsys.readouterr().out.count("unknown termin status: WAT") == 1
+
+
+def test_get_termine_past_filter_boundary(monkeypatch):
+    no_von = _termin(von=5)
+    no_von["von"] = None
+    termine = [
+        _termin(von=-1),  # departed yesterday: dropped
+        _termin(von=0),   # departs today: stays visible
+        _termin(von=1),   # future: stays
+        no_von,           # unplaceable in time: dropped
+    ]
+    monkeypatch.setattr(
+        ti, "_tourone_get", lambda *a, **k: _page(_travel_t("A", *termine))
+    )
+    out = ti.get_termine(("A",))
+    assert [t["von"] for t in out] == [_d(0), _d(1)]
+
+
+# --- formatter: site row semantics --------------------------------------------
+
+
+def test_twins_same_dates_are_distinct_rows_in_pinned_order(monkeypatch):
+    # CRITICAL regression (Marrakesch): same (von, bis) on two variant codes
+    # are DISTINCT bookable variants; the site shows BOTH, FRA twin first.
+    fra = _termin(von=100, tage=17, gp=0, ez=0, preis=2999.0)
+    f18 = _termin(von=100, tage=17, gp=5, ez=2, preis=3199.0)
+    # API returns them in the "wrong" order; the code-tuple order must win.
+    page = _page(_travel_t("MAMAR_18F", f18), _travel_t("MAMAR_FRA", fra))
+    monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: page)
+    out = ti.get_termine(("MAMAR_FRA", "MAMAR_18F"))
+    rows = _table_rows(ti.format_termine_markdown(out))
+    assert len(rows) == 2  # NO (von, bis) dedupe
+    assert "ausgebucht" in rows[0]  # FRA twin first (stable sort, merge order)
+    assert "5 Plätze verfügbar" in rows[1]
+
+
+def test_gobi_twin_one_ok_one_sperre_temp(monkeypatch):
+    ok = _termin(von=50, gp=7)
+    blocked = _termin(von=50, gp=0, status="SPERRE_TEMP")
+    monkeypatch.setattr(
+        ti, "_tourone_get", lambda *a, **k: _page(_travel_t("GOBI", ok, blocked))
+    )
+    out = ti.get_termine(("GOBI",))
+    assert len(out) == 1 and out[0]["status"] == "OK"
+
+
+def test_exact_tuple_duplicate_collapsed():
+    a = _termin(von=60)
+    b = dict(a)  # identical in every displayed field (master-shell copy)
+    assert len(_table_rows(ti.format_termine_markdown([a, b]))) == 1
+
+
+def test_plaetze_wording_and_ez_suppression_when_sold_out():
+    md = ti.format_termine_markdown([
+        _termin(von=10, gp=5, ez=2),
+        _termin(von=20, gp=1, ez=2),
+        _termin(von=30, gp=0, ez=2),  # sold out: EZ suppressed despite feed EZ=2
+    ])
+    rows = _table_rows(md)
+    assert "5 Plätze verfügbar" in rows[0]
+    assert "1 Platz verfügbar" in rows[1] and "Plätze" not in rows[1]  # singular!
+    assert "ausgebucht" in rows[2] and "Einzelzimmer" not in rows[2]
+
+
+def test_einzelzimmer_wording():
+    md = ti.format_termine_markdown([
+        _termin(von=10, gp=6, ez=3),
+        _termin(von=20, gp=6, ez=0),  # EZ=0 while GP>0 -> auf Anfrage
+    ])
+    rows = _table_rows(md)
+    assert "3 Einzelzimmer verfügbar" in rows[0]
+    assert "Einzelzimmer auf Anfrage" in rows[1]
+
+
+def test_vm_shows_vorausbuchen_and_keeps_vakanz():
+    row = _table_rows(
+        ti.format_termine_markdown([_termin(von=200, status="VM", gp=12, ez=4)])
+    )[0]
+    assert "Jetzt vorausbuchen" in row
+    assert "12 Plätze verfügbar" in row  # vakanz cells still shown for VM
+
+
+def test_vm_sold_out_renders_plain_ausgebucht():
+    # Observed live (Machu-Picchu 2027): a sold-out VM row shows 'ausgebucht'
+    # WITHOUT the vorausbuchen CTA.
+    row = _table_rows(
+        ti.format_termine_markdown([_termin(von=200, status="VM", gp=0, ez=2)])
+    )[0]
+    assert "ausgebucht" in row
+    assert "Jetzt vorausbuchen" not in row
+
+
+def test_tage_is_inclusive_span_not_dauer():
+    t = _termin(von=100, tage=18)
+    assert t["dauer"] == 17  # the feed's nights field must NOT be displayed
+    assert "18 Tage" in ti.format_termine_markdown([t])
+
+
+def test_tage_omitted_when_feed_dauer_missing():
+    # Feed rows without a dauer cannot back their length (OAP add-on case) —
+    # the cell is omitted, never a possibly-false span claim.
+    t = _termin(von=100, tage=18)
+    t["dauer"] = None
+    assert "Tage" not in _table_rows(ti.format_termine_markdown([t]))[0]
+
+
+def test_price_format_and_failsafe_cells():
+    priced = _termin(von=10, preis=4099.0)
+    unpriced = _termin(von=20)
+    unpriced["abPreis"] = None
+    novak = _termin(von=30)
+    novak["vakanzSync"] = None
+    rows = _table_rows(ti.format_termine_markdown([priced, unpriced, novak]))
+    assert "4.099 €" in rows[0]  # German thousands format
+    assert "€" not in rows[1]  # missing price -> empty cell
+    # missing vakanz -> cells omitted: never crash, never claim "ausgebucht"
+    assert "verfügbar" not in rows[2] and "ausgebucht" not in rows[2]
+
+
+def test_sort_ascending_by_von_across_codes(monkeypatch):
+    page = _page(_travel_t("B", _termin(von=10)), _travel_t("A", _termin(von=40)))
+    monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: page)
+    md = ti.format_termine_markdown(ti.get_termine(("A", "B")))  # merge: A(40), B(10)
+    assert md.index(ti._fmt_date(_d(10))) < md.index(ti._fmt_date(_d(40)))
+
+
+def test_cap_100_with_overflow_marker():
+    termine = [_termin(von=10 + i, preis=100.0 + i) for i in range(101)]
     md = ti.format_termine_markdown(termine)
-    assert "Nächste Termine" in md
-    # sorted ascending: August date comes first
-    assert md.index("2026-08-01") < md.index("2026-09-30")
-    assert "4699" in md
+    assert len(_table_rows(md)) == 100
+    assert md.splitlines()[-1] == "… und 1 weitere Termine"
 
 
 def test_format_termine_markdown_empty():
     assert ti.format_termine_markdown([]) == ""
-    assert ti.format_termine_markdown([{"bis": "x"}]) == ""  # no 'von'
 
 
-def test_format_termine_markdown_limit():
-    termine = [{"von": f"2026-0{i}-01 00:00:00", "bis": "x", "abPreis": 100} for i in range(1, 8)]
-    md = ti.format_termine_markdown(termine, limit=3)
-    bullets = [ln for ln in md.splitlines() if ln.startswith("- ")]
-    assert len(bullets) == 3 and md.startswith("## Nächste Termine")
+# --- get_termine_markdown: injection contract ---------------------------------
 
 
-# --- get_termine (mocked network) -------------------------------------------
-
-
-def test_get_termine_success(monkeypatch):
-    ti.get_termine.cache_clear()
-    page = {"0": {"code": "XCODE", "termine": [{"von": "2026-01-01", "bis": "2026-01-10"}]}, "anzahl": 1}
+def test_matched_but_all_filtered_explicit_empty_state(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A"])
+    page = _page(_travel_t("A", _termin(von=-30)))  # dead season: only past rows
     monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: page)
-    out = ti.get_termine("XCODE")
-    assert isinstance(out, tuple) and out[0]["von"] == "2026-01-01"
+    md = ti.get_termine_markdown("/Asien/Nepal/Lumbini")
+    assert "Derzeit keine buchbaren Termine." in md  # explicit, NOT ""
+    assert "#termine" in md
 
 
-def test_get_termine_fail_open(monkeypatch):
-    ti.get_termine.cache_clear()
+def test_get_termine_markdown_error_returns_empty_not_false_claim(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A"])
 
     def boom(*a, **k):
-        raise requests.RequestException("boom")
+        raise requests.RequestException("api down")
 
     monkeypatch.setattr(ti, "_tourone_get", boom)
-    assert ti.get_termine("ERRCODE") == ()  # fails open, no exception
-
-
-def test_get_termine_markdown_merges_and_dedupes(monkeypatch):
-    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A", "B"])
-    termine_by_code = {
-        "A": ({"von": "2026-05-01", "bis": "2026-05-10", "abPreis": 100},),
-        "B": (
-            {"von": "2026-05-01", "bis": "2026-05-10", "abPreis": 100},  # dup of A
-            {"von": "2026-06-01", "bis": "2026-06-10", "abPreis": 200},
-        ),
-    }
-    monkeypatch.setattr(ti, "get_termine", lambda code: termine_by_code[code])
-    md = ti.get_termine_markdown("/Asien/Nepal/Lumbini")
-    bullets = [ln for ln in md.splitlines() if ln.startswith("- ")]
-    assert len(bullets) == 2  # 3 termine, one duplicate deduped away
-    assert "2026-05-01" in md and "2026-06-01" in md
+    # No section beats a false "keine Termine" claim during an API blip.
+    assert ti.get_termine_markdown("/Asien/Nepal/Lumbini") == ""
 
 
 def test_get_termine_markdown_no_match(monkeypatch):
     monkeypatch.setattr(ti, "get_reisecodes", lambda url: [])
     assert ti.get_termine_markdown("/nope") == ""
+
+
+def test_website_tool_appends_termine(monkeypatch):
+    import agent_base
+
+    monkeypatch.setattr(
+        agent_base,
+        "get_chamaeleon_website_html",
+        lambda p: "<html><title>Lumbini</title><main>Inhalt</main></html>",
+    )
+    monkeypatch.setattr(ti, "get_termine_markdown", lambda p: "## Termine\n\n| x |")
+    out = agent_base.chamaeleon_website_tool_base("/Asien/Nepal/Lumbini")
+    assert "Inhalt" in out
+    assert out.rstrip().endswith("| x |")  # termine appended after the page
