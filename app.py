@@ -46,6 +46,29 @@ CORS(
 limiter = rate_limit.init_app(app)
 
 
+# Requests from the Reisebüro subdomains get the Agenturbereich knowledge base
+# injected into the system prompt. The widget posts cross-origin, so the
+# browser sends the Origin header; Referer and current_url are fallbacks.
+#
+# This is content-selection, NOT auth: all three signals are client-controlled
+# and spoofable with curl, so faqs/agentur.md must only ever contain generic
+# Reisebüro-Infos — never per-agency, bank, or contract data. If that is ever
+# needed, gate on a server-verified agency login instead of headers.
+# Matching is deliberately loose substring: a false positive is harmless, a
+# missed agt request is worse. These hosts also appear in the CORS origins
+# list above — keep both in sync.
+AGENTUR_HOSTS = ("agt.chamaeleon-reisen.de", "agt.chamdev.tourone.de")
+
+
+def is_agentur_request(endpoint: str) -> bool:
+    candidates = (
+        request.headers.get("Origin", ""),
+        request.headers.get("Referer", ""),
+        endpoint,
+    )
+    return any(host in value for value in candidates for host in AGENTUR_HOSTS)
+
+
 # --- Streaming Chatbot API Endpoint ---
 @app.route("/chat/stream", methods=["POST"])
 @limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
@@ -54,8 +77,12 @@ def chat_stream():
     session_id = data.get("session_id")
     messages: list[Message] = data.get("messages", [])
     endpoint = data.get("current_url", "/")
+    if not isinstance(endpoint, str):
+        endpoint = "/"
     kundenberater_name = data.get("kundenberater_name", "")
     kundenberater_telefon = data.get("kundenberater_telefon", "")
+    # Must be read here: the request context is gone inside the generator.
+    is_agentur = is_agentur_request(endpoint)
 
     if not messages:
         return abort(400, "No messages provided")
@@ -75,7 +102,11 @@ def chat_stream():
     def generate():
         try:
             for event in call_stream(
-                messages, endpoint, kundenberater_name, kundenberater_telefon
+                messages,
+                endpoint,
+                kundenberater_name,
+                kundenberater_telefon,
+                is_agentur,
             ):
                 # Handle recommendation previews for final response
                 if event.get("type") == "response":

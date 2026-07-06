@@ -75,6 +75,7 @@ def call_stream(
     endpoint: str,
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
+    is_agentur: bool = False,
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -84,6 +85,7 @@ def call_stream(
         endpoint: Current website endpoint the user is on
         kundenberater_name: Name of the customer advisor for this trip/page
         kundenberater_telefon: Phone number of the customer advisor for this trip/page
+        is_agentur: Whether the request comes from the Reisebüro/agency area
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -96,7 +98,11 @@ def call_stream(
 
     # Format system prompt with current time and endpoint
     system_prompt = format_system_prompt(
-        endpoint, detected_countries, kundenberater_name, kundenberater_telefon
+        endpoint,
+        detected_countries,
+        kundenberater_name,
+        kundenberater_telefon,
+        is_agentur,
     )
 
     # Convert messages to LangChain format
@@ -191,7 +197,8 @@ def call(
     endpoint: str,
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
-) -> dict:
+    is_agentur: bool = False,
+) -> str:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
 
@@ -200,12 +207,13 @@ def call(
         endpoint: Current website endpoint the user is on
         kundenberater_name: Name of the customer advisor for this trip/page
         kundenberater_telefon: Phone number of the customer advisor for this trip/page
+        is_agentur: Whether the request comes from the Reisebüro/agency area
 
     Returns:
-        dict: Contains 'reply' and 'recommendations' keys
+        str: The reply rendered as HTML
     """
     for event in call_stream(
-        messages, endpoint, kundenberater_name, kundenberater_telefon
+        messages, endpoint, kundenberater_name, kundenberater_telefon, is_agentur
     ):
         if event["type"] == "response":
             return event["data"]["reply"]

@@ -98,6 +98,30 @@ def find_trip_site(recommendation: str) -> str:
 with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
     allgemeine_faqs = f.read().strip()
 
+# Knowledge base for the agency area (agt.chamaeleon-reisen.de). Only injected
+# into the system prompt for requests coming from the Reisebüro subdomains.
+# The file on disk is the content owner's verbatim delivery; operator-only
+# scaffolding (HTML comments, the "Interne Betreiberhinweise" sections) is
+# stripped here so it never reaches the prompt.
+with open("faqs/agentur.md", "r", encoding="utf-8") as f:
+    agentur_wissensbasis = f.read()
+agentur_wissensbasis = re.sub(r"<!--.*?-->", "", agentur_wissensbasis, flags=re.S)
+agentur_wissensbasis = re.split(
+    r"\n## [^\n]*Interne Betreiberhinweise", agentur_wissensbasis
+)[0].strip()
+if agentur_wissensbasis.endswith("---"):
+    agentur_wissensbasis = agentur_wissensbasis[:-3].strip()
+# Fail the boot loudly if a future edit breaks the stripping (unterminated
+# comment, moved/renamed section): operator notes must never reach the prompt,
+# and the strip must never eat public sections.
+for _marker in ("<!--", "-->", "Betreiberhinweis", "TODO"):
+    assert _marker not in agentur_wissensbasis, (
+        f"Operator-Marker '{_marker}' hat das agentur.md-Stripping überlebt"
+    )
+assert "## 14." in agentur_wissensbasis, (
+    "agentur.md-Stripping hat öffentliche Abschnitte entfernt"
+)
+
 general_faq_data: dict[str, str] = {}
 
 with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
@@ -426,7 +450,7 @@ Allgemeine FAQs:
 
 {allgemeine_faqs}
 
-Länderspezifische FAQs:
+{{agentur_block}}Länderspezifische FAQs:
 
 {{laenderspezifische_faqs}}
 
@@ -509,6 +533,7 @@ def format_system_prompt(
     countries: list[str],
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
+    is_agentur: bool = False,
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
     # The embedding page may pass the advisor with the request; when it does
@@ -525,6 +550,21 @@ def format_system_prompt(
             print(f"[agent_base] berater lookup failed for {endpoint}: {e}")
 
     time_info = get_current_time_info()
+
+    agentur_block = ""
+    if is_agentur:
+        agentur_block = (
+            "Agenturbereich:\n"
+            "Diese Konversation findet im Agenturbereich für Reisebüros statt "
+            "(agt.chamaeleon-reisen.de). Du sprichst hier mit Reiseprofis "
+            "(Reisebüros, Expedient*innen, mobilen Reiseberater*innen), nicht mit "
+            "Endkund*innen. Nutze zusätzlich die folgende Wissensbasis für den "
+            "Agenturbereich. Schritt-für-Schritt-Anleitungen aus dieser "
+            "Wissensbasis darfst du abweichend von der Längenregel vollständig "
+            "wiedergeben:\n\n"
+            f"{agentur_wissensbasis}\n\n"
+        )
+
     laenderspezifische_faqs = ""
     if countries:
         laenderspezifische_faqs += "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
@@ -535,6 +575,7 @@ def format_system_prompt(
     return system_prompt_template.format(
         **time_info,
         endpoint=endpoint,
+        agentur_block=agentur_block,
         laenderspezifische_faqs=laenderspezifische_faqs,
         kundenberater_name=(
             "Bei dieser Reise heißt der Erlebnisberater " + kundenberater_name + ". "
