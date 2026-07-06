@@ -27,6 +27,14 @@
 - [ ] Still worth asking the TourOne/chamdev owner: is there a per-travel
       website-path key in the API itself (bookingURL carries `REICODE=...`)?
       Would replace the page-fetch refinement with pure API data.
+- [x] **"Language API key" clarified 2026-07-06 (owner):** the third key of the
+      three-way index means the travel's COUNTRY KEY — the (normally 5-letter)
+      base reisecode stem (NPLUM, MAMAR, NASAM, …). Derivable from any code via
+      `code.split("_")[0]`; nothing extra to build today.
+- [x] **C1–C7 cleanups applied 2026-07-06 (owner picked all):** test.py scratch
+      script, dead recommend_* tool machinery, all commented-out corpse blocks
+      (charset/injection, process_links_in_reply, ChatOpenAI, OPENAI raise),
+      stale Railway TODO + dead dashboard assert.
 
 ## Sitemap sync
 - [x] **Supabase persistence + curation shipped 2026-07-06.** Changed syncs and

@@ -204,66 +204,8 @@ def proxy(path):
                 "https://chamaeleon-webbot-production.up.railway.app", ""
             )
 
-            # # Replace any existing charset meta tag with UTF-8
-            # content = re.sub(
-            #     r'<meta\s+charset=["\\]?[^"\\\'>]*["\\]?>',
-            #     '<meta charset="UTF-8">',
-            #     content,
-            #     flags=re.IGNORECASE,
-            # )
-            # content = re.sub(
-            #     r'<meta\s+http-equiv=["\\]?Content-Type["\\]?\s+content=["\\]?text/html;\s*charset=["\\]?[^"\\\'>]*["\\]?>',
-            #     '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">',
-            #     content,
-            #     flags=re.IGNORECASE,
-            # )
-
-            # # If no charset meta tag exists, add one in the head
-            # if "<head>" in content.lower() and "<meta charset" not in content.lower():
-            #     content = content.replace("<head>", '<head><meta charset="UTF-8">')
-            # elif (
-            #     "<head>" not in content.lower()
-            #     and "<meta charset" not in content.lower()
-            # ):
-            #     # Fallback if no head tag, add at the beginning of html
-            #     if "<html" in content.lower():
-            #         content = content.replace(
-            #             "<html",
-            #             '<html lang="de"><head><meta charset="UTF-8"></head>',
-            #             1,
-            #         )
-            #     else:
-            #         content = (
-            #             '<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="UTF-8">\n</head>\n<body>'
-            #             + content
-            #             + "</body>\n</html>"
-            #         )
-
-            # # Inject chatbot before </body>
-            # if "</body>" in content.lower():
-            #     content = content.replace("</body>", chatbot_html + "</body>")
-
-            # # Ensure the Content-Type header for the response is UTF-8
-            # final_content_type = "text/html; charset=UTF-8"
-            # updated_response_headers = []
-            # content_type_found = False
-            # for name, value in response_headers:
-            #     if name.lower() == "content-type":
-            #         updated_response_headers.append(
-            #             ("Content-Type", final_content_type)
-            #         )
-            #         content_type_found = True
-            #     else:
-            #         updated_response_headers.append((name, value))
-            # if not content_type_found:
-            #     updated_response_headers.append(("Content-Type", final_content_type))
-
             # Flask's Response will encode the string to UTF-8 by default
-            return Response(
-                content,
-                resp.status_code,
-                # updated_response_headers
-            )
+            return Response(content, resp.status_code)
 
         return Response(resp.content, resp.status_code, response_headers)
 

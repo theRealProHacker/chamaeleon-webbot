@@ -331,7 +331,6 @@ class MonthCache:
         """
         If you call this, first check if it is actually expired.
         """
-        # assert self.current_month in self._cache, "Current month not in cache, cannot update"
         if self.current_month not in self._cache:
             return self.add_month(self.current_month)
         cache_entry = self._cache[self.current_month]

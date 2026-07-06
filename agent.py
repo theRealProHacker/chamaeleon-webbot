@@ -14,8 +14,6 @@ from agent_base import (
     detect_recommendation_links,
     format_system_prompt,
     laender_faqs,
-    make_recommend_human_support_base,
-    make_recommend_trip_base,
     visa_tool_base,
     visa_tool_description,
     website_tool_description,
@@ -25,13 +23,6 @@ from agent_base import (
 model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.1
 )
-
-# Alternative OpenAI model
-# model = ChatOpenAI(
-#     model_name="gpt-4.1-2025-04-14",
-#     temperature=0.3,
-#     openai_api_key=OPENAI_API_KEY
-# )
 
 
 @tool(description=visa_tool_description)
@@ -50,30 +41,6 @@ def chamaeleon_website_tool(url_path: str) -> str:
 def country_faq_tool(country: str) -> str:
     """LangChain tool wrapper for the country FAQ tool."""
     return country_faq_tool_base(country)
-
-
-def make_recommend_trip(container: set[str]):
-    """Create a LangChain tool for trip recommendations."""
-    base_func = make_recommend_trip_base(container)
-
-    @tool(
-        description="Schlage eine oder mehrere Reise vor. Beispielsweise recommend_trip('Nofretete') oder recommend_trip(['/Nofretete-ALL', '/Botswana-Namibia/Okavango']). "
-    )
-    def recommend_trip(trip_id: str | list[str]):
-        return base_func(trip_id)
-
-    return recommend_trip
-
-
-def make_recommend_human_support(container: list[str]):
-    """Create a LangChain tool for human support recommendations."""
-    base_func = make_recommend_human_support_base(container)
-
-    @tool(description="Empfehle den menschlichen Kundenberater anzurufen. ")
-    def recommend_human_support():
-        return base_func()
-
-    return recommend_human_support
 
 
 def convert_messages_to_langchain(messages: list) -> list:
@@ -147,7 +114,6 @@ def call_stream(
             visa_tool,
             chamaeleon_website_tool,
             country_faq_tool,
-            # make_recommend_trip(recommendations),
         ],
     )
 
@@ -196,10 +162,6 @@ def call_stream(
 
         # Get the final response
         response = events[-1]
-
-        # Debug output
-        # for message in response["messages"][1:]:  # Skip the system message
-        #     message.pretty_print()
 
         # Extract reply from response
         reply = response["messages"][-1].content

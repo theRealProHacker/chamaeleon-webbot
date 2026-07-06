@@ -24,8 +24,6 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in environment variables")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# if not OPENAI_API_KEY:
-#     raise ValueError("OPENAI_API_KEY not found in environment variables")
 
 TOURONE_API_KEY = os.getenv("TOURONE_BEARER_TOKEN")
 if not TOURONE_API_KEY:
@@ -280,7 +278,6 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
     if "#" in url_path:
         url_path, _ = url_path.split("#")
     if url_path not in all_sites:
-        # TODO: look at this on Railway
         print(f"Warnung: URL '{url_path}' nicht in Sitemap gefunden. ")
     try:
         content = get_chamaeleon_website_html(url_path)
@@ -348,30 +345,6 @@ def country_faq_tool_base(country: str) -> str:
         )
     faqs = laender_faqs[country]
     return faqs
-
-
-# Base tool factory functions (without decorators)
-def make_recommend_trip_base(container: set[str]):
-    """Create a trip recommendation function that stores results in the given container."""
-
-    def recommend_trip(trip_id: str | list[str]):
-        try:
-            for id in trip_id:
-                container.add(id)
-        except TypeError:
-            assert isinstance(trip_id, str)
-            container.add(trip_id)
-
-    return recommend_trip
-
-
-def make_recommend_human_support_base(container: list[str]):
-    """Create a human support recommendation function that stores results in the given container."""
-
-    def recommend_human_support():
-        container.append("")
-
-    return recommend_human_support
 
 
 # System prompt template
@@ -503,23 +476,6 @@ assert all(site_link_pattern.match(url) for url in all_sites)
 url_pattern = re.compile(
     r"\s(https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))"
 )
-
-# def process_links_in_reply(reply: str) -> str:
-#     """Process and convert URLs in the reply to HTML links."""
-#     # Make site links
-#     reply = site_link_pattern.sub(
-#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>',
-#         reply
-#     )
-
-#     # Make external URLs
-#     reply = url_pattern.sub(
-#         lambda match: f'<a href="{match.group(1)}" target="_blank">{match.group(1)}</a>',
-#         reply
-#     )
-
-#     return reply
-
 
 def detect_recommendation_links(reply: str) -> set[str]:
     """
