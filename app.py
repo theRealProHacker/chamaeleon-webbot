@@ -10,6 +10,7 @@ from flask import Flask, Response, abort, request, send_from_directory
 from flask_cors import CORS
 
 from agent import call_stream
+from agent_base import markdownify_page_html
 import dashboard
 import rate_limit
 import sitemap_sync
@@ -83,6 +84,13 @@ def chat_stream():
     kundenberater_telefon = data.get("kundenberater_telefon", "")
     # Must be read here: the request context is gone inside the generator.
     is_agentur = is_agentur_request(endpoint)
+    # Agentur pages are behind a login and unreachable for the server-side
+    # website tool, so the widget scrapes and sends the page HTML instead.
+    # Only honored on agentur requests; markdownify_page_html caps the
+    # client-controlled input and never raises.
+    page_content = ""
+    if is_agentur:
+        page_content = markdownify_page_html(data.get("page_html", ""))
 
     if not messages:
         return abort(400, "No messages provided")
@@ -107,6 +115,7 @@ def chat_stream():
                 kundenberater_name,
                 kundenberater_telefon,
                 is_agentur,
+                page_content,
             ):
                 # Handle recommendation previews for final response
                 if event.get("type") == "response":

@@ -76,6 +76,7 @@ def call_stream(
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
+    page_content: str = "",
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -86,6 +87,8 @@ def call_stream(
         kundenberater_name: Name of the customer advisor for this trip/page
         kundenberater_telefon: Phone number of the customer advisor for this trip/page
         is_agentur: Whether the request comes from the Reisebüro/agency area
+        page_content: Widget-scraped content of the current (agentur) page,
+            already markdownified and capped by markdownify_page_html
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -103,6 +106,7 @@ def call_stream(
         kundenberater_name,
         kundenberater_telefon,
         is_agentur,
+        page_content,
     )
 
     # Convert messages to LangChain format
@@ -198,6 +202,7 @@ def call(
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
+    page_content: str = "",
 ) -> str:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
@@ -208,12 +213,19 @@ def call(
         kundenberater_name: Name of the customer advisor for this trip/page
         kundenberater_telefon: Phone number of the customer advisor for this trip/page
         is_agentur: Whether the request comes from the Reisebüro/agency area
+        page_content: Widget-scraped content of the current (agentur) page,
+            already markdownified and capped by markdownify_page_html
 
     Returns:
         str: The reply rendered as HTML
     """
     for event in call_stream(
-        messages, endpoint, kundenberater_name, kundenberater_telefon, is_agentur
+        messages,
+        endpoint,
+        kundenberater_name,
+        kundenberater_telefon,
+        is_agentur,
+        page_content,
     ):
         if event["type"] == "response":
             return event["data"]["reply"]

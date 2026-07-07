@@ -347,6 +347,33 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         return f"Unerwarteter Fehler: {str(e)}"
 
 
+# The Agenturbereich sits behind a login, so get_chamaeleon_website_html can
+# never fetch those pages. The widget therefore scrapes the page HTML in the
+# browser and sends it with the chat request; it arrives here as
+# client-controlled input, so cap it before parsing and cap the result.
+PAGE_HTML_MAX_CHARS = 200_000
+PAGE_CONTENT_MAX_CHARS = 20_000
+
+
+def markdownify_page_html(page_html: str) -> str:
+    """Convert widget-scraped page HTML to markdown for the system prompt.
+
+    Must never raise: a broken page scrape may not break the chat.
+    """
+    if not isinstance(page_html, str) or not page_html.strip():
+        return ""
+    try:
+        soup = BeautifulSoup(page_html[:PAGE_HTML_MAX_CHARS], "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        markdown_content = markdownify.markdownify(str(soup)).strip()
+        markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+        return markdown_content[:PAGE_CONTENT_MAX_CHARS]
+    except Exception as e:
+        print(f"[agent_base] page_html markdownify failed: {e}")
+        return ""
+
+
 country_faq_tool_description = f"""
 Tool für den Zugriff auf länderspezifische FAQs von Chamäleon Reisen.
 
@@ -490,7 +517,7 @@ Aktuelle Zeitangabe:
 
 Der Kunde befindet sich gerade auf folgender Webseite: {{endpoint}}. Gehe davon aus, dass sich Fragen auf diese Seite beziehen.
 
-{{kundenberater_name}}
+{{page_content_block}}{{kundenberater_name}}
 {{kundenberater_telefon}}
 """.strip()
 
@@ -534,6 +561,7 @@ def format_system_prompt(
     kundenberater_name: str = "",
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
+    page_content: str = "",
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
     # The embedding page may pass the advisor with the request; when it does
@@ -565,6 +593,24 @@ def format_system_prompt(
             f"{agentur_wissensbasis}\n\n"
         )
 
+    # Agentur pages are behind a login, so chamaeleon_website_tool cannot
+    # fetch them; the widget sends the page content instead (already
+    # markdownified and capped by markdownify_page_html).
+    page_content_block = ""
+    if is_agentur and page_content:
+        page_content_block = (
+            "Inhalt der aktuellen Seite:\n"
+            "Der Inhalt der Seite, auf der sich der Kunde gerade befindet, liegt "
+            "dir hier bereits als Markdown vor. Beziehe dich bei Fragen zur "
+            "aktuellen Seite direkt auf diesen Inhalt. Rufe für die aktuelle Seite "
+            "NICHT das chamaeleon_website_tool auf – der Agenturbereich ist darüber "
+            "nicht erreichbar. Für öffentliche Seiten auf www.chamaeleon-reisen.de "
+            "kannst du das Tool weiterhin nutzen.\n\n"
+            "--- Seiteninhalt Anfang ---\n"
+            f"{page_content}\n"
+            "--- Seiteninhalt Ende ---\n\n"
+        )
+
     laenderspezifische_faqs = ""
     if countries:
         laenderspezifische_faqs += "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
@@ -576,6 +622,7 @@ def format_system_prompt(
         **time_info,
         endpoint=endpoint,
         agentur_block=agentur_block,
+        page_content_block=page_content_block,
         laenderspezifische_faqs=laenderspezifische_faqs,
         kundenberater_name=(
             "Bei dieser Reise heißt der Erlebnisberater " + kundenberater_name + ". "
