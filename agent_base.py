@@ -100,27 +100,11 @@ with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
 
 # Knowledge base for the agency area (agt.chamaeleon-reisen.de). Only injected
 # into the system prompt for requests coming from the Reisebüro subdomains.
-# The file on disk is the content owner's verbatim delivery; operator-only
-# scaffolding (HTML comments, the "Interne Betreiberhinweise" sections) is
-# stripped here so it never reaches the prompt.
+# Maintained in-repo as clean, prompt-ready markdown — it must carry no
+# operator-only scaffolding (HTML comments, "Interne Betreiberhinweise"
+# sections). test_general.py guards that none of that leaks into the prompt.
 with open("faqs/agentur.md", "r", encoding="utf-8") as f:
-    agentur_wissensbasis = f.read()
-agentur_wissensbasis = re.sub(r"<!--.*?-->", "", agentur_wissensbasis, flags=re.S)
-agentur_wissensbasis = re.split(
-    r"\n## [^\n]*Interne Betreiberhinweise", agentur_wissensbasis
-)[0].strip()
-if agentur_wissensbasis.endswith("---"):
-    agentur_wissensbasis = agentur_wissensbasis[:-3].strip()
-# Fail the boot loudly if a future edit breaks the stripping (unterminated
-# comment, moved/renamed section): operator notes must never reach the prompt,
-# and the strip must never eat public sections.
-for _marker in ("<!--", "-->", "Betreiberhinweis", "TODO"):
-    assert _marker not in agentur_wissensbasis, (
-        f"Operator-Marker '{_marker}' hat das agentur.md-Stripping überlebt"
-    )
-assert "## 14." in agentur_wissensbasis, (
-    "agentur.md-Stripping hat öffentliche Abschnitte entfernt"
-)
+    agentur_wissensbasis = f.read().strip()
 
 general_faq_data: dict[str, str] = {}
 

@@ -16,16 +16,21 @@ def test_recommendation_detection():
 
 def test_agentur_wissensbasis_injection():
     prompt = format_system_prompt("/", [], is_agentur=True)
-    assert "Wissensbasis für Chatbot Leon" in prompt
+    assert "Agenturbereich Chamäleon" in prompt
     assert "Expi-Ermäßigung" in prompt
 
-    # Operator-only scaffolding is stripped at load and never reaches the prompt
+    # The KB is clean, prompt-ready markdown: no operator scaffolding may leak
+    # into the prompt. This guard fails CI if a future edit reintroduces any.
     assert "Interne Betreiberhinweise" not in prompt
     assert "TODO Betreiber" not in prompt
     assert "<!--" not in prompt
 
+    # Language rule from the Reisebüro feedback: the non-word "Erklärungsvideo"
+    # must never come back — use "Video-Tutorial".
+    assert "Erklärungsvideo" not in prompt
+
     prompt = format_system_prompt("/", [])
-    assert "Wissensbasis für Chatbot Leon" not in prompt
+    assert "Agenturbereich Chamäleon" not in prompt
 
 
 def test_agentur_request_detection():

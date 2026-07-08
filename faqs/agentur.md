@@ -1,63 +1,39 @@
-# Wissensbasis für Chatbot Leon – Agenturbereich Chamäleon Reisen
-
-**Zielgruppe:** Reisebüros, Reiseprofis, Expedient*innen, mobile Reiseberater*innen und Chamäleon-Partneragenturen.  
-**Einsatzbereich:** Antworten im Agenturbereich bzw. für eingeloggte Reisebüro-Mitarbeitende.  
-**Ton:** freundlich, klar, direkt, duzend.  
-**Wichtig:** Keine individuellen Konditionen, Agenturdaten, Bankdaten oder vertragsbezogenen Details nennen. Bei individuellen Fragen immer an das Vertriebsteam verweisen.
-
----
-
-## 1. Grundregeln für Leon im Agenturbereich
-
-### 1.1 Abgrenzung Agenturbereich vs. normale Website
-
-Wenn die Frage von einem Reiseprofi, einer Agentur, einem Reisebüro oder einer/einem Expedient*in kommt, darf Leon Informationen aus dieser Wissensbasis nutzen.
-
-Wenn die Frage von einem normalen Gast kommt oder sich eindeutig auf eine private Kundenbuchung ohne Agenturbezug bezieht, soll Leon keine agenturinternen Informationen ausgeben. In diesem Fall soll Leon auf die normalen Informationen für Gäste bzw. die Erlebnisberatung verweisen.
-
-### 1.2 Login-Fragen
-
-Login-Fragen können auch auftreten, wenn Reiseprofis noch nicht im Agenturbereich eingeloggt sind. Deshalb sollten Login-Antworten auch außerhalb des eingeloggten Bereichs verfügbar sein.
-
-### 1.3 Eskalationsregel: Immer an Vertrieb verweisen
-
-Bei folgenden Themen soll Leon grundsätzlich an das Vertriebsteam verweisen, besonders wenn es um individuelle Fälle, Konditionen, Vertragsdetails oder Änderungen geht:
-
-- Provision
-- individuelle Provisionshöhe
-- Verkettung
-- Rückvergütung
-- Cashback
-- Agenturschließung
-- Änderungen an Agenturdaten
-- Paxlounge
-- Expi-Ermäßigung oder individuelle Ermäßigungsfälle
-- Bankdaten
-- Kooperationszugehörigkeit
-- WKZ / Werbekostenzuschuss
-
-**Kontakt Vertriebsteam:**  
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### 1.4 Allgemeine Telefonnummern
+# Agenturbereich Chamäleon
 
 Für Fragen zu Reisen, Reservierungen und Buchungen:  
 Telefon: +49 30 347 996 0
 
-Für Agenturfragen und Vertrieb:  
+Für Agenturfragen:  
 E-Mail: agentur@chamaeleon-reisen.de  
 Telefon: +49 30 347 996 290
 
-Die zuständigen Erlebnisberater*innen zu einer Reise findest du auf der jeweiligen Reiseseite rechts in der gelben Berater-Box.
+Bei folgenden Themen grundsätzlich an das Vertriebsteam verweisen, besonders wenn es um individuelle Fälle, Konditionen, Vertragsdetails oder Änderungen geht:
 
----
+- Provision
+- individuelle Provisionshöhe
+- Provisionsabrechnung
+- Verkettung
+- Rückvergütung
+- Cashback
+- Agenturschließung
+- Änderungen von sensiblen Agenturdaten
+- Paxlounge
+- Expi-Ermäßigung oder individuelle Ermäßigungsfälle
+- Bankdaten
+- Kooperationszugehörigkeit
+- Vorfreude-Paket
+- Kundenabend veranstalten
+- WKZ / Werbekostenzuschuss
+- Agenturnummer vergessen
+- Zeitungsanzeigen
+- Logo ändern -> PNG/JPG als E-Mail
+- Katalogversand in andere Länder
 
 ## 2. Login und Zugang zum Agenturbereich
 
 ### Wie kann ich mich einloggen?
 
-Klicke oben rechts auf **MeinChamäleon** und wähle den **Login für Reisebüros** aus.
+Klicke oben rechts auf **[MeinChamäleon](https://www.chamaeleon-reisen.de/MeinChamaeleon/Login)** und wähle den **[Login für Reisebüros](https://www.chamaeleon-reisen.de/Agentur)** aus.
 
 Je nachdem, ob du in einem Reisebüro arbeitest oder als mobile Reiseberaterin bzw. mobiler Reiseberater tätig bist, benötigst du für den Login:
 
@@ -73,25 +49,9 @@ Trage anschließend deine Agenturnummer und deine E-Mail-Adresse ein. Du erhält
 
 Der Link ist **60 Minuten gültig**. Wenn der Link abgelaufen ist, kannst du jederzeit einen neuen Link anfordern.
 
-### Ich habe meine Agenturnummer vergessen. Wie finde ich sie heraus?
-
-Bitte wende dich an das Vertriebsteam. Dort hilft man dir weiter.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### Habe ich bereits eine Agenturnummer bei Chamäleon?
-
-Bitte wende dich an das Vertriebsteam. Dort kann geprüft werden, ob für dich oder dein Reisebüro bereits eine Agenturnummer besteht.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
 ### Wie kann ich mein Passwort ändern?
 
 Du kannst dein Passwort im Agenturbereich ändern. Gehe dafür auf **Daten anpassen**.
-
----
 
 ## 3. Provision, Umsatz und Abrechnung
 
@@ -103,34 +63,17 @@ Wenn sich der Reisepreis nachträglich durch Zusatzleistungen erhöht, wird die 
 
 Bei individuellen Fragen zur Provision wende dich bitte an das Vertriebsteam.
 
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### Ist es möglich, die Provision erst bei Abreise der Gäste zu erhalten?
-
-Bitte wende dich mit dieser Frage direkt an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### Wie hoch ist meine Provision?
-
-Leon kann keine individuelle Provisionshöhe nennen. Bitte wende dich an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
 ### Wo finde ich meine Provisionsabrechnung?
 
-Deine Provisionsabrechnungen werden im Agenturbereich hochgeladen. Du findest sie unter **Buchungen & Dokumente** und kannst sie dort herunterladen.
+Deine Provisionsabrechnungen werden im Agenturbereich hochgeladen. Du findest sie unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen) und kannst sie dort herunterladen.
 
 ### Wo kann ich meinen aktuellen Umsatz einsehen?
 
-Deine Umsätze findest du im Agenturbereich unter **Buchungen & Dokumente**.
+Deine Umsätze findest du im Agenturbereich unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen).
 
 ### Muss ich meine Provision zurückzahlen, wenn eine Reise abgesagt wird?
 
-Wenn deine Gäste laut AGB stornieren, behältst du die Provision in voller Höhe.
+Wenn deine Gäste laut [AGB](https://agt.chamaeleon-reisen.de/AGB) stornieren, behältst du die Provision in voller Höhe.
 
 Ausgenommen sind Stornierungen aufgrund höherer Gewalt oder unvermeidbarer, außergewöhnlicher Ereignisse. Dazu können zum Beispiel Naturgewalten, innere oder politische Unruhen, Pandemien oder Reisewarnungen des Auswärtigen Amtes gehören.
 
@@ -140,8 +83,6 @@ Bei individuellen Fällen wende dich bitte an das Vertriebsteam.
 
 E-Mail: agentur@chamaeleon-reisen.de  
 Telefon: +49 30 347 996 290
-
----
 
 ## 4. Schaufenster-Deko, Kataloge und Vorlagen
 
@@ -159,7 +100,7 @@ Schaufensterangebote kannst du im Agenturbereich herunterladen. Das geht entwede
 
 ### Wo finde ich Deko für mein Schaufenster?
 
-Deko für dein Schaufenster findest du im Agenturbereich. Dort findest du zum Beispiel:
+Deko für dein Schaufenster findest du im Agenturbereich unter [Verkaufsunterstützung](https://agt.chamaeleon-reisen.de/Agentur/Verkaufsunterstuetzung). Dort findest du zum Beispiel:
 
 - Jubiläumspaket mit Stickern, Deckenhängern und Herzaufsteller im XL-Format,
 - Stoffbanner,
@@ -179,14 +120,9 @@ Die **Kataloge der Herzen** kannst du kostenfrei bestellen.
 
 Der Versand erfolgt je nach Land über unterschiedliche Partner:
 
-- Deutschland: Infox
-- Österreich: Schöngrundner
-- Schweiz: Flühmann
-
-Für den Versand in weitere Länder wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+- Deutschland: [Infox](https://touristikwelt.infox.de/protected/kataloge/#/catalog-shop/catalog-overview?organizer=CHRE)
+- Österreich: [Schöngrundner](http://www.schoengrundner.at/)
+- Schweiz: [Flühmann](https://www.mailinghouse.ch/Shop)
 
 ### Welche Kataloge gibt es?
 
@@ -207,7 +143,7 @@ So gehst du vor:
 
 ### Wo finde ich Bilder zu einer bestimmten Reise?
 
-Im Agenturbereich kannst du ein Bild-Paket herunterladen.
+Im Agenturbereich kannst du ein allgemeines Bild-Paket herunterladen.
 
 Wenn du weitere Bilder benötigst, wende dich bitte an das Vertriebsteam.
 
@@ -216,35 +152,20 @@ Telefon: +49 30 347 996 290
 
 ### Wo finde ich Vorlagen für Social Media?
 
-Im Agenturbereich findest du Social-Media-Vorlagen, die du verwenden kannst.
+Im Agenturbereich findest du unter [Downloads](https://agt.chamaeleon-reisen.de/Agentur/Downloads) Social-Media-Vorlagen, die du verwenden kannst.
 
-Wenn du Chamäleon in deinem Beitrag markieren möchtest, nutze gerne den Hashtag **#DieReiseMeinesLebens**.
+Wenn du Chamäleon in deinem Beitrag markieren möchtest, nutze gerne den Hashtag **#DieReiseMeinesLebens** und verlinke Chamäleon auf [Instagram](https://www.instagram.com/chamaeleon.reisen/) und [Facebook](https://www.facebook.com/Chamaeleon.Reisen/).
 
 ### Wo finde ich das Chamäleon-Logo?
 
-Das Chamäleon-Logo findest du im Agenturbereich in verschiedenen Formaten.
+Das Chamäleon-Logo findest du im Agenturbereich unter [Downloads](https://agt.chamaeleon-reisen.de/Agentur/Downloads) in verschiedenen Formaten.
 
-### Wo finde ich Vorlagen für Zeitungsanzeigen?
-
-Chamäleon bietet aktuell keine fertigen Vorlagen für Zeitungsanzeigen an.
-
-Bitte wende dich bei Bedarf an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
 
 ### Wie kann ich die Lightbox aufbauen?
 
 Wenn du ein Leuchtdisplay bestellt hast, nutze bitte das Video-Tutorial zum Aufbau.
 
-Nutze dafür das Lightbox-Video-Tutorial im Agenturbereich.
-
-<!-- TODO Betreiber: Direkten Link zum Lightbox-Video-Tutorial ergänzen. -->
-
-Bei Fragen hilft dir das Vertriebsteam weiter.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Nutze dafür das [Lightbox-Video-Tutorial](https://owncloud.chamaeleon-reisen.de/index.php/s/yjRIK3970KSTNfe). Eine Anleitung findest du auch in den [FAQ im Agenturbereich](https://www.chamaeleon-reisen.de/Agentur/FAQ).
 
 ### Wie kann ich das Stoffbanner befestigen?
 
@@ -260,10 +181,7 @@ Als aktiver Reiseprofi am Counter erhältst du grundsätzlich **30 % Ermäßigun
 
 Bei Reisen, die bis auf den letzten Platz gebucht sind, kannst du einmal pro Jahr für den letzten Platz **50 % Ermäßigung auf das Landprogramm** erhalten.
 
-Alle Informationen zur Expi-Ermäßigung findest du im Agenturbereich. Bei individuellen Fragen zur Ermäßigung wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Alle Informationen zur Expi-Ermäßigung findest du auf der [Seite Expi-Reisen im Agenturbereich](https://agt.chamaeleon-reisen.de/Agentur/Expi-Reisen). Bei individuellen Fragen zur Ermäßigung wende dich bitte an das Vertriebsteam.
 
 ### Wo kann ich den finalen Reisepreis abzüglich der Expi-Ermäßigung einsehen?
 
@@ -275,7 +193,7 @@ Die Erlebnisberater*innen senden dir anschließend eine aktualisierte Reiseanmel
 
 ### Wo finde ich Reisetermine mit 50 % Expi-Ermäßigung?
 
-Im Agenturbereich findest du eine Übersicht aller Termine mit **50 % Expi-Ermäßigung**.
+Im Agenturbereich findest du unter [Expi-Reisen](https://agt.chamaeleon-reisen.de/Agentur/Expi-Reisen) im Bereich **„50 % für dich“** eine Übersicht aller Termine mit **50 % Expi-Ermäßigung**.
 
 ### Welche Voraussetzungen gelten für die Expi-Ermäßigung?
 
@@ -284,9 +202,6 @@ Die Expi-Ermäßigung gilt für aktive Reiseprofis am Counter.
 Grundsätzlich erhältst du **30 % Ermäßigung auf das Landprogramm**. Eine Ermäßigung von **50 % auf das Landprogramm** ist einmal pro Jahr möglich, wenn du den 12. Platz einer Reise buchst.
 
 Bei individuellen Fragen zur Ermäßigung wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
 
 ---
 
@@ -320,7 +235,7 @@ Du kannst deine Optionen im Agenturbereich innerhalb der 7 Tage selbst:
 
 ### Wie kann ich meine Option stornieren oder fixieren?
 
-Du findest deine Buchungen und Optionen im Agenturbereich unter **Buchungen & Dokumente**.
+Du findest deine Buchungen und Optionen im Agenturbereich unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen).
 
 Wähle dort die passende Option aus und klicke auf:
 
@@ -345,9 +260,7 @@ Wichtig: „Jetzt vorausbuchen“ bedeutet **nicht**, dass ein Katalog vorbestel
 
 ### Wo finde ich Termine für kurzfristige Abreisen?
 
-Aktuelle Reisetermine für kurzfristige Abreisen findest du im Agenturbereich bzw. auf der entsprechenden Übersichtsseite für Kurzentschlossene.
-
-<!-- TODO Betreiber: Direkten Link zu kurzfristigen Abreisen ergänzen. -->
+Aktuelle Reisetermine für kurzfristige Abreisen findest du im Agenturbereich bzw. auf der [Übersichtsseite für Kurzentschlossene](https://www.chamaeleon-reisen.de/Kurzfristige-Abreisen).
 
 ### Kann ich eine Reise für meine Gäste ohne Flug buchen?
 
@@ -363,11 +276,7 @@ Die zuständigen Erlebnisberater*innen findest du auf der jeweiligen Reiseseite 
 
 ### Wie kann ich ein Angebot von der Website in die Paxlounge übertragen?
 
-Für die Übertragung von Angeboten in die Paxlounge gibt es ein Erklärungsvideo.
-
-Nutze dafür das Paxlounge-Erklärungsvideo im Agenturbereich.
-
-<!-- TODO Betreiber: Direkten Link zum Paxlounge-Erklärungsvideo ergänzen. -->
+Die Übertragung von Angeboten ist ganz einfach – schau dir gleich das [Video-Tutorial](https://www.youtube.com/watch?v=9MK1fcVyXIQ) an.
 
 Bei Fragen zur Paxlounge wende dich bitte an das Vertriebsteam.
 
@@ -382,30 +291,21 @@ Bitte prüfe zuerst diese Punkte:
 2. In den Systemeinstellungen für Chamäleon muss die Agenturnummer bei **Parameter 0** eingetragen sein.
 3. Wenn du aus der Paxlounge auf die Chamäleon-Website wechselst, darfst du dich dort nicht zusätzlich einloggen. Sonst kann die Schnittstelle zur Paxlounge unterbrochen werden.
 
-Nutze außerdem das Erklärungsvideo.
+Nutze außerdem das Video-Tutorial.
 
-Nutze dafür das Paxlounge-Erklärungsvideo im Agenturbereich.
-
-<!-- TODO Betreiber: Direkten Link zum Paxlounge-Erklärungsvideo ergänzen. -->
-
-Wenn es weiterhin nicht funktioniert, wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Nutze dafür das [Paxlounge-Video-Tutorial](https://www.youtube.com/watch?v=9MK1fcVyXIQ).
 
 ### Wie kann ich ein Angebot von der Website zu BOSYS UI.Office übernehmen?
 
 Mit **BOSYS UI.Office** kannst du aus dem Chamäleon-Programm eine individualisierte Angebots-Website für deine Kundinnen und Kunden erstellen.
 
-Für die Übernahme gibt es ein Erklärungsvideo.
+Für die Übernahme gibt es ein Video-Tutorial.
 
-Nutze dafür das BOSYS-Erklärungsvideo im Agenturbereich.
-
-<!-- TODO Betreiber: Direkten Link zum BOSYS-Video ergänzen. -->
+Nutze dafür das [BOSYS-Video-Tutorial](https://www.youtube.com/watch?v=VDauXaw1A0U).
 
 ### Wie kann ich eine Buchung in mein Midoffice-System übertragen?
 
-Öffne die gewünschte Buchung im Agenturbereich unter **Buchungen & Dokumente**.
+Öffne die gewünschte Buchung im Agenturbereich unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen).
 
 Klicke anschließend auf **Übertrag ins Midoffice**.
 
@@ -423,35 +323,7 @@ Die Daten deiner Gäste findest du im Agenturbereich unter **Gästedaten**.
 
 Die Reiseunterlagen für deine Buchungen werden im Agenturbereich hochgeladen.
 
-Du findest sie unter **Buchungen & Dokumente**. Dort kannst du sowohl deine Unterlagen als auch die Dokumente für die Gäste herunterladen.
-
-### Wo kann ich meine Adresse oder Agenturdaten ändern?
-
-Für Änderungen sensibler Agenturdaten wende dich bitte an das Vertriebsteam. Dazu gehören zum Beispiel:
-
-- Adresse,
-- Bankverbindung,
-- Kooperationszugehörigkeit,
-- andere zentrale Agenturdaten.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-Expedient*innen kannst du im Agenturbereich selbst bearbeiten oder hinzufügen. Gehe dafür auf **Daten anpassen**.
-
-### Wo kann ich meine Bankdaten ändern?
-
-Bitte wende dich für Änderungen deiner Bankdaten an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### Wo kann ich meine Kooperationszugehörigkeit ändern?
-
-Bitte wende dich für Änderungen deiner Kooperationszugehörigkeit an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Du findest sie unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen). Dort kannst du sowohl deine Unterlagen als auch die Dokumente für die Gäste herunterladen.
 
 ### Wie kann ich Expedient*innen bearbeiten oder hinzufügen?
 
@@ -478,9 +350,7 @@ Telefon: +49 30 347 996 290
 
 Du kannst dich als neuer Chamäleon-Partner registrieren.
 
-Den Registrierungslink findest du im Agenturbereich bzw. auf der Chamäleon-Partnerseite.
-
-<!-- TODO Betreiber: Direkten Link zur Registrierung als Chamäleon-Partner ergänzen. -->
+Den Registrierungslink findest du im Agenturbereich bzw. auf der [Seite zur Agentur-Neuanmeldung](https://agt.chamaeleon-reisen.de/Agentur/AG-Neuanmeldung).
 
 Bei Fragen hilft dir das Vertriebsteam weiter.
 
@@ -506,18 +376,11 @@ Telefon: +49 30 347 996 290
 
 Mit **Just4You** kannst du deinen Kundinnen und Kunden eine Chamäleon-Reise anbieten, die exklusiv über dein Reisebüro buchbar ist.
 
-Dafür kommen Reisen infrage, auf denen noch keine Plätze gebucht sind. Geeignet sind:
-
-- **Erlebnisreisen**,
-- **Erlebnisreisen genießen**.
+Dafür kommt jede Erlebnisreise infrage, auf der noch keine Plätze gebucht sind.
 
 Das Prinzip: Zwölf Gäste reisen mit, und für dich ist ein Freiplatz vorgesehen.
 
-Weitere Informationen findest du im Agenturbereich.
-
-Die Informationen findest du im Agenturbereich.
-
-<!-- TODO Betreiber: Direkten Link zu Just4You ergänzen. -->
+Weitere Informationen findest du auf der [Just4You-Seite im Agenturbereich](https://agt.chamaeleon-reisen.de/Agentur/Just4You).
 
 ---
 
@@ -525,76 +388,23 @@ Die Informationen findest du im Agenturbereich.
 
 ### Wie kann ich Chamäleon-Reisen auf meiner Website einbinden?
 
-Es gibt zwei Möglichkeiten: **Partnerlink** oder **JSON-Schnittstelle**.
-
-#### Möglichkeit 1: Partnerlink
-
-Mit dem Partnerlink wechseln Besucher*innen deiner Website auf die Chamäleon-Website. Dort können sie das Erlebnisprogramm ansehen und direkt buchen.
-
-Auf den besuchten Seiten wird dein Name eingeblendet. Wenn daraus eine Direktbuchung entsteht, wird diese Buchung deinem Reisebüro zugeordnet. Du erhältst eine Info-Mail und die Provision wird deiner Agentur zugeordnet.
-
-Beispiellink:
-
-```text
-https://www.chamaeleon-reisen.de?anr=12345
-```
-
-Ersetze `12345` durch deine fünf- oder sechsstellige Agenturnummer.
-
-Du kannst diesen Link als Hyperlink hinter einen Text, ein Bild oder ein Video legen.
-
-#### Möglichkeit 2: JSON-Schnittstelle
-
-Über JSON können buchungsrelevante Daten aus der Chamäleon-Datenbank auf deine Website übertragen werden.
-
-Dazu gehören zum Beispiel:
-
-- Reiseverlauf,
-- Tag-für-Tag-Programm,
-- Termine,
-- Preise,
-- Leistungen,
-- Fotos,
-- Karten.
-
-So kannst du Chamäleon-Reisen auf deiner eigenen Website darstellen und online direkt bei dir anfragen lassen.
-
-Informationen zur Einrichtung der Schnittstelle findest du im Agenturbereich.
+Du hast zwei Möglichkeiten: Entweder nutzt du einen Partnerlink, der Besucher*innen deiner Website auf die Chamäleon-Website leitet und deine Buchungen zuordnet. Oder du verwendest die JSON-Schnittstelle, um buchungsrelevante Daten direkt auf deiner Website darzustellen. Informationen zur Einrichtung der Schnittstelle findest du im Agenturbereich unter [Verkaufsunterstützung](https://agt.chamaeleon-reisen.de/Agentur/Verkaufsunterstuetzung).
 
 ---
 
 ## 12. Marketing, Kundenabend, WKZ und Materialien
 
-### Kann das Vorfreude-Paket direkt an die Gäste geschickt werden?
-
-Bitte wende dich mit dieser Frage an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
 ### Kann ich einen Kundenabend mit Chamäleon machen?
 
-Ja, grundsätzlich kannst du einen Kundenabend mit Chamäleon anfragen.
-
-Bitte wende dich mit deiner Anfrage an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
-
-### Erhalte ich von Chamäleon einen WKZ oder Werbekostenzuschuss?
-
-Wenn du eine Marketingmaßnahme planst und einen WKZ anfragen möchtest, wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Bitte wende dich mit deiner Anfrage an unser Vertriebsteam unter agentur@chamaeleon-reisen.de oder telefonisch unter +49 30 347 996 290.
 
 ### Kann ich eure NatureBottles kaufen oder bestellen?
 
-Nein. Die NatureBottles sind aufgrund langer Lieferfristen und begrenzter Lagerkapazitäten den gemeinsamen Gästen vorbehalten.
+Unsere NatureBottles sind aufgrund langer Lieferfristen und begrenzter Lagerkapazitäten unseren gemeinsamen Gästen vorbehalten.
 
 ### Bietet ihr Giveaways an?
 
-Nein. Aus Gründen der Nachhaltigkeit produziert Chamäleon keine Giveaways.
+Aus Gründen der Nachhaltigkeit lassen wir keine Giveaways produzieren.
 
 ---
 
@@ -611,7 +421,7 @@ Hinweis: Reiseprofis können das Chamäleon-Gefühl auch über die Expi-Ermäßi
 
 ### Kann man den LiveStream später noch anschauen?
 
-Ja. Die Aufzeichnungen der LiveStreams stellt Chamäleon im Agenturbereich zur Verfügung.
+Ja. Die Aufzeichnungen der LiveStreams stellt Chamäleon im Agenturbereich unter [LiveStream](https://agt.chamaeleon-reisen.de/Agentur/LiveStream) zur Verfügung.
 
 ---
 
@@ -623,33 +433,10 @@ Ja. Es gibt die Facebook-Gruppe **Chamäleon Insider** für Reiseprofis.
 
 Dort kannst du dich mit anderen Reiseprofis und Chamäleon austauschen, Neuigkeiten erhalten, Ideen teilen und Erfahrungen weitergeben.
 
-Den Link zur Gruppe findest du im Agenturbereich.
+Zur Gruppe geht es direkt hier: [Facebook-Gruppe Chamäleon Insider](https://www.facebook.com/groups/chamaeleon.insider/).
 
-<!-- TODO Betreiber: Direkten Link zur Facebook-Gruppe ergänzen. -->
 
----
+# Vertriebsteam
 
-## 15. Interne Betreiberhinweise: fehlende Links und offene Punkte
-
-Die folgenden Links fehlen in der Quelldatei und sollten vor dem produktiven Einsatz ergänzt werden. Diese Liste ist ein Betreiberhinweis und soll nicht als Nutzerantwort ausgegeben werden:
-
-- `[Link zum Lightbox-Video-Tutorial einfügen]`
-- `[Link zum Paxlounge-Erklärungsvideo einfügen]`
-- `[Link zum BOSYS-Video einfügen]`
-- `[Link zu kurzfristigen Abreisen einfügen]`
-- `[Link zur Registrierung als Chamäleon-Partner einfügen]`
-- `[Link zu Just4You-Informationen einfügen]`
-- `[Link zur Facebook-Gruppe einfügen]`
-
----
-
-## 16. Interne Betreiberhinweise: bereinigte Korrekturen gegenüber der Quelldatei
-
-Diese Punkte wurden für die Chatbot-Nutzung bereinigt. Diese Liste ist ein Betreiberhinweis und soll nicht als Nutzerantwort ausgegeben werden:
-
-1. Interne Notiz zur Unterscheidung zwischen Expis und Gästen wurde nicht als normale Antwort übernommen, sondern als Abgrenzungsregel formuliert.
-2. Die falsche alte Antwort zu **„Jetzt vorausbuchen“** wurde entfernt. Die richtige Antwort lautet: Plätze für eine Wunschreise sichern; bis spätestens 10 Monate vor Abreise erhält die Agentur ein unverbindliches Angebot.
-3. Bei **„Wo kann ich die Daten meiner Gäste einsehen?“** wurde die fehlerhafte Formulierung „Deine Umsätze“ korrigiert. Korrekt ist: Gästedaten findest du im Agenturbereich unter **Gästedaten**.
-4. Die Formulierung zum Stoffbanner wurde grammatikalisch korrigiert: Das Banner wird mit einer Kordel geliefert; mit dieser Kordel kann es befestigt werden.
-5. Unklare „hier“-Verweise wurden durch konkrete Agenturbereich-Hinweise und interne TODO-Kommentare ersetzt, damit der Chatbot keine leeren oder falschen Links ausgibt.
-6. Sensible Themen wie Provision, Bankdaten, Agenturdaten, Paxlounge und Ermäßigung wurden mit klarer Verweislogik zum Vertriebsteam versehen.
+E-Mail: agentur@chamaeleon-reisen.de  
+Telefon: +49 30 347 996 290
