@@ -11,6 +11,7 @@ from flask_cors import CORS
 
 from agent import call_stream
 from agent_base import markdownify_page_html
+from kundendaten import filter_new_tool_calls, parse_kunden_id
 import dashboard
 import rate_limit
 import sitemap_sync
@@ -91,6 +92,11 @@ def chat_stream():
     page_content = ""
     if is_agentur:
         page_content = markdownify_page_html(data.get("page_html", ""))
+    # Kunden-Modus: die Widget-gesendete kunden_id des eingeloggten
+    # MeinChamäleon-Kunden. Client-asserted und unverifiziert (akzeptiertes
+    # MVP-Risiko, siehe TODOS.md); parse_kunden_id normalisiert Typen und
+    # filtert per Allowlist. Bei Agentur-Requests gewinnt der Agentur-Modus.
+    kunden_id = "" if is_agentur else parse_kunden_id(data.get("kunden_id"))
 
     if not messages:
         return abort(400, "No messages provided")
@@ -108,6 +114,9 @@ def chat_stream():
     logging_messages[0]["timestamp"] = time.time()
 
     def generate():
+        # Dedup für tool_call-Events: stream_mode="values" liefert historische
+        # Calls mit jedem Event erneut (siehe kundendaten.filter_new_tool_calls).
+        seen_tool_call_ids: set[str] = set()
         try:
             for event in call_stream(
                 messages,
@@ -116,7 +125,19 @@ def chat_stream():
                 kundenberater_telefon,
                 is_agentur,
                 page_content,
+                kunden_id,
             ):
+                # "Tool gefeuert" beobachtbar machen (stdout, nicht Supabase):
+                # nur Toolname + session_id, nie Argumente oder Kundendaten.
+                if event.get("type") == "tool_call":
+                    for tc in filter_new_tool_calls(
+                        [event["data"]], seen_tool_call_ids
+                    ):
+                        print(
+                            f"[tool_call] session={session_id} "
+                            f"tool={tc.get('name')} is_kunde={bool(kunden_id)}"
+                        )
+
                 # Handle recommendation previews for final response
                 if event.get("type") == "response":
                     recommendations = event["data"]["recommendations"]

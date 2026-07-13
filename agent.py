@@ -18,6 +18,7 @@ from agent_base import (
     visa_tool_description,
     website_tool_description,
 )
+from kundendaten import make_fluege_tool
 
 # Initialize the model
 model = ChatGoogleGenerativeAI(
@@ -77,6 +78,7 @@ def call_stream(
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
     page_content: str = "",
+    kunden_id: str = "",
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -89,6 +91,8 @@ def call_stream(
         is_agentur: Whether the request comes from the Reisebüro/agency area
         page_content: Widget-scraped content of the current (agentur) page,
             already markdownified and capped by markdownify_page_html
+        kunden_id: Validated ID of the logged-in MeinChamäleon customer
+            (already through parse_kunden_id); "" outside Kunden-Modus
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -107,6 +111,7 @@ def call_stream(
         kundenberater_telefon,
         is_agentur,
         page_content,
+        is_kunde=bool(kunden_id),
     )
 
     # Convert messages to LangChain format
@@ -117,15 +122,17 @@ def call_stream(
     # Initialize recommendation containers
     recommendations = set[str]()
 
-    # Create agent with tools
-    agent_executor = create_react_agent(
-        model,
-        tools=[
-            visa_tool,
-            chamaeleon_website_tool,
-            country_faq_tool,
-        ],
-    )
+    # Create agent with tools. Ohne kunden_id bleibt die Tool-Liste identisch
+    # zu heute (Sicherheitsinvariante); das Flug-Tool existiert nur für den
+    # eingeloggten Kunden und ist per Closure an genau seine ID gebunden.
+    tools = [
+        visa_tool,
+        chamaeleon_website_tool,
+        country_faq_tool,
+    ]
+    if kunden_id:
+        tools.append(make_fluege_tool(kunden_id))
+    agent_executor = create_react_agent(model, tools=tools)
 
     try:
         # Stream the agent execution
@@ -203,6 +210,7 @@ def call(
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
     page_content: str = "",
+    kunden_id: str = "",
 ) -> str:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
@@ -215,6 +223,8 @@ def call(
         is_agentur: Whether the request comes from the Reisebüro/agency area
         page_content: Widget-scraped content of the current (agentur) page,
             already markdownified and capped by markdownify_page_html
+        kunden_id: Validated ID of the logged-in MeinChamäleon customer
+            (already through parse_kunden_id); "" outside Kunden-Modus
 
     Returns:
         str: The reply rendered as HTML
@@ -226,6 +236,7 @@ def call(
         kundenberater_telefon,
         is_agentur,
         page_content,
+        kunden_id,
     ):
         if event["type"] == "response":
             return event["data"]["reply"]

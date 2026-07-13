@@ -461,7 +461,7 @@ Allgemeine FAQs:
 
 {allgemeine_faqs}
 
-{{agentur_block}}Länderspezifische FAQs:
+{{kunden_modus_block}}{{agentur_block}}Länderspezifische FAQs:
 
 {{laenderspezifische_faqs}}
 
@@ -546,6 +546,7 @@ def format_system_prompt(
     kundenberater_telefon: str = "",
     is_agentur: bool = False,
     page_content: str = "",
+    is_kunde: bool = False,
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
     # The embedding page may pass the advisor with the request; when it does
@@ -562,6 +563,29 @@ def format_system_prompt(
             print(f"[agent_base] berater lookup failed for {endpoint}: {e}")
 
     time_info = get_current_time_info()
+
+    # Kunden-Modus (eingeloggter MeinChamäleon-Kunde): nur ein Flag erreicht
+    # den Prompt — die kunden_id selbst bleibt in der Tool-Closure (agent.py)
+    # und darf hier nie auftauchen.
+    kunden_modus_block = ""
+    if is_kunde:
+        kunden_modus_block = (
+            "Kunden-Modus:\n"
+            "Der Kunde ist in MeinChamäleon eingeloggt. Du hast über die "
+            "bereitgestellten Tools NUR LESENDEN Zugriff auf seine Flugdaten — "
+            "darüber hinaus kannst du nichts: keine Buchungen, keine Änderungen, "
+            "keine Stornierungen und keine Abfragen außerhalb der Tools.\n"
+            "- Rufe kunden_fluege_tool nur auf, wenn der Kunde ausdrücklich nach "
+            "seinen eigenen Flügen fragt.\n"
+            "- Abweichend von der allgemeinen Flüge-Regel darfst du die per Tool "
+            "abgerufenen Flugdaten dieses Kunden nennen.\n"
+            "- Vergangene Flüge kann das Tool nicht einsehen — verweise dafür an "
+            "den Erlebnisberater.\n"
+            "- Für alle anderen Konto- oder Buchungsdaten (Rechnungen, Dokumente, "
+            "Teilnehmer, Umbuchungen) verweise an den Erlebnisberater.\n"
+            "Alle allgemeinen Funktionen (Reisekatalog, Termine, FAQs, Visum) "
+            "stehen weiterhin zur Verfügung.\n\n"
+        )
 
     agentur_block = ""
     if is_agentur:
@@ -605,6 +629,7 @@ def format_system_prompt(
     return system_prompt_template.format(
         **time_info,
         endpoint=endpoint,
+        kunden_modus_block=kunden_modus_block,
         agentur_block=agentur_block,
         page_content_block=page_content_block,
         laenderspezifische_faqs=laenderspezifische_faqs,

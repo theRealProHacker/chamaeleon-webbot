@@ -1,5 +1,21 @@
 # Backlog
 
+## Kunden-Modus (accepted MVP risks, 2026-07-13)
+- [ ] **IDOR revisit — verify kunden_id server-side.** The widget-sent
+      `kunden_id` is client-asserted; anyone with a valid Kundennummer can read
+      that customer's flights through the chat endpoint. Accepted for MVP
+      ("IDs are unguessable" — note: 999999999 exists, but that is the
+      designated test customer). Real fix: a server-verifiable MeinChamäleon
+      session token — ask the TourOne/chamdev owner what exists, then verify it
+      in `app.py` before enabling the mode. First thing to revisit post-MVP.
+      Mitigations shipped: closure tool without ID parameter, GET-only, field
+      whitelist (no PNR), input allowlist, global 100/h rate limit.
+- [ ] **`is_kunde` logging shares the `is_agentur` schema question** (below):
+      kunden conversations are currently only visible via the stdout
+      `[tool_call] … is_kunde=True` lines, not in Supabase. If the message-log
+      schema tolerates extra fields, log both flags — never the raw ID (DSGVO:
+      linking transcripts to an identified person is a deliberate decision).
+
 ## Chatbot / Agenturbereich (deferred from 2026-07-06 ship review)
 - [ ] **Log the `is_agentur` flag with chat messages** so agentur conversations
       are distinguishable in the dashboard/Supabase when detection came via

@@ -31,7 +31,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from db_logging import log_messages, log_queue
 
-MESSAGE_LIMIT = "15 per hour"
+MESSAGE_LIMIT = "100 per hour"
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -89,9 +89,12 @@ def init_app(app) -> Limiter:
         app=app,
         default_limits=[],
         storage_uri="memory://",
-        # Rate limiting ausgesetzt (2026-07-06): enabled=True setzen, um das
-        # 15/h-Limit wieder scharf zu schalten.
-        enabled=False,
+        # Wieder scharf seit Kunden-Modus (2026-07-13): global 100/h für alle
+        # (Owner-Entscheidung) — großzügig genug, dass echte Gespräche nie
+        # anstoßen (das 15/h-Limit war das False-Positive-Problem), und dennoch
+        # eine Bremse gegen kunden_id-Enumeration und generellen Missbrauch.
+        # Nach dem Deploy die Logs auf rate_limited-Events beobachten.
+        enabled=True,
     )
     app.register_error_handler(RateLimitExceeded, _on_rate_limit)
     return limiter
