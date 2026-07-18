@@ -18,10 +18,12 @@
       Mitigations shipped: closure tool without ID parameter, GET-only, field
       whitelist (no PNR), input allowlist, global 100/h rate limit.
 - [ ] **`is_kunde` logging shares the `is_agentur` schema question** (below):
-      kunden conversations are currently only visible via the stdout
-      `[tool_call] … is_kunde=True` lines, not in Supabase. If the message-log
-      schema tolerates extra fields, log both flags — never the raw ID (DSGVO:
-      linking transcripts to an identified person is a deliberate decision).
+      kunden conversations are not logged to Supabase at all. The stdout
+      `[tool_call] … is_kunde=True` line is now **DEBUG-only** (gated
+      2026-07-18 — it was clogging prod logs), so **in prod there is currently
+      no visibility into Kunden-Modus whatsoever.** If the message-log schema
+      tolerates extra fields, log both flags — never the raw ID (DSGVO: linking
+      transcripts to an identified person is a deliberate decision).
 
 ## Chatbot / Agenturbereich (deferred from 2026-07-06 ship review)
 - [ ] **Log the `is_agentur` flag with chat messages** so agentur conversations

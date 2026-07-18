@@ -16,7 +16,7 @@ import dashboard
 import rate_limit
 import sitemap_sync
 import travel_index
-from db_logging import Message, log_messages, log_queue
+from db_logging import DEBUG, Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
 app = Flask(__name__)
@@ -129,7 +129,8 @@ def chat_stream():
             ):
                 # "Tool gefeuert" beobachtbar machen (stdout, nicht Supabase):
                 # nur Toolname + session_id, nie Argumente oder Kundendaten.
-                if event.get("type") == "tool_call":
+                # Nur bei DEBUG=true — in prod würde das die Logs zumüllen.
+                if DEBUG and event.get("type") == "tool_call":
                     for tc in filter_new_tool_calls(
                         [event["data"]], seen_tool_call_ids
                     ):
