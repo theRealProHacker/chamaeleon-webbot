@@ -1,6 +1,13 @@
 # Backlog
 
 ## Kunden-Modus (accepted MVP risks, 2026-07-13)
+- **Data access surface documented** in `docs/kundendaten-datenzugriff.md`:
+  what the API exposes, what we use, and exactly what goes out to Gemini
+  (verified 2026-07-18 — only the 6 whitelisted flight fields + trip title/
+  dates; the Kundennummer and scraped page content are structurally excluded).
+  Regenerate the field list with `docs/explore_kunde.py`. **Fetching the full
+  record is accepted** — it stays server-side; the boundary that matters is the
+  model request, so review changes to `kundendaten.py` against that.
 - [ ] **IDOR revisit — verify kunden_id server-side.** The widget-sent
       `kunden_id` is client-asserted; anyone with a valid Kundennummer can read
       that customer's flights through the chat endpoint. Accepted for MVP

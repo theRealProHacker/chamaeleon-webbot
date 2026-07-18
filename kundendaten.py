@@ -22,6 +22,12 @@ IDs kommen als ``[]`` mit HTTP 200 zurück, nie als Fehlerstatus):
 ``flugdaten`` füllt TourOne erst, wenn die Flüge eingebucht sind (kurz vor
 Abreise) — ein leeres Array bei einer kommenden Reise ist der legitime
 "keine Flüge hinterlegt"-Fall, kein Fehler.
+
+Vollständige Doku der API-Datenfelder in ``docs/kundendaten-datenzugriff.md``:
+was der Endpunkt liefert, was wir davon nutzen und vor allem, was davon an
+Gemini geht. Die maßgebliche Grenze ist die Modell-Grenze — den ganzen
+Datensatz zu holen ist okay (bleibt serverseitig); minimal bleiben muss, was
+im Gemini-Request landet. Änderungen hier gegen diese Grenze prüfen.
 """
 
 import datetime
