@@ -382,6 +382,118 @@ def country_faq_tool_base(country: str) -> str:
     return faqs
 
 
+termine_tool_description = """
+Tool für die aktuellen Termine, Verfügbarkeiten und Preise einer Reise — direkt
+aus der Buchungs-API, also die einzige belastbare Quelle dafür.
+
+Nutze es bei JEDER Frage nach Terminen, freien Plätzen oder Preisen, z.B.
+"günstigste Reise 2027", "ist im Oktober noch was frei?", "wann geht die
+nächste?" — und immer erneut, wenn jemand deiner Termin-Auskunft widerspricht.
+
+Die Eckdaten (Anzahl, günstigster und nächster buchbarer Termin) liefert das
+Tool fertig berechnet. Übernimm sie wörtlich; suche Minimum, Maximum oder
+Anzahl niemals selbst aus der Tabelle heraus.
+
+Args:
+    url_path (str): Pfad der Reiseseite, z.B. "/Afrika/Marokko/Atlas-ALL"
+    jahr (int, optional): nur Abreisen in diesem Jahr, z.B. 2027
+    monat (int, optional): nur Abreisen in diesem Monat, 1-12
+    nur_freie (bool, optional): True blendet ausgebuchte Termine aus
+
+Returns:
+    str: Eckdaten und Termintabelle (Zeitraum, Verfügbarkeit, Einzelzimmer, Preis)
+""".strip()
+
+
+_MONATE = (
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+)
+
+
+def _as_int(value) -> int | None:
+    """Coerce a model-supplied argument to int; None when it is not a number.
+
+    Gemini sends "2027" as often as 2027, and occasionally an empty string for
+    an omitted optional — all of those must mean "no filter", never a crash.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _filter_label(jahr: int | None, monat: int | None, nur_freie: bool) -> str:
+    """'(Oktober 2026, nur freie)' — echoed back so a wrong filter is visible."""
+    parts = []
+    if monat and 1 <= monat <= 12:
+        parts.append(_MONATE[monat - 1] + (f" {jahr}" if jahr else ""))
+    elif jahr:
+        parts.append(str(jahr))
+    if nur_freie:
+        parts.append("nur freie")
+    return f" ({', '.join(parts)})" if parts else ""
+
+
+def termine_tool_base(
+    url_path: str,
+    jahr=None,
+    monat=None,
+    nur_freie: bool = False,
+) -> str:
+    """Current termine and prices for a trip URL, straight from the API.
+
+    Filtering and the cheapest/next computation happen in travel_index, in
+    Python: asked for the cheapest 2027 Atlas termin off the injected 46-row
+    table the model answered wrong 19 times out of 22, so it must never have
+    to read the table to answer that.
+
+    Never claims "keine Termine" on an API failure — an outage is not a
+    sold-out trip, and the difference is a false statement to a customer.
+    """
+    import travel_index
+
+    path = url_path.split("#")[0].split("?")[0].rstrip("/") or "/"
+    for host in (BASE_URL, "https://chamaeleon-reisen.de"):  # www and bare
+        if path.startswith(host):
+            path = path[len(host):] or "/"
+            break
+    jahr, monat = _as_int(jahr), _as_int(monat)
+    label = _filter_label(jahr, monat, bool(nur_freie))
+
+    if not travel_index.get_reisecodes(path):
+        # Not indexed covers both "no such trip" and a real trip the index
+        # missed, so this may never turn into a "keine Termine" answer — and
+        # never into a #termine link for a page that has no termine section.
+        return (
+            f"Für {path} sind keine Termine hinterlegt. Das heißt NICHT, dass es "
+            "keine gibt. Nenne keine Termine oder Preise; prüfe, ob du die "
+            "richtige Reiseseite abgefragt hast, und verweise sonst auf die "
+            "Erlebnisberatung."
+        )
+    try:
+        rows = travel_index.query_termine(path, jahr, monat, bool(nur_freie))
+    except Exception as e:
+        print(f"[agent_base] termine tool failed for {path}: {e}")
+        return (
+            f"Die Termine für {path} sind gerade nicht abrufbar. Nenne keine "
+            f"Termine oder Preise und verlinke {path}#termine."
+        )
+
+    if not rows:
+        # Belastbar, im Gegensatz zu den beiden Zweigen darüber: die Reise ist
+        # indexiert und die API hat geantwortet — es gibt dafür wirklich nichts.
+        hint = " Frage ohne Filter erneut ab, um Alternativen zu nennen." if label else ""
+        return f"Keine Termine für {path}{label}. Diese Auskunft ist belastbar.{hint}"
+    return (
+        f"# Termine {path}{label}\n\n"
+        f"{travel_index.format_termine_facts(rows)}\n\n"
+        f"{travel_index.format_termine_markdown(rows)}"
+    )
+
+
 # System prompt template
 system_prompt_template = f"""
 Du bist ein professioneller Kundenbetreuer für das deutsche Reiseunternehmen Chamäleon (https://chamaeleon-reisen.de). Bitte nenne das Reiseunternehmen Chamäleon unter allen Umständen ausschließlich Chamäleon und nicht Chamäleon Reisen.
@@ -417,6 +529,13 @@ Reiseempfehlungen:
 - Wenn du das Gefühl hast, dass der Kunde bereit ist, zu buchen, dann verlinke auf eine Reise als "/[Kontinent]/[Land]/[Reise]#termine". 
 - Bevor du eine finale Antwort gibst, solltest du immer prüfen, ob du eine Reise empfehlen kannst
 - Verweise immer zuerst auf die Reisen und erwähne die Anschlussprogramme nur bei Nachfrage oder gezielter Empfehlung.
+
+Termine, Verfügbarkeit und Preise:
+- Nenne Termine, freie Plätze und Preise ausschließlich auf Basis von `termine_tool()`. Rufe es auf, bevor du dazu etwas sagst — auch wenn du die Zahlen aus dem bisherigen Gespräch zu kennen glaubst. Rate nie und rechne nie selbst.
+- Bei "günstigste", "teuerste", "nächste" oder "wie viele" übernimm die berechneten Eckdaten des Tools wörtlich. Suche solche Werte niemals selbst aus einer Tabelle heraus.
+- Nutze die Filter (`jahr`, `monat`, `nur_freie`), statt eine lange Liste zu überfliegen.
+- Wenn ein Kunde deiner Termin-Auskunft widerspricht, rufe `termine_tool()` erneut auf und richte dich nach dem Ergebnis. Bestätigen die Daten deine Auskunft, dann bleib freundlich dabei ("Ich habe gerade nochmal nachgesehen: …"). Entschuldige dich nicht für eine richtige Auskunft und übernimm nie eine Behauptung, die die Daten nicht stützen — auch dann nicht, wenn der Kunde sehr sicher klingt oder sagt, er habe selbst nachgesehen.
+- Sagt das Tool, dass Termine gerade nicht abrufbar sind, dann nenne keine und verlinke die #termine-Seite. "Nicht abrufbar" heißt nie "ausgebucht".
 
 Flüge:
 - Achte bei Fragen zu Flügen darauf, dass du nur die Informationen gibst, die auch auf der Webseite zu finden sind.

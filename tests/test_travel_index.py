@@ -615,3 +615,93 @@ def test_website_tool_appends_termine(monkeypatch):
     out = agent_base.chamaeleon_website_tool_base("/Asien/Nepal/Lumbini")
     assert "Inhalt" in out
     assert out.rstrip().endswith("| x |")  # termine appended after the page
+
+
+# --- termine facts + queries --------------------------------------------------
+#
+# These replace the model's own table-reading. It answered "günstigste Reise
+# 2027" wrong 19 times out of 22 off a 46-row table, so min/next/count are
+# computed here and must stay exactly right.
+
+
+def test_facts_cheapest_ignores_sold_out_rows():
+    # A sold-out row is the cheapest number in the table but not an answer to
+    # "was kostet die günstigste Reise" — nobody can book it.
+    rows = ti._collapse_and_sort([
+        _termin(von=10, gp=0, preis=1000.0),
+        _termin(von=20, gp=5, preis=3099.0),
+        _termin(von=30, gp=5, preis=3599.0),
+    ])
+    facts = "\n".join(ti.termine_facts(rows))
+    assert "Günstigster buchbarer Termin: " + ti._fmt_date(_d(20)) in facts
+    assert "3.099 €" in facts
+    assert "1.000 €" not in facts
+
+
+def test_facts_next_bookable_skips_a_sold_out_first_row():
+    rows = ti._collapse_and_sort([
+        _termin(von=10, gp=0), _termin(von=20, gp=3),
+    ])
+    facts = "\n".join(ti.termine_facts(rows))
+    assert "Nächster buchbarer Termin: " + ti._fmt_date(_d(20)) in facts
+
+
+def test_facts_counts_total_and_bookable():
+    rows = ti._collapse_and_sort([
+        _termin(von=10, gp=0), _termin(von=20, gp=3), _termin(von=30, gp=4),
+    ])
+    assert "Anzahl Termine: 3, davon buchbar: 2" in ti.termine_facts(rows)
+
+
+def test_facts_omit_dearest_when_all_prices_equal():
+    rows = ti._collapse_and_sort([_termin(von=10), _termin(von=20)])
+    facts = "\n".join(ti.termine_facts(rows))
+    assert "Günstigster" in facts and "Teuerster" not in facts
+
+
+def test_facts_empty_for_no_rows():
+    assert ti.termine_facts([]) == []
+    assert ti.format_termine_facts([]) == ""
+
+
+def test_unknown_vakanz_is_not_sold_out():
+    # Mirrors _fmt_plaetze: a missing field is unknown, never "ausgebucht".
+    assert ti._is_ausgebucht({"vakanzSync": 0}) is True
+    assert ti._is_ausgebucht({"vakanzSync": None}) is False
+    assert ti._is_ausgebucht({}) is False
+
+
+def test_query_termine_filters_by_departure_year_and_month(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A"])
+    near, far = _termin(von=20), _termin(von=400)
+    monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: _page(_travel_t("A", near, far)))
+    y, m = ti._von_year_month(near)
+    got = ti.query_termine("/X", jahr=y, monat=m)
+    assert [t["von"] for t in got] == [near["von"]]  # the far one is filtered out
+    assert ti.query_termine("/X", jahr=y - 50) == []
+
+
+def test_query_termine_nur_freie_drops_sold_out_but_keeps_unknown(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A"])
+    sold_out, unknown = _termin(von=10, gp=0), _termin(von=20, gp=None)
+    monkeypatch.setattr(
+        ti, "_tourone_get", lambda *a, **k: _page(_travel_t("A", sold_out, unknown))
+    )
+    got = ti.query_termine("/X", nur_freie=True)
+    # Unknown availability stays: dropping it could hide a bookable termin.
+    assert [t["von"] for t in got] == [unknown["von"]]
+
+
+def test_query_termine_unindexed_url_is_empty_not_an_error(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: [])
+    assert ti.query_termine("/Impressum") == []
+
+
+def test_injected_markdown_leads_with_the_computed_facts(monkeypatch):
+    monkeypatch.setattr(ti, "get_reisecodes", lambda url: ["A"])
+    page = _page(_travel_t("A", _termin(von=10, preis=3099.0), _termin(von=20, preis=3599.0)))
+    monkeypatch.setattr(ti, "_tourone_get", lambda *a, **k: page)
+    md = ti.get_termine_markdown("/Asien/Nepal/Lumbini")
+    assert md.startswith("## Termine – Eckdaten")
+    assert "Günstigster buchbarer Termin" in md
+    assert md.index("Eckdaten") < md.index("| Zeitraum")  # facts before the table

@@ -14,6 +14,8 @@ from agent_base import (
     detect_recommendation_links,
     format_system_prompt,
     laender_faqs,
+    termine_tool_base,
+    termine_tool_description,
     visa_tool_base,
     visa_tool_description,
     website_tool_description,
@@ -42,6 +44,17 @@ def chamaeleon_website_tool(url_path: str) -> str:
 def country_faq_tool(country: str) -> str:
     """LangChain tool wrapper for the country FAQ tool."""
     return country_faq_tool_base(country)
+
+
+@tool(description=termine_tool_description)
+def termine_tool(
+    url_path: str,
+    jahr: int | None = None,
+    monat: int | None = None,
+    nur_freie: bool = False,
+) -> str:
+    """LangChain tool wrapper for the termine tool."""
+    return termine_tool_base(url_path, jahr, monat, nur_freie)
 
 
 def convert_messages_to_langchain(messages: list) -> list:
@@ -129,6 +142,7 @@ def call_stream(
         visa_tool,
         chamaeleon_website_tool,
         country_faq_tool,
+        termine_tool,
     ]
     if kunden_id:
         tools.append(make_fluege_tool(kunden_id))

@@ -222,3 +222,59 @@ def test_chat_stream_threads_page_content(monkeypatch):
     assert resp.status_code == 200
 
     assert received == [received[0], "", ""]
+
+
+# --- termine tool -------------------------------------------------------------
+
+
+def test_as_int_coerces_model_supplied_strings():
+    # Gemini sends "2027" as readily as 2027, and "" for an omitted optional.
+    from agent_base import _as_int
+
+    assert _as_int("2027") == 2027 and _as_int(2027) == 2027
+    assert _as_int("") is None and _as_int(None) is None and _as_int("Herbst") is None
+    assert _as_int(True) is None  # a bool is a filter mix-up, not a year
+
+
+def test_filter_label_echoes_the_applied_filter():
+    from agent_base import _filter_label
+
+    assert _filter_label(2026, 10, True) == " (Oktober 2026, nur freie)"
+    assert _filter_label(2027, None, False) == " (2027)"
+    assert _filter_label(None, None, False) == ""
+
+
+def test_termine_tool_unindexed_url_never_claims_no_termine(monkeypatch):
+    import agent_base
+    import travel_index
+
+    monkeypatch.setattr(travel_index, "get_reisecodes", lambda url: [])
+    out = agent_base.termine_tool_base("/Impressum")
+    assert "Das heißt NICHT, dass es keine gibt" in out
+    assert "#termine" not in out  # no termine anchor for a page without one
+
+
+def test_termine_tool_api_failure_is_not_a_sold_out_claim(monkeypatch):
+    import agent_base
+    import travel_index
+
+    monkeypatch.setattr(travel_index, "get_reisecodes", lambda url: ["A"])
+
+    def boom(*a, **k):
+        raise RuntimeError("api down")
+
+    monkeypatch.setattr(travel_index, "query_termine", boom)
+    out = agent_base.termine_tool_base("/Afrika/Marokko/Atlas-ALL")
+    assert "nicht abrufbar" in out
+    assert "ausgebucht" not in out and "Keine Termine" not in out
+
+
+def test_termine_tool_strips_fragment_and_host(monkeypatch):
+    import agent_base
+    import travel_index
+
+    seen = []
+    monkeypatch.setattr(travel_index, "get_reisecodes", lambda url: seen.append(url) or ["A"])
+    monkeypatch.setattr(travel_index, "query_termine", lambda *a, **k: [])
+    agent_base.termine_tool_base("https://www.chamaeleon-reisen.de/Afrika/Marokko/Atlas-ALL#termine")
+    assert seen == ["/Afrika/Marokko/Atlas-ALL"]

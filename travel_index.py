@@ -467,6 +467,114 @@ def format_termine_markdown(termine) -> str:
     return "\n".join(lines)
 
 
+# --- Termine queries ---------------------------------------------------------
+#
+# The model must never have to scan the table itself. Reading a 46-row Atlas
+# table it picks the wrong minimum (measured 19/22 on "Günstigste Reise 2027",
+# 0/10 on the 14-row Himalaya table), so every question the table can answer by
+# counting or comparing — how many, which is cheapest, which is next — is
+# answered HERE, in Python, and handed over as a finished sentence.
+
+
+def _is_ausgebucht(termin: dict) -> bool:
+    """True only when the feed positively says zero places.
+
+    An absent vakanz is NOT sold out: it is unknown. Mirrors _fmt_plaetze,
+    which renders '' rather than guessing, so a missing field can never
+    produce a false 'ausgebucht' claim or hide a bookable row.
+    """
+    gp = termin.get("vakanzSync")
+    return isinstance(gp, (int, float)) and int(gp) == 0
+
+
+def _von_year_month(termin: dict) -> tuple[int, int] | None:
+    """(year, month) of the departure date, or None if it cannot be parsed."""
+    try:
+        d = datetime.strptime((termin.get("von") or "")[:10], "%Y-%m-%d")
+    except ValueError:
+        return None
+    return d.year, d.month
+
+
+def query_termine(
+    url_path: str,
+    jahr: int | None = None,
+    monat: int | None = None,
+    nur_freie: bool = False,
+) -> list[dict]:
+    """Visible termine for a trip URL, filtered by DEPARTURE year/month.
+
+    Filters run on ``von`` — the date the site lists a termin under — so
+    "Oktober 2026" means "departs in October 2026". ``nur_freie`` drops only
+    rows positively marked sold out. Raises on a fetch failure so the caller
+    can say "not retrievable" instead of the false "keine Termine".
+    """
+    codes = get_reisecodes(url_path)
+    if not codes:
+        return []
+    rows = _collapse_and_sort(_fetch_termine_filtered(tuple(codes)))
+    out: list[dict] = []
+    for t in rows:
+        ym = _von_year_month(t)
+        if ym is None:
+            continue
+        if jahr is not None and ym[0] != jahr:
+            continue
+        if monat is not None and ym[1] != monat:
+            continue
+        if nur_freie and _is_ausgebucht(t):
+            continue
+        out.append(t)
+    return out
+
+
+def _row_label(termin: dict) -> str:
+    """One termin as a self-contained phrase: '20.02.27 – 02.03.27, 3.099 €,
+    4 Plätze verfügbar'. Empty cells are dropped, never invented."""
+    von = termin.get("von") or ""
+    bis = termin.get("bis") or ""
+    parts = [_fmt_date(von) + (f" – {_fmt_date(bis)}" if bis else "")]
+    parts += [
+        p for p in (_fmt_preis(termin.get("abPreis")),
+                    _fmt_plaetze(termin.get("vakanzSync"))) if p
+    ]
+    return ", ".join(parts)
+
+
+def termine_facts(rows: list[dict]) -> list[str]:
+    """The comparisons the model gets wrong by eye, resolved into statements.
+
+    ``rows`` must already be sorted by departure (query_termine and
+    _collapse_and_sort both guarantee it), so the first bookable row is the
+    next one. Cheapest/dearest ignore sold-out rows: a price nobody can book
+    is not an answer to "was kostet die günstigste Reise".
+    """
+    if not rows:
+        return []
+    buchbar = [t for t in rows if not _is_ausgebucht(t)]
+    facts = [f"Anzahl Termine: {len(rows)}, davon buchbar: {len(buchbar)}"]
+    priced = [t for t in buchbar if isinstance(t.get("abPreis"), (int, float))]
+    if priced:
+        cheapest = min(priced, key=lambda t: t["abPreis"])
+        dearest = max(priced, key=lambda t: t["abPreis"])
+        facts.append(f"Günstigster buchbarer Termin: {_row_label(cheapest)}")
+        if dearest["abPreis"] != cheapest["abPreis"]:
+            facts.append(f"Teuerster buchbarer Termin: {_row_label(dearest)}")
+    if buchbar:
+        facts.append(f"Nächster buchbarer Termin: {_row_label(buchbar[0])}")
+    return facts
+
+
+def format_termine_facts(rows: list[dict]) -> str:
+    """The facts block that precedes every termine table shown to the model."""
+    facts = termine_facts(rows)
+    if not facts:
+        return ""
+    return "## Termine – Eckdaten (berechnet, wörtlich übernehmen)\n\n" + "\n".join(
+        f"- {f}" for f in facts
+    )
+
+
 # --- Index -------------------------------------------------------------------
 
 _lock = threading.Lock()          # guards the atomic index swap
@@ -749,7 +857,10 @@ def get_termine_markdown(url_path: str) -> str:
         return ""
     md = format_termine_markdown(rows)
     if md:
-        return md
+        # Lead with the computed facts: the injected table is long enough that
+        # the model mis-reads the minimum off it (see termine_facts).
+        facts = format_termine_facts(_collapse_and_sort(rows))
+        return f"{facts}\n\n{md}" if facts else md
     path = _url_key(url_path)
     return (
         "## Termine\n\nDerzeit keine buchbaren Termine. "
