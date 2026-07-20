@@ -277,3 +277,23 @@ def test_prompt_mit_kunden_modus_block(monkeypatch):
     assert "Vergangene Flüge" in prompt
     # Nur ein Flag erreicht den Prompt — nie die rohe ID (Signatur nimmt keine an).
     assert "999999999" not in prompt
+
+
+# --- Kunden-Modus prompt ------------------------------------------------------
+
+
+def test_kunden_block_keeps_the_existing_data_access_rules():
+    # Die Tonalitaet ergaenzt den Datenzugriff, sie ersetzt ihn nicht.
+    from agent_base import format_system_prompt
+
+    p = format_system_prompt("/", [], is_kunde=True)
+    assert "NUR LESENDEN Zugriff" in p
+    assert "kunden_fluege_tool" in p
+    assert "verweise an den Erlebnisberater" in p
+
+
+def test_kunden_tonality_keeps_the_general_length_rule():
+    from agent_base import format_system_prompt
+
+    p = format_system_prompt("/", [], is_kunde=True)
+    assert "höchstens 2–4 kurzen Sätzen" in p
