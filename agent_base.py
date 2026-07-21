@@ -661,6 +661,20 @@ def get_current_time_info() -> dict:
     }
 
 
+# Booking number in the MeinChamäleon trip URL. It is prefilled into the
+# Kunden-Modus link block so the model never receives a placeholder. The value
+# comes from the client-sent current_url and can be echoed into the rendered
+# reply, so restrict it to a safe id charset — anything else counts as "no
+# booking number" and the four trip links are omitted from the prompt.
+_vrrvorgang_pattern = re.compile(r"[?&]VRRVORGANG=([A-Za-z0-9_-]{1,64})", re.IGNORECASE)
+
+
+def _vrrvorgang_from_url(url: str) -> str:
+    """Return the current page's VRRVORGANG booking number, or '' if absent."""
+    match = _vrrvorgang_pattern.search(url or "")
+    return match.group(1) if match else ""
+
+
 def format_system_prompt(
     endpoint: str,
     countries: list[str],
@@ -691,6 +705,25 @@ def format_system_prompt(
     # und darf hier nie auftauchen.
     kunden_modus_block = ""
     if is_kunde:
+        # Trip-specific MeinChamäleon links carry the booking number. Prefill it
+        # from the current page's VRRVORGANG so the model only ever receives
+        # ready-to-use links; when the current URL has no (valid) VRRVORGANG we
+        # omit the four trip links entirely. The model thus never holds a
+        # placeholder and can never surface a broken or empty-number link.
+        buchungsnummer = _vrrvorgang_from_url(endpoint)
+        trip_links_block = ""
+        if buchungsnummer:
+            reise_url = (
+                "https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise"
+                f"?VRRVORGANG={buchungsnummer}"
+            )
+            trip_links_block = (
+                "Zur aktuell geöffneten Reise:\n"
+                f"- [Reisedaten]({reise_url}#reisedaten)\n"
+                f"- [Reiseverlauf]({reise_url}#reiseverlauf)\n"
+                f"- [Gäste]({reise_url}#gaeste)\n"
+                f"- [Reiseunterlagen]({reise_url}#unterlagen)\n"
+            )
         kunden_modus_block = (
             "Kunden-Modus:\n"
             "Der Kunde ist in MeinChamäleon eingeloggt. Du hast über die "
@@ -707,6 +740,20 @@ def format_system_prompt(
             "Teilnehmer, Umbuchungen) verweise an den Erlebnisberater.\n"
             "Alle allgemeinen Funktionen (Reisekatalog, Termine, FAQs, Visum) "
             "stehen weiterhin zur Verfügung.\n\n"
+            "Links in MeinChamäleon:\n"
+            "Diese Seiten kannst du selbst NICHT öffnen — rufe das "
+            "chamaeleon_website_tool NICHT für MeinChamäleon-Seiten auf. Biete "
+            "sie dem Kunden nur als fertigen Link zum Anklicken an, wenn sie zu "
+            "seiner Frage passen. Verwende ausschließlich die hier genannten "
+            "Links und baue keine eigenen MeinChamäleon-URLs.\n"
+            "Immer verfügbar:\n"
+            "- [Mein Chamäleon Übersicht](https://www.chamaeleon-reisen.de/MeinChamaeleon)\n"
+            "- [Stornierte Reisen](https://www.chamaeleon-reisen.de/MeinChamaeleon/Stornierte-Reisen)\n"
+            "- [Meine Daten](https://www.chamaeleon-reisen.de/MeinChamaeleon/Daten)\n"
+            "- [Facebook-Gruppe für Gleichgesinnte](https://www.facebook.com/groups/617243488669698)\n"
+            "- [Regenwald schützen](https://www.rainforest-foundation.com/spenden/)\n"
+            f"{trip_links_block}"
+            "\n"
             "Verhalten & Tonalität in MeinChamäleon:\n"
             "Du sprichst mit einem eingeloggten Gast, der bereits gebucht hat.\n"
             "- Wecke Vorfreude auf die Reise: ein Bild von Landschaft, "

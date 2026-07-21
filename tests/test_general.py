@@ -70,6 +70,43 @@ def test_agentur_detection_current_url_fallback():
         assert not app.is_agentur_request("/")
 
 
+def test_kunden_modus_links_prefill_buchungsnummer():
+    """The four trip links are prefilled with the current page's VRRVORGANG,
+    the model never sees a placeholder, and a bad/absent number omits them."""
+    # Booking number present -> the four trip links carry the real number.
+    prompt = format_system_prompt(
+        "/MeinChamaeleon/Reise?VRRVORGANG=12345#reiseverlauf", [], is_kunde=True
+    )
+    assert "Links in MeinChamäleon:" in prompt
+    for anchor in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
+        assert f"VRRVORGANG=12345{anchor}" in prompt
+    assert "BuchungsNummer" not in prompt  # no placeholder ever reaches the model
+    assert "MeinChamaeleon/Stornierte-Reisen" in prompt  # static links stay
+    assert "chamaeleon_website_tool NICHT für MeinChamäleon" in prompt
+
+    # No VRRVORGANG in the URL -> trip links are omitted, static links remain.
+    prompt = format_system_prompt("/MeinChamaeleon", [], is_kunde=True)
+    assert "Links in MeinChamäleon:" in prompt
+    assert "MeinChamaeleon/Daten" in prompt
+    assert "MeinChamaeleon/Reise?VRRVORGANG" not in prompt
+    for anchor in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
+        assert anchor not in prompt
+
+    # A crafted VRRVORGANG is truncated to the safe id charset before it is
+    # built into a link (the raw endpoint is separately echoed verbatim into
+    # the system prompt, which predates this change and is model-only input).
+    prompt = format_system_prompt(
+        '/MeinChamaeleon/Reise?VRRVORGANG=42")<script>', [], is_kunde=True
+    )
+    assert "chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG=42#reisedaten" in prompt
+    assert 'chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG=42")' not in prompt
+
+    # Not a logged-in customer -> no MeinChamäleon block at all.
+    prompt = format_system_prompt("/", [])
+    assert "Links in MeinChamäleon:" not in prompt
+    assert "BuchungsNummer" not in prompt
+
+
 def test_agentur_block_placement():
     """The agentur knowledge base sits between the general and country FAQs."""
     prompt = format_system_prompt("/", [], is_agentur=True)
