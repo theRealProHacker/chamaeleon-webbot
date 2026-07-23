@@ -102,7 +102,7 @@ A: 12 Teilnehmer.
 A: Der Termin ist leider ausgebucht bzw. wurde vorübergehend geschlossen. Schreibe eine Mail an das Chamäleon-Team.
 
 **F: Was für Gepäck kann ich mitnehmen?**
-A: Wir bitten dich, wenn möglich, auf Hartschalenkoffer zu verzichten, da diese im Bus viel Platz wegnehmen. Du musst dir aber kein neues Gepäck kaufen! Du darfst auch Stoffkoffer mit Rollen mitnehmen. Für deine Reise müssen es keine Reisetaschen sein.
+A: Wir bitten dich, wenn möglich, auf Hartschalenkoffer zu verzichten, da diese im Bus viel Platz wegnehmen. Du musst dir aber kein neues Gepäck kaufen! Du darfst auch Stoffkoffer mit Rollen mitnehmen. Für deine Reise müssen es keine Reisetaschen sein. Feste Maße für Koffer mit Rollen gibt es bei Chamäleon nicht. Die Gewichts- und Größenbeschränkungen für deinen Flug findest du in den Vorgaben der jeweiligen Fluggesellschaft.
 
 ## Für Reisebüros
 
