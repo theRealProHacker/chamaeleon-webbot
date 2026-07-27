@@ -3,16 +3,19 @@
 ## Kunden-Modus (accepted MVP risks, 2026-07-13)
 - **Data access surface documented** in `docs/kundendaten-datenzugriff.md`:
   what the API exposes, what we use, and exactly what goes out to Gemini
-  (verified 2026-07-18 — only the 6 whitelisted flight fields + trip title/
-  dates; the Kundennummer and scraped page content are structurally excluded).
+  (verified 2026-07-18; extended 2026-07-27 — the 6 whitelisted flight fields +
+  trip title/dates + the customer's own Zahlstand (Gesamtpreis, offener Betrag,
+  Zahlungstermine); the Kundennummer and scraped page content stay excluded).
   Regenerate the field list with `docs/explore_kunde.py`. **Fetching the full
   record is accepted** — it stays server-side; the boundary that matters is the
   model request, so review changes to `kundendaten.py` against that.
 - [ ] **IDOR revisit — verify kunden_id server-side.** The widget-sent
       `kunden_id` is client-asserted; anyone with a valid Kundennummer can read
-      that customer's **entire booking history** (past + upcoming flights, newest
-      first) through the chat endpoint — the upcoming-only filter was removed
-      2026-07-24 on the "IDs are unguessable" assumption. Accepted for MVP
+      that customer's **entire booking history incl. financials** (past +
+      upcoming flights AND Zahlstand — Gesamtpreis, offener Betrag, Zahlungs-
+      termine — via `buchungen_tool` details=true) through the chat endpoint.
+      Widened 2026-07-24 (all bookings) and 2026-07-27 (Zahlstand) on the "IDs
+      are unguessable" assumption. Accepted for MVP
       ("IDs are unguessable" — note: 999999999 exists, but that is the
       designated test customer). Real fix: a server-verifiable MeinChamäleon
       session token — ask the TourOne/chamdev owner what exists, then verify it

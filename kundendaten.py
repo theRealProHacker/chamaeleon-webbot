@@ -1,27 +1,34 @@
-"""Kunden-Modus: Flugdaten des eingeloggten Kunden aus TourOne.
+"""Kunden-Modus: Buchungen des eingeloggten Kunden aus TourOne.
 
 Wird nur aktiv, wenn der Widget-Request eine ``kunden_id`` mitschickt (der
 eingeloggte MeinChamäleon-Kunde). Die ID ist client-asserted und unverifiziert
 (akzeptiertes MVP-Risiko, siehe TODOS.md); deshalb sind alle Schutzmechanismen
-strukturell: das Tool hat KEINEN ID-Parameter (Closure), nur GET-Zugriffe,
-und die Antwort enthält ausschließlich whitelisted Flugfelder.
+strukturell: das Tool hat KEINEN ID-Parameter (Closure — der Selektor wählt nur
+unter den EIGENEN Buchungen des Kunden, nie wessen), nur GET-Zugriffe, und die
+Antwort enthält ausschließlich whitelisted Felder.
 
-Entscheidungsbaum des Tools (Kontrakt live verifiziert 2026-07-13; unbekannte
-IDs kommen als ``[]`` mit HTTP 200 zurück, nie als Fehlerstatus):
+``buchungen_tool(auswahl, anzahl, details)`` — Closure auf kunden_id:
+  └─ GET /get/adresse?kundennummer=…                    (Hop 1, timeout=8)
+       ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
+       └─ Objekt → buchungen[] → _select(auswahl, anzahl):
+            auswahl "alle"       → alle, neueste zuerst
+            auswahl "kommende"   → bisDat >= heute, nächste zuerst
+            auswahl "vergangene" → bisDat <  heute, neueste zuerst
+            anzahl N>0           → nur die ersten N der Auswahl
+            ├─ details=false → grobe Liste (Titel, Zeitraum, Buchungsnr.),
+            │                  NUR Hop 1, kein Hop 2
+            └─ details=true  → je Buchung (gedeckelt auf MAX_DETAIL):
+                 GET /get/buchung?vorgangsNummer=…       (Hop 2)
+                 → Whitelist → Status, Reisende, Zahlstand, Flüge
 
-    make_fluege_tool(kunden_id)          # Closure — Tool hat KEINE Parameter
-      └─ GET /get/adresse?kundennummer=…             (Hop 1, timeout=8)
-           ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
-           └─ Objekt      → buchungen[] → alle Buchungen, neueste zuerst
-                └─ je Buchung: GET /get/buchung?vorgangsNummer=…   (Hop 2)
-                     ├─ status != "OK" → überspringen (XX = storniert)
-                     └─ flugdaten[] → Whitelist → deutscher Text
-                (keine Buchung / noch nichts eingebucht
-                 → KEINE_FLUEGE_TEXT; Request-Fehler → FEHLER_TEXT)
-
-``flugdaten`` füllt TourOne erst, wenn die Flüge eingebucht sind (kurz vor
-Abreise) — ein leeres Array bei einer Reise ist der legitime
-"keine Flüge hinterlegt"-Fall, kein Fehler.
+Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
+  Grobe Liste: reiseCode/beschreibungen.titel, vonDat, bisDat, vorgang.
+  Detail zusätzlich: status, persAdult/persChild/persBaby, die sechs
+  FLUG_FELDER sowie der Zahlstand (preis, anzahlungBetrag/-Dat, restBetrag,
+  schlussZahlungDat, eingangBetrag).
+Bewusst DRAUSSEN: Mitreisende-PII (teilnehmerliste), Notfallkontakt
+(adrNotfallKontakt), interne Notizen (chroniken), Provision/Agentur/Berater,
+Steuer-/Währungs-Details (*Cy, steuer*), pnrFileKey/interne IDs.
 
 Vollständige Doku der API-Datenfelder in ``docs/kundendaten-datenzugriff.md``:
 was der Endpunkt liefert, was wir davon nutzen und vor allem, was davon an
@@ -32,7 +39,9 @@ im Gemini-Request landet. Änderungen hier gegen diese Grenze prüfen.
 
 import datetime
 import re
+from typing import Literal
 
+import pytz
 from langchain_core.tools import tool
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
@@ -43,10 +52,14 @@ from travel_index import _tourone_get
 # die Wartezeit pro Request enger begrenzt sein (Entscheidung 5A).
 TIMEOUT = 8
 
-# Obergrenze der Hop-2-Calls: die Kette ist 1 + N Requests à TIMEOUT, also
-# muss N begrenzt sein. Es werden die neuesten MAX_BUCHUNGEN Buchungen gezeigt
-# (vergangene wie kommende); ältere darüber hinaus fallen aus Latenzgründen weg.
-MAX_BUCHUNGEN = 3
+# Detailansicht: die Kette ist 1 + N Requests à TIMEOUT, also muss N begrenzt
+# sein. anzahl/auswahl grenzen normal schon ein; MAX_DETAIL ist die harte
+# Obergrenze für "alle, details=true".
+MAX_DETAIL = 5
+
+# Grobe Liste braucht keinen Hop 2 (nur Hop-1-Daten), ist also billig; diese
+# Anzeige-Grenze verhindert nur einen Riesen-Dump bei Vielbuchern.
+OVERVIEW_CAP = 25
 
 # Nur diese Felder aus flugdaten erreichen jemals das Modell/den Kunden.
 # pnrFileKey (PNR/Buchungsreferenz) und interne IDs bleiben bewusst draußen.
@@ -57,14 +70,14 @@ UNBEKANNT_TEXT = (
     "Bitte melde dich in MeinChamäleon neu an oder wende dich an deinen "
     "Erlebnisberater."
 )
-KEINE_FLUEGE_TEXT = (
-    "Zu deinem Konto sind aktuell keine Flüge hinterlegt. Flugdaten werden "
-    "oft erst kurz vor der Abreise eingebucht — dein Erlebnisberater hilft "
-    "dir gern weiter."
+KEINE_BUCHUNGEN_TEXT = (
+    "Zu deinem Konto finde ich aktuell keine Buchungen. Falls du gerade erst "
+    "gebucht hast, kann es einen Moment dauern — sonst hilft dir dein "
+    "Erlebnisberater gern weiter."
 )
 FEHLER_TEXT = (
-    "Die Flugdaten sind gerade nicht abrufbar. Bitte versuche es später noch "
-    "einmal oder wende dich an deinen Erlebnisberater."
+    "Deine Buchungsdaten sind gerade nicht abrufbar. Bitte versuche es später "
+    "noch einmal oder wende dich an deinen Erlebnisberater."
 )
 
 _KUNDEN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
@@ -91,6 +104,11 @@ def parse_kunden_id(value: object) -> str:
     return value
 
 
+def _heute() -> str:
+    """Today in Berlin as ``YYYY-MM-DD`` (matches TourOne date strings)."""
+    return datetime.datetime.now(pytz.timezone("Europe/Berlin")).strftime("%Y-%m-%d")
+
+
 def _fmt_datum(value: str) -> str:
     """``2026-09-01 00:00:00`` → ``01.09.2026`` (fallback: raw value)."""
     try:
@@ -106,6 +124,13 @@ def _fmt_zeitpunkt(value: str) -> str:
         return dt.strftime("%d.%m.%Y, %H:%M Uhr")
     except ValueError:
         return value
+
+
+def _fmt_euro(value: object) -> str:
+    """``4099.5`` → ``4.099,50 €`` (deutsche Notation); "" für Nicht-Zahlen."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return ""
+    return f"{value:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _flug_zeile(flug: dict) -> str:
@@ -132,8 +157,124 @@ def _buchung_titel(buchung: dict, fallback: str) -> str:
     return fallback
 
 
-def fetch_fluege_text(kunden_id: str) -> str:
-    """Fetch and format the customer's upcoming flights. Never raises."""
+def _zeit_marker(von: str, bis: str, heute: str) -> str:
+    """kommend / läuft gerade / vergangen aus den Datumsstrings (billig)."""
+    von, bis = von[:10], bis[:10]
+    if bis and bis < heute:
+        return "vergangen"
+    if von and von > heute:
+        return "kommend"
+    if von and bis:
+        return "läuft gerade"
+    return ""
+
+
+def _personen_text(buchung: dict) -> str:
+    """``2 (2 Erwachsene)`` aus persAdult/persChild/persBaby; "" wenn leer."""
+    a = buchung.get("persAdult") or 0
+    k = buchung.get("persChild") or 0
+    b = buchung.get("persBaby") or 0
+    teile = []
+    if a:
+        teile.append("1 Erwachsener" if a == 1 else f"{a} Erwachsene")
+    if k:
+        teile.append("1 Kind" if k == 1 else f"{k} Kinder")
+    if b:
+        teile.append("1 Kleinkind" if b == 1 else f"{b} Kleinkinder")
+    if not teile:
+        return ""
+    gesamt = buchung.get("personen") or (a + k + b)
+    return f"{gesamt} ({', '.join(teile)})"
+
+
+def _zahlstand_zeilen(buchung: dict) -> list[str]:
+    """Whitelisted Zahlstand-Zeilen — nur die kundenrelevanten Beträge/Termine."""
+    zeilen = []
+    preis = _fmt_euro(buchung.get("preis"))
+    if preis:
+        zeilen.append(f"- Gesamtpreis: {preis}")
+    anzahlung = _fmt_euro(buchung.get("anzahlungBetrag"))
+    if anzahlung:
+        anz_dat = str(buchung.get("anzahlungDat") or "")
+        zeilen.append(
+            f"- Anzahlung: {anzahlung}"
+            + (f" (fällig {_fmt_datum(anz_dat)})" if anz_dat else "")
+        )
+    rest = _fmt_euro(buchung.get("restBetrag"))
+    if rest:
+        schluss_dat = str(buchung.get("schlussZahlungDat") or "")
+        zeilen.append(
+            f"- Offener Betrag: {rest}"
+            + (f" (fällig {_fmt_datum(schluss_dat)})" if schluss_dat else "")
+        )
+    eingang = _fmt_euro(buchung.get("eingangBetrag"))
+    if eingang:
+        zeilen.append(f"- Bereits eingegangen: {eingang}")
+    return zeilen
+
+
+def _select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
+    """Filter + Sortierung des Selektors. Ungültige auswahl → wie "alle"."""
+    if auswahl == "kommende":
+        sel = [b for b in buchungen if str(b.get("bisDat") or "")[:10] >= heute]
+        sel.sort(key=lambda b: str(b.get("vonDat") or ""))  # nächste zuerst
+    elif auswahl == "vergangene":
+        sel = [b for b in buchungen if str(b.get("bisDat") or "")[:10] < heute]
+        sel.sort(key=lambda b: str(b.get("vonDat") or ""), reverse=True)  # neueste zuerst
+    else:  # "alle"
+        sel = sorted(buchungen, key=lambda b: str(b.get("vonDat") or ""), reverse=True)
+    if isinstance(anzahl, int) and anzahl > 0:
+        sel = sel[:anzahl]
+    return sel
+
+
+def _overview_zeile(b: dict, heute: str) -> str:
+    """Eine grobe Zeile pro Buchung — nur aus den Hop-1-Daten."""
+    titel = _buchung_titel(b, b.get("reiseCode") or "deine Reise")
+    von, bis = str(b.get("vonDat") or ""), str(b.get("bisDat") or "")
+    teile = [f'„{titel}"']
+    if von:
+        teile.append(f"({_fmt_datum(von)}" + (f" – {_fmt_datum(bis)})" if bis else ")"))
+    teile.append(f"Buchungsnummer {b.get('vorgang')}")
+    marker = _zeit_marker(von, bis, heute)
+    if marker:
+        teile.append(marker)
+    return "- " + " · ".join(teile)
+
+
+def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
+    """Ein Detail-Block pro Buchung — whitelisted, deutscher Text."""
+    titel = _buchung_titel(
+        buchung, emb.get("reiseCode") or buchung.get("reiseCode") or "deine Reise"
+    )
+    von = str(emb.get("vonDat") or buchung.get("vonDat") or "")
+    bis = str(emb.get("bisDat") or buchung.get("bisDat") or "")
+    kopf = f'Reise „{titel}"'
+    if von and bis:
+        kopf += f" ({_fmt_datum(von)} – {_fmt_datum(bis)})"
+    zeilen = [kopf + ":", f"- Buchungsnummer: {buchung.get('vorgang') or emb.get('vorgang')}"]
+    # status XX = storniert; dann keine Zahlstand-/Flugdaten zeigen.
+    if buchung.get("status") != "OK":
+        zeilen.append("- Status: storniert")
+        return "\n".join(zeilen)
+    zeilen.append("- Status: gebucht")
+    pers = _personen_text(buchung)
+    if pers:
+        zeilen.append(f"- Reisende: {pers}")
+    zeilen.extend(_zahlstand_zeilen(buchung))
+    fluege = [f for f in buchung.get("flugdaten") or [] if isinstance(f, dict)]
+    if fluege:
+        fluege.sort(key=lambda f: (f.get("rang") or 0, str(f.get("abflug") or "")))
+        zeilen.extend(_flug_zeile(f) for f in fluege)
+    else:
+        zeilen.append("- Flüge: noch nicht eingebucht (oft erst kurz vor Abreise)")
+    return "\n".join(zeilen)
+
+
+def fetch_buchungen_text(
+    kunden_id: str, auswahl: str = "alle", anzahl: int = 0, details: bool = False
+) -> str:
+    """Hole und formatiere die (ausgewählten) Buchungen des Kunden. Wirft nie."""
     try:
         adresse = _tourone_get(
             "/get/adresse", {"kundennummer": kunden_id}, timeout=TIMEOUT
@@ -146,21 +287,29 @@ def fetch_fluege_text(kunden_id: str) -> str:
     if not isinstance(adresse, dict):
         return UNBEKANNT_TEXT
 
-    # ponytail: kein bisDat-Filter mehr — kunden_id gilt als nicht erratbar
-    # (TODOS.md). Alle Buchungen, neueste zuerst (MAX_BUCHUNGEN behält die Top-N).
-    buchungen = sorted(
-        (
-            b
-            for b in adresse.get("buchungen") or []
-            if isinstance(b, dict) and b.get("vorgang")
-        ),
-        key=lambda b: str(b.get("vonDat") or ""),
-        reverse=True,
-    )
+    alle = [
+        b
+        for b in adresse.get("buchungen") or []
+        if isinstance(b, dict) and b.get("vorgang")
+    ]
+    if not alle:
+        return KEINE_BUCHUNGEN_TEXT
 
-    abschnitte: list[str] = []
+    heute = _heute()
+    ausgewaehlt = _select(alle, auswahl, anzahl, heute)
+    if not ausgewaehlt:
+        return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
+
+    if not details:
+        zeilen = [_overview_zeile(b, heute) for b in ausgewaehlt[:OVERVIEW_CAP]]
+        text = "Deine Buchungen:\n" + "\n".join(zeilen)
+        if len(ausgewaehlt) > OVERVIEW_CAP:
+            text += f"\n… und {len(ausgewaehlt) - OVERVIEW_CAP} weitere"
+        return text
+
+    bloecke: list[str] = []
     fehler_gesehen = False
-    for eingebettet in buchungen[:MAX_BUCHUNGEN]:
+    for eingebettet in ausgewaehlt[:MAX_DETAIL]:
         try:
             buchung = _tourone_get(
                 "/get/buchung",
@@ -171,46 +320,55 @@ def fetch_fluege_text(kunden_id: str) -> str:
             print(f"[kundendaten] buchung lookup failed: {e}")
             fehler_gesehen = True
             continue
-        # Nur flugdaten von /get/buchung sind je gefüllt; status XX = storniert.
-        if not isinstance(buchung, dict) or buchung.get("status") != "OK":
+        if not isinstance(buchung, dict):
             continue
-        fluege = [f for f in buchung.get("flugdaten") or [] if isinstance(f, dict)]
-        if not fluege:
-            continue
-        fluege.sort(key=lambda f: (f.get("rang") or 0, str(f.get("abflug") or "")))
-        titel = _buchung_titel(buchung, eingebettet.get("reiseCode") or "deine Reise")
-        kopf = f'Reise „{titel}"'
-        von_dat = str(eingebettet.get("vonDat") or "")
-        bis_dat = str(eingebettet.get("bisDat") or "")
-        if von_dat and bis_dat:
-            kopf += f" ({_fmt_datum(von_dat)} – {_fmt_datum(bis_dat)})"
-        abschnitte.append(kopf + ":\n" + "\n".join(_flug_zeile(f) for f in fluege))
+        bloecke.append(_detail_block(eingebettet, buchung, heute))
 
-    if abschnitte:
-        return "Flüge laut Buchungssystem:\n\n" + "\n\n".join(abschnitte)
-    if fehler_gesehen:
-        return FEHLER_TEXT
-    return KEINE_FLUEGE_TEXT
+    if not bloecke:
+        return FEHLER_TEXT if fehler_gesehen else KEINE_BUCHUNGEN_TEXT
+    text = "Deine Buchungen im Detail:\n\n" + "\n\n".join(bloecke)
+    if len(ausgewaehlt) > MAX_DETAIL:
+        text += (
+            f"\n\n… und {len(ausgewaehlt) - MAX_DETAIL} weitere "
+            "(grenze mit auswahl/anzahl ein)"
+        )
+    return text
 
 
-def make_fluege_tool(kunden_id: str):
-    """Build the per-request flights tool bound to this customer by closure.
+def make_buchungen_tool(kunden_id: str):
+    """Build the per-request bookings tool bound to this customer by closure.
 
-    The tool deliberately takes NO parameters: the model can never choose
-    whose data is fetched, so prompt injection cannot cross customers.
+    The tool takes selector params (auswahl/anzahl/details) but NEVER the
+    kunden_id: the model can pick WHICH of the customer's own bookings and at
+    what detail — but never WHOSE data is fetched, so prompt injection cannot
+    cross customers.
     """
 
     @tool
-    def kunden_fluege_tool() -> str:
-        """Ruft die Flüge des eingeloggten Kunden aus dem Buchungssystem ab.
+    def buchungen_tool(
+        auswahl: Literal["alle", "kommende", "vergangene"] = "alle",
+        anzahl: int = 0,
+        details: bool = False,
+    ) -> str:
+        """Ruft die Buchungen des eingeloggten Kunden aus dem Buchungssystem ab.
 
-        Nur verwenden, wenn der Kunde ausdrücklich nach seinen EIGENEN Flügen
-        fragt (z.B. "Wann geht mein Flug?"). Liefert vergangene wie kommende
-        Flüge (neueste Buchungen zuerst).
+        Nur verwenden, wenn der Kunde nach seinen EIGENEN Buchungen/Reisen fragt
+        — z.B. „Was habe ich gebucht?", „Wann geht mein Flug?", „Wie viel muss
+        ich noch zahlen?", „Wie ist meine Buchungsnummer?".
+
+        auswahl: „alle" (Standard), „kommende" (laufende + zukünftige) oder
+          „vergangene".
+        anzahl: 0 = alle der Auswahl; sonst nur die N relevantesten (bei
+          „kommende" die nächsten, bei „vergangene"/„alle" die neuesten).
+          Beispiele: nächste Reise → auswahl=„kommende", anzahl=1; die letzten
+          beiden → auswahl=„vergangene", anzahl=2.
+        details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer). true =
+          Detailansicht je Buchung (Status, Reisende, Zahlstand, Flüge). Erst
+          die grobe Liste holen, dann bei Bedarf mit details=true nachfassen.
         """
-        return fetch_fluege_text(kunden_id)
+        return fetch_buchungen_text(kunden_id, auswahl, anzahl, details)
 
-    return kunden_fluege_tool
+    return buchungen_tool
 
 
 def filter_new_tool_calls(tool_calls: list, seen_ids: set) -> list:

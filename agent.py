@@ -20,7 +20,7 @@ from agent_base import (
     visa_tool_description,
     website_tool_description,
 )
-from kundendaten import make_fluege_tool
+from kundendaten import make_buchungen_tool
 
 # Initialize the model
 model = ChatGoogleGenerativeAI(
@@ -145,7 +145,7 @@ def call_stream(
         termine_tool,
     ]
     if kunden_id:
-        tools.append(make_fluege_tool(kunden_id))
+        tools.append(make_buchungen_tool(kunden_id))
     agent_executor = create_react_agent(model, tools=tools)
 
     try:

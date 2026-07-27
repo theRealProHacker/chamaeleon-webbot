@@ -23,8 +23,11 @@ the API changes.
 
 ## What we actually access (the necessary set)
 
-Two authenticated GETs, fired **only** when a logged-in customer explicitly asks
-for their own flights (closure tool, no ID parameter — see `kundendaten.py`).
+Authenticated GETs, fired **only** when a logged-in customer asks about their own
+bookings (closure tool, no ID parameter — the selector picks *which* of the
+customer's own bookings, never *whose* — see `kundendaten.py`). The rough list
+(`details=false`) uses Hop 1 only; the detail view (`details=true`) adds Hop 2
+per selected booking.
 
 ### Hop 1 — `GET /get/adresse?kundennummer=<kunden_id>`
 
@@ -34,27 +37,28 @@ Consumed fields (everything else in the response is received but **ignored**):
 | --- | --- |
 | *(dict vs. list)* | response shape is the known/unknown-customer signal |
 | `buchungen[]` | list of the customer's bookings (past + upcoming) |
-| `buchungen[].vorgang` | key for hop 2 |
-| `buchungen[].bisDat` | trip end date shown in the header |
-| `buchungen[].vonDat` | sort order (newest first) + shown in header |
-| `buchungen[].reiseCode` | fallback trip title |
+| `buchungen[].vorgang` | key for hop 2 + shown as booking number |
+| `buchungen[].bisDat` | past/upcoming split + shown in header |
+| `buchungen[].vonDat` | sort order + shown in header |
+| `buchungen[].reiseCode` | rough-list trip title (fallback title in detail) |
 
-### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (max 3 bookings, newest first)
+### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (only on `details=true`, max `MAX_DETAIL`=5)
 
 | Field | Use |
 | --- | --- |
-| `status` | must be `"OK"`; anything else (e.g. `"XX"` = storniert) → skip |
+| `status` | `"OK"` → "gebucht"; anything else (e.g. `"XX"`) → "storniert", detail stops there |
 | `beschreibungen[].titel` | trip title for the header |
-| `flugdaten[].flugnr` | output (whitelisted) |
-| `flugdaten[].airline` | output (whitelisted) |
-| `flugdaten[].vonCo3Code` | output (whitelisted) |
-| `flugdaten[].nachCo3Code` | output (whitelisted) |
-| `flugdaten[].abflug` | output (whitelisted) |
-| `flugdaten[].ankunft` | output (whitelisted) |
+| `persAdult` / `persChild` / `persBaby` / `personen` | output — Reisende |
+| `preis` | output — Gesamtpreis (Zahlstand) |
+| `anzahlungBetrag` / `anzahlungDat` | output — Anzahlung + Fälligkeit |
+| `restBetrag` / `schlussZahlungDat` | output — offener Betrag + Fälligkeit |
+| `eingangBetrag` | output — bereits eingegangen |
+| `flugdaten[].{flugnr,airline,vonCo3Code,nachCo3Code,abflug,ankunft}` | output (the 6 `FLUG_FELDER`) |
 | `flugdaten[].rang` | sort only (not shown) |
 
-`FLUG_FELDER` in `kundendaten.py` is the enforced whitelist (6 fields). `rang`
-is read for ordering but never emitted. **`pnrFileKey` (PNR) and all internal
+`FLUG_FELDER` (6 flight fields) plus the Zahlstand set above are the enforced
+whitelist. `rang` is read for ordering but never emitted. **`pnrFileKey` (PNR),
+`sitzplatz`, `provision`, all tax/currency (`*Cy`, `steuer*`) fields and internal
 IDs are deliberately excluded.**
 
 ## What reaches Gemini (the boundary that matters)
@@ -67,9 +71,11 @@ In Kunden-Modus exactly three things go into the model request:
    `bool`.
 2. **The customer's own chat messages** — whatever they type. (They may
    volunteer PII themselves; that is their choice and outside our control.)
-3. **The `kunden_fluege_tool` result** — formatted German text, nothing else:
-   trip title, trip date range, and per flight `flugnr`, `airline`,
-   `vonCo3Code`, `nachCo3Code`, `abflug`, `ankunft`.
+3. **The `buchungen_tool` result** — formatted German text, nothing else. Rough
+   list: trip title, date range, booking number, past/upcoming marker. Detail
+   view adds: status, Reisende (headcount), the **Zahlstand** (Gesamtpreis,
+   Anzahlung + date, offener Betrag + date, bereits eingegangen) and the six
+   flight fields.
 
 ### Structurally excluded from Gemini
 
@@ -77,9 +83,9 @@ In Kunden-Modus exactly three things go into the model request:
 | --- | --- |
 | The Kundennummer (`kunden_id`) | Only `is_kunde=bool(kunden_id)` reaches `format_system_prompt` (`agent.py`); the ID itself lives in the tool **closure** and is not a tool parameter, so the model can neither see it nor choose whose data is fetched (`agent_base.py:567-569` states this as an invariant). |
 | Scraped page content | `page_content` is injected only when `is_agentur` (`agent_base.py:608`), and `kunden_id` is forced to `""` on agentur requests (`app.py:99`). The two modes are **mutually exclusive**, so a logged-in customer's MeinChamäleon page is never scraped into the prompt. |
-| Everything else from both endpoints | The `FLUG_FELDER` whitelist — PII, financials, fellow travellers, `chroniken` notes, `pnrFileKey`, `sitzplatz` are never formatted into the tool result. |
+| Everything else from both endpoints | The whitelist (6 flight fields + the customer's own Zahlstand) — fellow-traveller PII (`teilnehmerliste`), emergency contact (`adrNotfallKontakt`), `chroniken` notes, `provision`/agency fields, tax/currency detail, `pnrFileKey`, `sitzplatz` are never formatted into the tool result. |
 
-Raw `/get/adresse` and `/get/buchung` JSON exists only in `fetch_fluege_text`
+Raw `/get/adresse` and `/get/buchung` JSON exists only in `fetch_buchungen_text`
 locals and is never returned to the model.
 
 ### Persistence (secondary, but consistent)
@@ -162,8 +168,19 @@ above is the exposure if any of those mechanisms were loosened. Fix is
 server-side verification — see the IDOR item in `TODOS.md`.
 
 **2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
-returns past *and* upcoming bookings (newest `MAX_BUCHUNGEN` first), on the
-explicit assumption that the `kunden_id` is not guessable. Under a spoofed ID
-this widens the exposure from a single upcoming trip to the customer's whole
-booking history; still only the six whitelisted flight fields + title/dates
-reach Gemini. Revisit together with the IDOR fix.
+returns past *and* upcoming bookings (newest first), on the explicit assumption
+that the `kunden_id` is not guessable. Under a spoofed ID this widens the
+exposure from a single upcoming trip to the customer's whole booking history;
+still only the six whitelisted flight fields + title/dates reach Gemini. Revisit
+together with the IDOR fix.
+
+**2026-07-27 — flights tool → `buchungen_tool`; Zahlstand now crosses to Gemini
+(owner decision).** `kunden_fluege_tool` folded into `buchungen_tool` (rough list
++ detail view, selector `auswahl`/`anzahl`/`details`; closure preserved — the
+selector only slices the customer's *own* bookings). The detail view widens the
+model boundary: the customer's **Zahlstand** (Gesamtpreis, Anzahlung, offener
+Betrag + due dates, bereits eingegangen), status, and headcount now reach Gemini
+in addition to the flight fields — grounded in the chat analysis (payment is the
+#1 unserved data lookup). Fellow-traveller PII, emergency contact, chroniken,
+provision/agency and tax/currency detail stay out. Under a spoofed ID the
+exposure now includes the customer's financials — weigh against the IDOR fix.

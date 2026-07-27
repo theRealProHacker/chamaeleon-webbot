@@ -40,10 +40,25 @@ def adresse_mit(buchungen):
     return {"kundennummer": 999999999, "buchungen": buchungen}
 
 
-def volle_buchung(status="OK", flugdaten=None, titel="Namibia-Reise"):
+def volle_buchung(status="OK", flugdaten=None, titel="Namibia-Reise", vorgang="126001"):
+    """Ein /get/buchung-Objekt mit Zahlstand + bewusst auszuschließenden Feldern."""
     return {
+        "vorgang": vorgang,
         "status": status,
         "beschreibungen": [{"titel": titel}],
+        "persAdult": 2,
+        "persChild": 0,
+        "persBaby": 0,
+        "personen": 2,
+        "preis": 8198.0,
+        "anzahlungBetrag": 1640.0,
+        "anzahlungDat": "2026-03-15 00:00:00",
+        "restBetrag": 6558.0,
+        "schlussZahlungDat": "2026-07-01 00:00:00",
+        "eingangBetrag": 1640.0,
+        # muss draußen bleiben (Whitelist):
+        "provision": 4242.0,
+        "adrNotfallKontakt": "NOTFALLPERSON",
         "flugdaten": [FLUG] if flugdaten is None else flugdaten,
     }
 
@@ -94,42 +109,82 @@ def test_parse_allowlist():
     assert kd.parse_kunden_id("   ") == ""
 
 
-# --- fetch_fluege_text ---------------------------------------------------------
+# --- fetch_buchungen_text: Fehl-/Leerfälle ------------------------------------
 
 
 def test_unbekannte_id_eigener_text(monkeypatch):
     # Kontrakt: unbekannte ID → [] mit HTTP 200, nie Fehlerstatus.
     fake_tourone(monkeypatch, {"/get/adresse": []})
-    assert kd.fetch_fluege_text("000000001") == kd.UNBEKANNT_TEXT
+    assert kd.fetch_buchungen_text("000000001") == kd.UNBEKANNT_TEXT
 
 
 def test_api_fehler_hop1(monkeypatch):
     fake_tourone(monkeypatch, {"/get/adresse": RuntimeError("boom")})
-    assert kd.fetch_fluege_text("999999999") == kd.FEHLER_TEXT
+    assert kd.fetch_buchungen_text("999999999") == kd.FEHLER_TEXT
 
 
 def test_keine_buchungen(monkeypatch):
     fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([])})
-    assert kd.fetch_fluege_text("999999999") == kd.KEINE_FLUEGE_TEXT
+    assert kd.fetch_buchungen_text("999999999") == kd.KEINE_BUCHUNGEN_TEXT
 
 
-def test_vergangene_buchung_liefert_fluege(monkeypatch):
-    # kunden_id gilt als nicht erratbar → auch vergangene Reisen werden gezeigt.
-    calls = fake_tourone(
+def test_leere_auswahl_hat_eigenen_text(monkeypatch):
+    # Nur vergangene vorhanden, aber "kommende" gewünscht → keine Auswahl.
+    fake_tourone(
         monkeypatch,
-        {
-            "/get/adresse": adresse_mit(
-                [eingebettete_buchung(von=VERGANGEN_VON, bis=VERGANGEN_BIS)]
-            ),
-            "/get/buchung": volle_buchung(),
-        },
+        {"/get/adresse": adresse_mit(
+            [eingebettete_buchung(von=VERGANGEN_VON, bis=VERGANGEN_BIS)]
+        )},
     )
-    text = kd.fetch_fluege_text("999999999")
-    assert "4Y123" in text
-    assert len(calls) == 2  # vergangene Buchung löst jetzt einen /get/buchung-Call aus
+    text = kd.fetch_buchungen_text("999999999", auswahl="kommende")
+    assert "keine Buchung" in text
 
 
-def test_happy_path_whitelist(monkeypatch):
+# --- grobe Liste (details=false) ---------------------------------------------
+
+
+def test_overview_ohne_hop2(monkeypatch):
+    calls = fake_tourone(
+        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
+    )
+    text = kd.fetch_buchungen_text("999999999", details=False)
+    assert "Buchungsnummer 126001" in text
+    assert "kommend" in text  # Zukunfts-Datum → Marker
+    assert len(calls) == 1  # grobe Liste macht keinen /get/buchung-Call
+
+
+def test_auswahl_trennt_kommende_und_vergangene(monkeypatch):
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([
+            eingebettete_buchung("P", von=VERGANGEN_VON, bis=VERGANGEN_BIS),
+            eingebettete_buchung("F", von=ZUKUNFT_VON, bis=ZUKUNFT_BIS),
+        ])},
+    )
+    komm = kd.fetch_buchungen_text("999999999", auswahl="kommende")
+    assert "Buchungsnummer F" in komm and "Buchungsnummer P" not in komm
+    verg = kd.fetch_buchungen_text("999999999", auswahl="vergangene")
+    assert "Buchungsnummer P" in verg and "Buchungsnummer F" not in verg
+
+
+def test_anzahl_nimmt_die_neuesten_vergangenen(monkeypatch):
+    buchungen = [
+        eingebettete_buchung(
+            str(i), von=f"202{i}-01-01 00:00:00", bis=f"202{i}-01-15 00:00:00"
+        )
+        for i in range(4)  # 2020..2023, alle vergangen
+    ]
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit(buchungen)})
+    text = kd.fetch_buchungen_text("999999999", auswahl="vergangene", anzahl=2)
+    # neueste zuerst → 2023 (vorgang "3") und 2022 ("2")
+    assert "Buchungsnummer 3" in text and "Buchungsnummer 2" in text
+    assert "Buchungsnummer 1" not in text and "Buchungsnummer 0" not in text
+
+
+# --- Detailansicht (details=true) --------------------------------------------
+
+
+def test_detail_zeigt_zahlstand_und_haelt_whitelist(monkeypatch):
     calls = fake_tourone(
         monkeypatch,
         {
@@ -137,22 +192,24 @@ def test_happy_path_whitelist(monkeypatch):
             "/get/buchung": volle_buchung(),
         },
     )
-    text = kd.fetch_fluege_text("999999999")
-    assert "4Y123" in text
-    assert "FRA" in text and "WDH" in text
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    # Gewollt drin:
     assert "Namibia-Reise" in text
-    assert "01.01.2099, 10:20 Uhr" in text
-    # Whitelist: PNR, Sitzplatz, interne IDs, Roh-kunden_id erreichen nie den Text.
-    assert "GEHEIMPNR" not in text
-    assert "12A" not in text
-    assert "4711" not in text
-    assert "999999999" not in text
+    assert "8.198,00 €" in text  # Gesamtpreis (deutsche Notation)
+    assert "6.558,00 €" in text  # offener Betrag
+    assert "fällig 01.07.2026" in text
+    assert "2 Erwachsene" in text
+    assert "126001" in text  # Buchungsnummer
+    assert "4Y123" in text and "FRA" in text and "WDH" in text
+    # Whitelist: PII / PNR / Provision / interne dürfen NIE erscheinen.
+    for verboten in ("GEHEIMPNR", "12A", "4.242", "NOTFALLPERSON", "999999999", "Provision"):
+        assert verboten not in text
     # Strukturell: nur GET-Pfade, überall das enge Chat-Timeout.
     assert all(c["path"].startswith("/get/") for c in calls)
     assert all(c["timeout"] == kd.TIMEOUT for c in calls)
 
 
-def test_stornierte_buchung_wird_uebersprungen(monkeypatch):
+def test_detail_stornierte_buchung_ohne_zahlstand(monkeypatch):
     fake_tourone(
         monkeypatch,
         {
@@ -160,11 +217,12 @@ def test_stornierte_buchung_wird_uebersprungen(monkeypatch):
             "/get/buchung": volle_buchung(status="XX"),
         },
     )
-    assert kd.fetch_fluege_text("999999999") == kd.KEINE_FLUEGE_TEXT
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "storniert" in text
+    assert "8.198,00 €" not in text  # kein Zahlstand bei storniert
 
 
-def test_noch_keine_flugdaten(monkeypatch):
-    # Kommende Buchung, aber Flüge noch nicht eingebucht → Empty-Text, kein Fehler.
+def test_detail_ohne_flugdaten(monkeypatch):
     fake_tourone(
         monkeypatch,
         {
@@ -172,22 +230,26 @@ def test_noch_keine_flugdaten(monkeypatch):
             "/get/buchung": volle_buchung(flugdaten=[]),
         },
     )
-    assert kd.fetch_fluege_text("999999999") == kd.KEINE_FLUEGE_TEXT
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "noch nicht eingebucht" in text
+    assert "8.198,00 €" in text  # Zahlstand trotzdem vorhanden
 
 
-def test_api_fehler_hop2(monkeypatch):
-    fake_tourone(
+def test_detail_cap_begrenzt_hop2(monkeypatch):
+    calls = fake_tourone(
         monkeypatch,
         {
-            "/get/adresse": adresse_mit([eingebettete_buchung()]),
-            "/get/buchung": RuntimeError("timeout"),
+            "/get/adresse": adresse_mit(
+                [eingebettete_buchung(str(i)) for i in range(10)]
+            ),
+            "/get/buchung": volle_buchung(),
         },
     )
-    assert kd.fetch_fluege_text("999999999") == kd.FEHLER_TEXT
+    kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
+    assert len(calls) == 1 + kd.MAX_DETAIL
 
 
-def test_teilerfolg_zeigt_fluege(monkeypatch):
-    # Erster Hop-2-Call scheitert, zweiter liefert Flüge → Flüge gewinnen.
+def test_detail_teilerfolg_zeigt_verfuegbare(monkeypatch):
     zustand = {"n": 0}
 
     def buchung_handler(params):
@@ -205,42 +267,28 @@ def test_teilerfolg_zeigt_fluege(monkeypatch):
             "/get/buchung": buchung_handler,
         },
     )
-    text = kd.fetch_fluege_text("999999999")
-    assert "4Y123" in text
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
+    assert "8.198,00 €" in text  # der zweite Call liefert → Detail gewinnt
 
 
-def test_hop2_cap(monkeypatch):
-    calls = fake_tourone(
-        monkeypatch,
-        {
-            "/get/adresse": adresse_mit(
-                [eingebettete_buchung(str(i)) for i in range(10)]
-            ),
-            "/get/buchung": volle_buchung(),
-        },
-    )
-    kd.fetch_fluege_text("999999999")
-    assert len(calls) == 1 + kd.MAX_BUCHUNGEN
+# --- make_buchungen_tool ------------------------------------------------------
 
 
-# --- make_fluege_tool -----------------------------------------------------------
-
-
-def test_tool_hat_keine_parameter_und_closure(monkeypatch):
+def test_tool_hat_selektor_params_aber_keine_id(monkeypatch):
     gesehen = []
     fake_tourone(
         monkeypatch,
         {"/get/adresse": lambda params: gesehen.append(params) or []},
     )
-    fluege_tool = kd.make_fluege_tool("999999999")
-    # Kein Parameter: das Modell kann nie wählen, wessen Daten geholt werden.
-    assert fluege_tool.args == {}
-    result = fluege_tool.invoke({})
+    tool = kd.make_buchungen_tool("999999999")
+    # Selektor-Parameter ja, kunden_id nein — das Modell wählt nie WESSEN Daten.
+    assert set(tool.args) == {"auswahl", "anzahl", "details"}
+    result = tool.invoke({})
     assert result == kd.UNBEKANNT_TEXT
     assert gesehen[0]["kundennummer"] == "999999999"
 
 
-# --- filter_new_tool_calls -------------------------------------------------------
+# --- filter_new_tool_calls ----------------------------------------------------
 
 
 def test_dedup_tool_calls():
@@ -260,7 +308,7 @@ def test_dedup_ohne_id_passiert_durch():
     assert seen == set()
 
 
-# --- kunden_modus prompt block ---------------------------------------------------
+# --- kunden_modus prompt block ------------------------------------------------
 
 FESTE_ZEIT = {"date": "01. Januar 2099", "time": "12:00", "weekday": "Montag"}
 
@@ -271,31 +319,27 @@ def test_prompt_ohne_kunden_id_unveraendert(monkeypatch):
     explizit = agent_base.format_system_prompt("/", [], is_kunde=False)
     assert basis == explizit
     assert "Kunden-Modus" not in basis
-    assert "kunden_fluege_tool" not in basis
+    assert "buchungen_tool" not in basis
 
 
 def test_prompt_mit_kunden_modus_block(monkeypatch):
     monkeypatch.setattr(agent_base, "get_current_time_info", lambda: FESTE_ZEIT)
     prompt = agent_base.format_system_prompt("/", [], is_kunde=True)
     assert "Kunden-Modus" in prompt
-    assert "kunden_fluege_tool" in prompt
-    # Überschreibt die allgemeine Flüge-Regel — auch für vergangene Flüge.
+    assert "buchungen_tool" in prompt
+    # Überschreibt die allgemeine Flüge-Regel — auch für vergangene Buchungen.
     assert "Abweichend von der allgemeinen Flüge-Regel" in prompt
     assert "vergangene wie" in prompt
-    # Nur ein Flag erreicht den Prompt — nie die rohe ID (Signatur nimmt keine an).
+    # Nur ein Flag erreicht den Prompt — nie die rohe ID.
     assert "999999999" not in prompt
 
 
-# --- Kunden-Modus prompt ------------------------------------------------------
-
-
 def test_kunden_block_keeps_the_existing_data_access_rules():
-    # Die Tonalitaet ergaenzt den Datenzugriff, sie ersetzt ihn nicht.
     from agent_base import format_system_prompt
 
     p = format_system_prompt("/", [], is_kunde=True)
     assert "NUR LESENDEN Zugriff" in p
-    assert "kunden_fluege_tool" in p
+    assert "buchungen_tool" in p
     assert "verweise an den Erlebnisberater" in p
 
 
