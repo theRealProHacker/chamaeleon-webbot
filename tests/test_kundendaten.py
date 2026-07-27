@@ -113,13 +113,20 @@ def test_keine_buchungen(monkeypatch):
     assert kd.fetch_fluege_text("999999999") == kd.KEINE_FLUEGE_TEXT
 
 
-def test_nur_vergangene_buchungen_kein_hop2(monkeypatch):
+def test_vergangene_buchung_liefert_fluege(monkeypatch):
+    # kunden_id gilt als nicht erratbar → auch vergangene Reisen werden gezeigt.
     calls = fake_tourone(
         monkeypatch,
-        {"/get/adresse": adresse_mit([eingebettete_buchung(von=VERGANGEN_VON, bis=VERGANGEN_BIS)])},
+        {
+            "/get/adresse": adresse_mit(
+                [eingebettete_buchung(von=VERGANGEN_VON, bis=VERGANGEN_BIS)]
+            ),
+            "/get/buchung": volle_buchung(),
+        },
     )
-    assert kd.fetch_fluege_text("999999999") == kd.KEINE_FLUEGE_TEXT
-    assert len(calls) == 1  # vergangene Buchung löst keinen /get/buchung-Call aus
+    text = kd.fetch_fluege_text("999999999")
+    assert "4Y123" in text
+    assert len(calls) == 2  # vergangene Buchung löst jetzt einen /get/buchung-Call aus
 
 
 def test_happy_path_whitelist(monkeypatch):
@@ -272,9 +279,9 @@ def test_prompt_mit_kunden_modus_block(monkeypatch):
     prompt = agent_base.format_system_prompt("/", [], is_kunde=True)
     assert "Kunden-Modus" in prompt
     assert "kunden_fluege_tool" in prompt
-    # Überschreibt die allgemeine Flüge-Regel und routet vergangene Flüge.
+    # Überschreibt die allgemeine Flüge-Regel — auch für vergangene Flüge.
     assert "Abweichend von der allgemeinen Flüge-Regel" in prompt
-    assert "Vergangene Flüge" in prompt
+    assert "vergangene wie" in prompt
     # Nur ein Flag erreicht den Prompt — nie die rohe ID (Signatur nimmt keine an).
     assert "999999999" not in prompt
 

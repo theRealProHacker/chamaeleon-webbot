@@ -12,15 +12,15 @@ IDs kommen als ``[]`` mit HTTP 200 zurück, nie als Fehlerstatus):
     make_fluege_tool(kunden_id)          # Closure — Tool hat KEINE Parameter
       └─ GET /get/adresse?kundennummer=…             (Hop 1, timeout=8)
            ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
-           └─ Objekt      → buchungen[] → kommende behalten (bisDat >= heute)
+           └─ Objekt      → buchungen[] → alle Buchungen, neueste zuerst
                 └─ je Buchung: GET /get/buchung?vorgangsNummer=…   (Hop 2)
                      ├─ status != "OK" → überspringen (XX = storniert)
                      └─ flugdaten[] → Whitelist → deutscher Text
-                (keine kommende Buchung / noch nichts eingebucht
+                (keine Buchung / noch nichts eingebucht
                  → KEINE_FLUEGE_TEXT; Request-Fehler → FEHLER_TEXT)
 
 ``flugdaten`` füllt TourOne erst, wenn die Flüge eingebucht sind (kurz vor
-Abreise) — ein leeres Array bei einer kommenden Reise ist der legitime
+Abreise) — ein leeres Array bei einer Reise ist der legitime
 "keine Flüge hinterlegt"-Fall, kein Fehler.
 
 Vollständige Doku der API-Datenfelder in ``docs/kundendaten-datenzugriff.md``:
@@ -33,7 +33,6 @@ im Gemini-Request landet. Änderungen hier gegen diese Grenze prüfen.
 import datetime
 import re
 
-import pytz
 from langchain_core.tools import tool
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
@@ -45,7 +44,8 @@ from travel_index import _tourone_get
 TIMEOUT = 8
 
 # Obergrenze der Hop-2-Calls: die Kette ist 1 + N Requests à TIMEOUT, also
-# muss N begrenzt sein. Mehr als ein paar kommende Buchungen hat kein Kunde.
+# muss N begrenzt sein. Es werden die neuesten MAX_BUCHUNGEN Buchungen gezeigt
+# (vergangene wie kommende); ältere darüber hinaus fallen aus Latenzgründen weg.
 MAX_BUCHUNGEN = 3
 
 # Nur diese Felder aus flugdaten erreichen jemals das Modell/den Kunden.
@@ -89,11 +89,6 @@ def parse_kunden_id(value: object) -> str:
     if not _KUNDEN_ID_PATTERN.match(value):
         return ""
     return value
-
-
-def _heute() -> str:
-    """Today in Berlin as ``YYYY-MM-DD`` (matches TourOne date strings)."""
-    return datetime.datetime.now(pytz.timezone("Europe/Berlin")).strftime("%Y-%m-%d")
 
 
 def _fmt_datum(value: str) -> str:
@@ -151,21 +146,21 @@ def fetch_fluege_text(kunden_id: str) -> str:
     if not isinstance(adresse, dict):
         return UNBEKANNT_TEXT
 
-    heute = _heute()
-    kommende = sorted(
+    # ponytail: kein bisDat-Filter mehr — kunden_id gilt als nicht erratbar
+    # (TODOS.md). Alle Buchungen, neueste zuerst (MAX_BUCHUNGEN behält die Top-N).
+    buchungen = sorted(
         (
             b
             for b in adresse.get("buchungen") or []
-            if isinstance(b, dict)
-            and b.get("vorgang")
-            and str(b.get("bisDat") or "")[:10] >= heute
+            if isinstance(b, dict) and b.get("vorgang")
         ),
         key=lambda b: str(b.get("vonDat") or ""),
+        reverse=True,
     )
 
     abschnitte: list[str] = []
     fehler_gesehen = False
-    for eingebettet in kommende[:MAX_BUCHUNGEN]:
+    for eingebettet in buchungen[:MAX_BUCHUNGEN]:
         try:
             buchung = _tourone_get(
                 "/get/buchung",
@@ -192,7 +187,7 @@ def fetch_fluege_text(kunden_id: str) -> str:
         abschnitte.append(kopf + ":\n" + "\n".join(_flug_zeile(f) for f in fluege))
 
     if abschnitte:
-        return "Kommende Flüge laut Buchungssystem:\n\n" + "\n\n".join(abschnitte)
+        return "Flüge laut Buchungssystem:\n\n" + "\n\n".join(abschnitte)
     if fehler_gesehen:
         return FEHLER_TEXT
     return KEINE_FLUEGE_TEXT
@@ -207,11 +202,11 @@ def make_fluege_tool(kunden_id: str):
 
     @tool
     def kunden_fluege_tool() -> str:
-        """Ruft die kommenden Flüge des eingeloggten Kunden aus dem Buchungssystem ab.
+        """Ruft die Flüge des eingeloggten Kunden aus dem Buchungssystem ab.
 
         Nur verwenden, wenn der Kunde ausdrücklich nach seinen EIGENEN Flügen
-        fragt (z.B. "Wann geht mein Flug?"). Vergangene Flüge kann dieses Tool
-        nicht einsehen.
+        fragt (z.B. "Wann geht mein Flug?"). Liefert vergangene wie kommende
+        Flüge (neueste Buchungen zuerst).
         """
         return fetch_fluege_text(kunden_id)
 

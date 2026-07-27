@@ -10,7 +10,9 @@
   model request, so review changes to `kundendaten.py` against that.
 - [ ] **IDOR revisit — verify kunden_id server-side.** The widget-sent
       `kunden_id` is client-asserted; anyone with a valid Kundennummer can read
-      that customer's flights through the chat endpoint. Accepted for MVP
+      that customer's **entire booking history** (past + upcoming flights, newest
+      first) through the chat endpoint — the upcoming-only filter was removed
+      2026-07-24 on the "IDs are unguessable" assumption. Accepted for MVP
       ("IDs are unguessable" — note: 999999999 exists, but that is the
       designated test customer). Real fix: a server-verifiable MeinChamäleon
       session token — ask the TourOne/chamdev owner what exists, then verify it

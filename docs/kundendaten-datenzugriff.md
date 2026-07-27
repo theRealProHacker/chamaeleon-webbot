@@ -33,13 +33,13 @@ Consumed fields (everything else in the response is received but **ignored**):
 | Field | Use |
 | --- | --- |
 | *(dict vs. list)* | response shape is the known/unknown-customer signal |
-| `buchungen[]` | list of the customer's bookings |
+| `buchungen[]` | list of the customer's bookings (past + upcoming) |
 | `buchungen[].vorgang` | key for hop 2 |
-| `buchungen[].bisDat` | keep only upcoming trips (`bisDat >= heute`, Europe/Berlin) |
-| `buchungen[].vonDat` | sort order |
+| `buchungen[].bisDat` | trip end date shown in the header |
+| `buchungen[].vonDat` | sort order (newest first) + shown in header |
 | `buchungen[].reiseCode` | fallback trip title |
 
-### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (max 3 upcoming bookings)
+### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (max 3 bookings, newest first)
 
 | Field | Use |
 | --- | --- |
@@ -160,3 +160,10 @@ widens the model boundary needs a deliberate decision:
 **Open:** the `kunden_id` is client-asserted and unverified, so the full surface
 above is the exposure if any of those mechanisms were loosened. Fix is
 server-side verification — see the IDOR item in `TODOS.md`.
+
+**2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
+returns past *and* upcoming bookings (newest `MAX_BUCHUNGEN` first), on the
+explicit assumption that the `kunden_id` is not guessable. Under a spoofed ID
+this widens the exposure from a single upcoming trip to the customer's whole
+booking history; still only the six whitelisted flight fields + title/dates
+reach Gemini. Revisit together with the IDOR fix.
