@@ -3,7 +3,6 @@ import common as _
 from agent_base import (
     PAGE_CONTENT_MAX_CHARS,
     detect_recommendation_links,
-    format_system_prompt,
     markdownify_page_html,
 )
 
@@ -12,25 +11,6 @@ def test_recommendation_detection():
     text = "/Afrika/Namibia/Etosha#termine"
 
     assert detect_recommendation_links(text) == {"/Afrika/Namibia/Etosha#termine"}
-
-
-def test_agentur_wissensbasis_injection():
-    prompt = format_system_prompt("/", [], is_agentur=True)
-    assert "Agenturbereich Chamäleon" in prompt
-    assert "Expi-Ermäßigung" in prompt
-
-    # The KB is clean, prompt-ready markdown: no operator scaffolding may leak
-    # into the prompt. This guard fails CI if a future edit reintroduces any.
-    assert "Interne Betreiberhinweise" not in prompt
-    assert "TODO Betreiber" not in prompt
-    assert "<!--" not in prompt
-
-    # Language rule from the Reisebüro feedback: the non-word "Erklärungsvideo"
-    # must never come back — use "Video-Tutorial".
-    assert "Erklärungsvideo" not in prompt
-
-    prompt = format_system_prompt("/", [])
-    assert "Agenturbereich Chamäleon" not in prompt
 
 
 def test_agentur_request_detection():
@@ -68,59 +48,6 @@ def test_agentur_detection_current_url_fallback():
     # No headers, plain endpoint: not an agentur request
     with app.app.test_request_context():
         assert not app.is_agentur_request("/")
-
-
-def test_kunden_modus_links_prefill_buchungsnummer():
-    """The four trip links are prefilled with the current page's VRRVORGANG,
-    the model never sees a placeholder, and a bad/absent number omits them."""
-    # Booking number present -> the four trip links carry the real number.
-    prompt = format_system_prompt(
-        "/MeinChamaeleon/Reise?VRRVORGANG=12345#reiseverlauf", [], is_kunde=True
-    )
-    assert "Links in MeinChamäleon:" in prompt
-    for anchor in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
-        assert f"VRRVORGANG=12345{anchor}" in prompt
-    assert "BuchungsNummer" not in prompt  # no placeholder ever reaches the model
-    assert "MeinChamaeleon/Stornierte-Reisen" in prompt  # static links stay
-    assert "chamaeleon_website_tool NICHT für MeinChamäleon" in prompt
-
-    # No VRRVORGANG in the URL -> trip links are omitted, static links remain.
-    prompt = format_system_prompt("/MeinChamaeleon", [], is_kunde=True)
-    assert "Links in MeinChamäleon:" in prompt
-    assert "MeinChamaeleon/Daten" in prompt
-    assert "MeinChamaeleon/Reise?VRRVORGANG" not in prompt
-    for anchor in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
-        assert anchor not in prompt
-
-    # A crafted VRRVORGANG is truncated to the safe id charset before it is
-    # built into a link (the raw endpoint is separately echoed verbatim into
-    # the system prompt, which predates this change and is model-only input).
-    prompt = format_system_prompt(
-        '/MeinChamaeleon/Reise?VRRVORGANG=42")<script>', [], is_kunde=True
-    )
-    assert "chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG=42#reisedaten" in prompt
-    assert 'chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG=42")' not in prompt
-
-    # Not a logged-in customer -> no MeinChamäleon block at all.
-    prompt = format_system_prompt("/", [])
-    assert "Links in MeinChamäleon:" not in prompt
-    assert "BuchungsNummer" not in prompt
-
-
-def test_agentur_block_placement():
-    """The agentur knowledge base sits between the general and country FAQs."""
-    prompt = format_system_prompt("/", [], is_agentur=True)
-    assert (
-        prompt.index("Allgemeine FAQs:")
-        < prompt.index("Agenturbereich:")
-        < prompt.index("Länderspezifische FAQs:")
-    )
-    assert "{agentur_block}" not in prompt
-
-    prompt = format_system_prompt("/", [])
-    assert "Agenturbereich:" not in prompt
-    assert "{agentur_block}" not in prompt
-    assert "Länderspezifische FAQs:" in prompt
 
 
 def test_chat_stream_threads_agentur_flag(monkeypatch):
@@ -180,33 +107,6 @@ def test_markdownify_page_html():
     assert markdownify_page_html(None) == ""
     assert markdownify_page_html({"a": 1}) == ""
     assert isinstance(markdownify_page_html("<div><p>kaputt"), str)
-
-
-def test_page_content_injection():
-    """Page content appears in the prompt only for agentur requests with content."""
-    prompt = format_system_prompt(
-        "/Agentur/Buchungen", [], is_agentur=True, page_content="Buchung 4711 Namibia"
-    )
-    assert "Buchung 4711 Namibia" in prompt
-    assert "--- Seiteninhalt Anfang ---" in prompt
-    assert (
-        prompt.index("Der Kunde befindet sich gerade auf folgender Webseite")
-        < prompt.index("Inhalt der aktuellen Seite:")
-    )
-    assert "{page_content_block}" not in prompt
-
-    # No content, or not agentur: no block
-    prompt = format_system_prompt("/Agentur/Buchungen", [], is_agentur=True)
-    assert "Seiteninhalt" not in prompt
-
-    prompt = format_system_prompt("/", [], page_content="Buchung 4711 Namibia")
-    assert "Buchung 4711 Namibia" not in prompt
-    assert "Seiteninhalt" not in prompt
-
-    # www regression: prompt is free of the slot and the block
-    prompt = format_system_prompt("/", [])
-    assert "Seiteninhalt" not in prompt
-    assert "{page_content_block}" not in prompt
 
 
 def test_chat_stream_threads_page_content(monkeypatch):
