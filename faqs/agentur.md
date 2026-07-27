@@ -96,6 +96,8 @@ Kostenfrei verfügbar sind unter anderem:
 - A1-Poster mit drei Motiven,
 - kostenfreie Schaufensterangebote als PDF.
 
+**Nicht kostenfrei** sind dagegen **Stoffbanner** und **Leuchtdisplays (Lightbox)** – diese sind kostenpflichtig. Sage niemals, dass sie kostenfrei seien.
+
 Schaufensterangebote kannst du im Agenturbereich herunterladen. Das geht entweder als Set mit ausgewählten Reisen oder direkt für deine Wunschreise auf der jeweiligen Reiseseite.
 
 ### Wo finde ich Deko für mein Schaufenster?
@@ -113,6 +115,12 @@ Deko für dein Schaufenster findest du im Agenturbereich unter [Verkaufsunterst�
 Bitte sende deine Bestellung an das Vertriebsteam.
 
 E-Mail: agentur@chamaeleon-reisen.de
+
+### Was kosten Stoffbanner und Leuchtdisplays (Lightbox)?
+
+Stoffbanner und Leuchtdisplays (Lightbox) sind **kostenpflichtig** – sie sind **nicht** kostenfrei. Sage niemals, dass sie kostenfrei seien.
+
+Verweise bei Fragen nach dem Preis auf die Seite [Verkaufsunterstützung](https://agt.chamaeleon-reisen.de/Agentur/Verkaufsunterstuetzung): Dort stehen alle aktuellen Informationen inklusive der Preise.
 
 ### Wo kann ich Kataloge bestellen?
 

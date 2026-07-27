@@ -129,3 +129,37 @@ def test_agentur_answer(question, keywords):
     reply = call([{"role": "user", "content": question}], "/Agentur", is_agentur=True)
     missing = [k for k in keywords if not keyword_matches(k, reply)]
     assert not missing, f"missing {missing}\n--- reply ---\n{reply}"
+
+
+_FREE = re.compile(r"kostenfrei|kostenlos|gratis", re.IGNORECASE)
+
+
+def _claims_free(text: str) -> bool:
+    """True if the text asserts something is free WITHOUT negating it.
+
+    Allows the correct "sind nicht kostenfrei" / "keine kostenlose ..." wording
+    but flags a bare "... sind kostenfrei" — the exact Katharina Port bug.
+    """
+    for m in _FREE.finditer(text):
+        window = text[max(0, m.start() - 20):m.start()].lower()
+        if "nicht" in window or "kein" in window:
+            continue
+        return True
+    return False
+
+
+@pytest.mark.parametrize("question", [
+    "wie teuer sind stoffbanner?",
+    "wie teuer sind die leuchtdisplays?",
+], ids=["stoffbanner", "leuchtdisplays"])
+def test_agentur_deko_price_points_to_page(question):
+    """Regression: Stoffbanner/Leuchtdisplays must never be advertised as free.
+
+    Katharina Port reported Leon answering "Die Stoffbanner sind kostenfrei ..."
+    on the agentur start page, where no price page is scraped into the prompt.
+    With only the KB available, Leon must (a) not call the deko free and (b) send
+    the user to the Verkaufsunterstützung page for the current prices.
+    """
+    reply = call([{"role": "user", "content": question}], "/Agentur", is_agentur=True)
+    assert not _claims_free(reply), f"Leon advertised the deko as free:\n--- reply ---\n{reply}"
+    assert "verkaufsunterst" in reply.lower(), f"no page hint:\n--- reply ---\n{reply}"
