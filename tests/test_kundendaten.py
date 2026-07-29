@@ -149,7 +149,9 @@ def test_overview_ohne_hop2(monkeypatch):
     )
     text = kd.fetch_buchungen_text("999999999", details=False)
     assert "Buchungsnummer 126001" in text
-    assert "kommend" in text  # Zukunfts-Datum → Marker
+    # Zukunfts-Datum → Marker; die erste künftige Reise heißt „nächste Reise",
+    # weitere künftige bleiben „kommend".
+    assert "nächste Reise" in text
     assert len(calls) == 1  # grobe Liste macht keinen /get/buchung-Call
 
 
@@ -233,6 +235,75 @@ def test_auswahl_trennt_kommende_und_vergangene(monkeypatch):
     assert "Buchungsnummer F" in komm and "Buchungsnummer P" not in komm
     verg = kd.fetch_buchungen_text("999999999", auswahl="vergangene")
     assert "Buchungsnummer P" in verg and "Buchungsnummer F" not in verg
+
+
+def test_alle_stellt_die_naechste_reise_voran_nicht_die_entfernteste(monkeypatch):
+    """Der 2026-07-30-Fehler: „alle" sortierte nach vonDat ABSTEIGEND, also stand
+    bei zwei künftigen Reisen die weiter entfernte oben. Weil „alle" der Standard
+    ist, lieferte anzahl=1 damit die letzte statt der nächsten Reise — der Bot
+    nannte San Agustín (17.08.) statt Gobi (08.08.) als nächste."""
+    gobi = eingebettete_buchung("GOBI", von="2099-08-08 00:00:00", bis="2099-08-22 00:00:00")
+    kolumbien = eingebettete_buchung("KOL", von="2099-08-17 00:00:00", bis="2099-09-01 00:00:00")
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([kolumbien, gobi])})
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle", anzahl=1)
+    assert "Buchungsnummer GOBI" in text
+    assert "Buchungsnummer KOL" not in text
+
+
+def test_alle_listet_kommende_vor_vergangenen(monkeypatch):
+    """Reihenfolge insgesamt: kommende näheste voran, dann vergangene neueste voran."""
+    buchungen = [
+        eingebettete_buchung("ALT", von=VERGANGEN_VON, bis=VERGANGEN_BIS),
+        eingebettete_buchung("SPAET", von="2099-08-17 00:00:00", bis="2099-09-01 00:00:00"),
+        eingebettete_buchung("NEU_ALT", von="2021-01-01 00:00:00", bis="2021-01-15 00:00:00"),
+        eingebettete_buchung("FRUEH", von="2099-08-08 00:00:00", bis="2099-08-22 00:00:00"),
+    ]
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit(buchungen)})
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle")
+    positionen = [text.index(f"Buchungsnummer {v}") for v in ("FRUEH", "SPAET", "NEU_ALT", "ALT")]
+    assert positionen == sorted(positionen)
+
+
+def test_naechste_reise_ist_explizit_markiert(monkeypatch):
+    """Die Sortierung allein hat das Modell schon falsch gelesen, also steht es
+    jetzt als Wort in der Zeile."""
+    gobi = eingebettete_buchung("GOBI", von="2099-08-08 00:00:00", bis="2099-08-22 00:00:00")
+    kolumbien = eingebettete_buchung("KOL", von="2099-08-17 00:00:00", bis="2099-09-01 00:00:00")
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([kolumbien, gobi])})
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle")
+    gobi_zeile = next(z for z in text.splitlines() if "GOBI" in z)
+    kol_zeile = next(z for z in text.splitlines() if "KOL" in z)
+    assert "nächste Reise" in gobi_zeile
+    assert "nächste Reise" not in kol_zeile
+
+
+def test_laufende_reise_ist_nicht_die_naechste(monkeypatch):
+    """Eine laufende Reise sortiert wegen ihres vonDat vorne, ist aber nicht die
+    nächste — sonst hätte der Bot „nächste Reise" für etwas Begonnenes gesagt."""
+    laeuft = {
+        "vorgang": "LAUFT",
+        "vonDat": VERGANGEN_VON,
+        "bisDat": "2099-01-15 00:00:00",
+        "reiseCode": "NAWDH",
+    }
+    kommend = eingebettete_buchung("KOMMT", von="2099-08-08 00:00:00", bis="2099-08-22 00:00:00")
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([laeuft, kommend])})
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle")
+    lauft_zeile = next(z for z in text.splitlines() if "LAUFT" in z)
+    kommt_zeile = next(z for z in text.splitlines() if "KOMMT" in z)
+    assert "läuft gerade" in lauft_zeile and "nächste Reise" not in lauft_zeile
+    assert "nächste Reise" in kommt_zeile
+
+
+def test_ohne_kommende_reise_keine_markierung(monkeypatch):
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit(
+            [eingebettete_buchung("P", von=VERGANGEN_VON, bis=VERGANGEN_BIS)]
+        )},
+    )
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle")
+    assert "nächste Reise" not in text
 
 
 def test_anzahl_nimmt_die_neuesten_vergangenen(monkeypatch):

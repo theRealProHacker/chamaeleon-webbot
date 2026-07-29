@@ -11,7 +11,11 @@ enthält ausschließlich whitelisted Felder.
   └─ GET /get/adresse?kundennummer=…                    (Hop 1, timeout=8)
        ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
        └─ Objekt → buchungen[] → _select(auswahl, anzahl):
-            auswahl "alle"       → alle, neueste zuerst
+            auswahl "alle"       → kommende (näheste voran), dann vergangene
+                                   (neueste voran) — NICHT stumpf nach vonDat
+                                   absteigend, sonst steht die am weitesten
+                                   entfernte Reise oben und anzahl=1 liefert die
+                                   falsche als "nächste"
             auswahl "kommende"   → bisDat >= heute, nächste zuerst
             auswahl "vergangene" → bisDat <  heute, neueste zuerst
             anzahl N>0           → nur die ersten N der Auswahl
@@ -244,13 +248,23 @@ def _select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
         sel = [b for b in buchungen if str(b.get("bisDat") or "")[:10] < heute]
         sel.sort(key=lambda b: str(b.get("vonDat") or ""), reverse=True)  # neueste zuerst
     else:  # "alle"
-        sel = sorted(buchungen, key=lambda b: str(b.get("vonDat") or ""), reverse=True)
+        # Kommende zuerst (näheste voran), dahinter die Vergangenen (neueste
+        # voran). NICHT stumpf nach vonDat absteigend: das stellte bei mehreren
+        # künftigen Reisen die am WEITESTEN entfernte nach oben, und weil "alle"
+        # der Standard ist, lieferte anzahl=1 dann die letzte statt der nächsten
+        # Reise. Genau so beobachtet 2026-07-30 — nächste Reise war Gobi
+        # (08.08.2026), der Bot nannte San Agustín (17.08.2026).
+        kommende = [b for b in buchungen if str(b.get("bisDat") or "")[:10] >= heute]
+        vergangene = [b for b in buchungen if str(b.get("bisDat") or "")[:10] < heute]
+        kommende.sort(key=lambda b: str(b.get("vonDat") or ""))
+        vergangene.sort(key=lambda b: str(b.get("vonDat") or ""), reverse=True)
+        sel = kommende + vergangene
     if isinstance(anzahl, int) and anzahl > 0:
         sel = sel[:anzahl]
     return sel
 
 
-def _overview_zeile(b: dict, heute: str) -> str:
+def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
     """Eine grobe Zeile pro Buchung — nur aus den Hop-1-Daten."""
     code = b.get("reiseCode")
     titel = _buchung_titel(b, _titel_aus_code(code) or code or "deine Reise")
@@ -260,6 +274,10 @@ def _overview_zeile(b: dict, heute: str) -> str:
         teile.append(f"({_fmt_datum(von)}" + (f" – {_fmt_datum(bis)})" if bis else ")"))
     teile.append(f"Buchungsnummer {b.get('vorgang')}")
     marker = _zeit_marker(von, bis, heute)
+    # Welche die nächste ist, steht sonst nur implizit in der Sortierung — und die
+    # hat das Modell schon falsch gelesen. Also explizit benennen.
+    if ist_naechste and marker == "kommend":
+        marker = "nächste Reise"
     if marker:
         teile.append(marker)
     return "- " + " · ".join(teile)
@@ -327,7 +345,25 @@ def fetch_buchungen_text(
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
 
     if not details:
-        zeilen = [_overview_zeile(b, heute) for b in ausgewaehlt[:OVERVIEW_CAP]]
+        gezeigt = ausgewaehlt[:OVERVIEW_CAP]
+        # Die erste noch nicht begonnene Reise der (sortierten) Auswahl ist die
+        # nächste. "läuft gerade" zählt nicht — eine laufende Reise ist nicht die
+        # nächste, und sie sortiert wegen ihres vonDat davor.
+        naechste = next(
+            (
+                i
+                for i, b in enumerate(gezeigt)
+                if _zeit_marker(
+                    str(b.get("vonDat") or ""), str(b.get("bisDat") or ""), heute
+                )
+                == "kommend"
+            ),
+            None,
+        )
+        zeilen = [
+            _overview_zeile(b, heute, ist_naechste=(i == naechste))
+            for i, b in enumerate(gezeigt)
+        ]
         text = "Deine Buchungen:\n" + "\n".join(zeilen)
         if len(ausgewaehlt) > OVERVIEW_CAP:
             text += f"\n… und {len(ausgewaehlt) - OVERVIEW_CAP} weitere"
@@ -385,9 +421,11 @@ def make_buchungen_tool(kunden_id: str):
         auswahl: „alle" (Standard), „kommende" (laufende + zukünftige) oder
           „vergangene".
         anzahl: 0 = alle der Auswahl; sonst nur die N relevantesten (bei
-          „kommende" die nächsten, bei „vergangene"/„alle" die neuesten).
-          Beispiele: nächste Reise → auswahl=„kommende", anzahl=1; die letzten
-          beiden → auswahl=„vergangene", anzahl=2.
+          „alle"/„kommende" die zeitlich nächsten, bei „vergangene" die
+          neuesten). Beispiele: nächste Reise → auswahl=„kommende", anzahl=1;
+          die letzten beiden → auswahl=„vergangene", anzahl=2.
+          Welche Reise die nächste ist, musst du NICHT aus der Reihenfolge
+          erschließen: genau diese Zeile ist mit „nächste Reise" markiert.
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer). true =
           Detailansicht je Buchung (Status, Reisende, Zahlstand, Flüge). Erst
           die grobe Liste holen, dann bei Bedarf mit details=true nachfassen.

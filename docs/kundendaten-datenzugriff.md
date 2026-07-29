@@ -215,8 +215,17 @@ residual risks that survive the fix (a Reisebook inline re-login can leave a sta
 binding for up to 12h, and a dev-host login is a valid auth path for the production
 chat; both in spec §8).
 
-**2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
-returns past *and* upcoming bookings (newest first), on the explicit assumption
+**2026-07-30 — ordering fixed, "next trip" now labelled.** `auswahl="alle"` (the
+default) sorted by `vonDat` **descending**, so with several future bookings the
+*furthest away* came first and `anzahl=1` returned the last trip while the model
+called it "deine nächste Reise" — observed live: Gobi (08.08.2026) was next, the
+bot named San Agustín (17.08.2026). `alle` now lists upcoming soonest-first, then
+past newest-first, and the rough list marks the first not-yet-started booking
+`nächste Reise` so the model does not have to infer it from ordering. A currently
+running trip keeps `läuft gerade` and is never the "next" one.
+
+**2026-07-24 — upcoming-only filter removed (owner decision).** The tool
+returns past *and* upcoming bookings, on the explicit assumption
 that the `kunden_id` is not guessable. Under a spoofed ID this widens the
 exposure from a single upcoming trip to the customer's whole booking history;
 still only the six whitelisted flight fields + title/dates reach Gemini. That
