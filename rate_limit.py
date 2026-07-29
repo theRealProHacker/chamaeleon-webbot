@@ -1,10 +1,17 @@
 """Rate limiting for the chatbot endpoint, built on flask-limiter.
 
 Keyed by client IP (the real IP via X-Forwarded-For behind the Railway proxy,
-thanks to ProxyFix). Local/loopback requests are exempt. When a client exceeds
-the limit the rejection is returned as an HTTP 200 SSE ``error`` event so the
-chat widget renders its error message, and the rejected turn is still logged
-for the audit trail.
+thanks to ProxyFix). Local/loopback requests are exempt.
+
+The rejection is rendered per endpoint, because flask-limiter rejects in
+``before_request`` and the view body never runs (see ``_on_rate_limit``):
+
+- ``/chat/stream`` → HTTP 200 with an SSE ``error`` event, so the chat widget
+  renders its error message; the rejected turn is still logged for the audit
+  trail.
+- ``/kunde/auth`` → JSON ``{"authenticated": false}`` with status 429, **and the
+  Kunden-Modus binding is cleared**. Skipping that unbind would make the
+  endpoint fail open, which is exploitable from a shared egress IP.
 
 In-memory storage is correct only with a single worker process
 (WEB_CONCURRENCY=1, as deployed); with more workers the counters would not be
@@ -32,6 +39,34 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from db_logging import log_messages, log_queue
 
 MESSAGE_LIMIT = "100 per hour"
+
+# Flask endpoint name of the Kunden-Modus auth route (app.kunde_auth). A 429
+# there must still clear the session binding — see _on_rate_limit.
+AUTH_ENDPOINT = "kunde_auth"
+
+
+def _unbind_rate_limited_session() -> None:
+    """Drop the Kunden-Modus binding for a rate-limited /kunde/auth request.
+
+    Imported lazily: kunden_auth is only needed on this path, and a module-level
+    import would be a needless cycle risk.
+    """
+    try:
+        import kunden_auth
+
+        # Same reason as the view: get_json returns None for a text/plain body,
+        # and losing the session_id here means the 429 silently fails open —
+        # which is the exact hole this handler exists to close. Capped, because
+        # this is the REJECTION path: it must stay cheaper than the work it is
+        # refusing, or the limiter becomes the amplifier.
+        data = kunden_auth.coerce_json_body(
+            None, kunden_auth.read_capped_body(request)
+        )
+        session_id = data.get("session_id")
+        if isinstance(session_id, str):
+            kunden_auth.unbind(session_id)
+    except Exception as exc:  # never let this break the rejection response
+        print(f"Error unbinding rate-limited auth request: {exc}")
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -64,8 +99,26 @@ def _log_rejected_turn() -> None:
 
 
 def _on_rate_limit(_exc: RateLimitExceeded) -> Response:
-    """Render the rejection as an HTTP 200 SSE ``error`` event (so the chat
-    widget shows its error message) and log the rejected turn."""
+    """Render the rejection for whichever endpoint was throttled.
+
+    flask-limiter rejects in ``before_request``, so the view body NEVER runs on a
+    429. For ``/kunde/auth`` that is a security problem, not just a UX one: the
+    route's first act is ``kunden_auth.unbind(session_id)``, and skipping it
+    leaves the previous customer bound. Someone sharing the victim's egress IP
+    (office, hotel, café NAT) could then burn the hourly budget on purpose to
+    guarantee every re-auth from that IP fails OPEN. So the binding is cleared
+    here instead, before the rejection is rendered.
+    """
+    if request.endpoint == AUTH_ENDPOINT:
+        _unbind_rate_limited_session()
+        # JSON, not SSE: the widget parses this response as JSON, and a 200
+        # text/event-stream body would read as "not logged in" or throw.
+        return Response(
+            json.dumps({"authenticated": False}),
+            status=429,
+            mimetype="application/json",
+        )
+
     _log_rejected_turn()
 
     def generate_limited():

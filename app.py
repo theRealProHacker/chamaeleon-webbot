@@ -11,7 +11,8 @@ from flask_cors import CORS
 
 from agent import call_stream
 from agent_base import markdownify_page_html
-from kundendaten import filter_new_tool_calls, parse_kunden_id
+from kundendaten import filter_new_tool_calls
+import kunden_auth
 import dashboard
 import rate_limit
 import sitemap_sync
@@ -92,17 +93,20 @@ def chat_stream():
     page_content = ""
     if is_agentur:
         page_content = markdownify_page_html(data.get("page_html", ""))
-    # Kunden-Modus: die Widget-gesendete kunden_id des eingeloggten
-    # MeinChamäleon-Kunden. Client-asserted und unverifiziert (akzeptiertes
-    # MVP-Risiko, siehe TODOS.md); parse_kunden_id normalisiert Typen und
-    # filtert per Allowlist. Bei Agentur-Requests gewinnt der Agentur-Modus.
-    kunden_id = "" if is_agentur else parse_kunden_id(data.get("kunden_id"))
-
+    # Kunden-Modus: die kunden_id kommt NICHT mehr aus dem Body (das war
+    # client-asserted und spoofbar), sondern aus der serverseitig verifizierten
+    # Bindung, die POST /kunde/auth via ss.php angelegt hat. session_id ist der
+    # Auth-Token. Ein im Body mitgeschickter kunden_id-Wert wird ignoriert. Bei
+    # Agentur-Requests gewinnt der Agentur-Modus (Modi bleiben exklusiv).
     if not messages:
         return abort(400, "No messages provided")
 
-    if not session_id:
+    if not session_id or not isinstance(session_id, str):
         return abort(400, "No session_id provided")
+
+    # Erst NACH der Typprüfung: resolve() schlägt sonst mit TypeError (500) auf
+    # einem unhashbaren session_id aus dem Body auf (JSON-Objekt/-Array).
+    kunden_id = "" if is_agentur else (kunden_auth.resolve(session_id) or "")
 
     messages = messages[:]
     logging_messages = messages[-1:]
@@ -207,6 +211,47 @@ def chat_stream():
 
 
 # --- End Streaming Chatbot API Endpoint ---
+
+
+# --- Kunden-Modus auth ---
+@app.route("/kunde/auth", methods=["POST"], endpoint=rate_limit.AUTH_ENDPOINT)
+@limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
+def kunde_auth():
+    """Verify the MeinChamäleon login once and bind it to the chat session_id.
+
+    Wir sind eine ANDERE ORIGIN als chamaeleon-reisen.de — der Browser schickt
+    das Session-Cookie also nicht von selbst mit (daran war v1 wirkungslos). Das
+    Widget liest sein eigenes PHPSESSID per document.cookie auf der Chamäleon-
+    Seite und schickt den Wert im Body; der Server spielt ihn gegen ss.php ein,
+    liest die autoritative Kundennummer und bindet sie an die session_id. Danach
+    ist session_id der Auth-Token (siehe /chat/stream).
+
+    Fail closed — und zwar erst löschen, dann prüfen: ein fehlgeschlagener
+    Re-Auth darf NIE die Bindung des vorherigen Kunden stehen lassen (geteilter
+    Browser, gleiche gespeicherte session_id). Rate-limited wie /chat/stream,
+    ss.php ist ein externes Orakel.
+    """
+    # NICHT request.get_json(): das liefert bei jedem Nicht-JSON-Content-Type
+    # None, und ein fetch() ohne expliziten Header schickt text/plain. Ginge
+    # dabei die session_id verloren, würden wir mit 400 aussteigen BEVOR die
+    # Bindung gelöscht ist — der vorherige Kunde bliebe gebunden. Ein Header darf
+    # keine Sicherheitsfunktion haben. read_capped_body deckelt das Ganze, damit
+    # daraus kein Speicher-DoS wird (siehe dort).
+    data = kunden_auth.coerce_json_body(None, kunden_auth.read_capped_body(request))
+    # Die gesamte Reihenfolge (löschen → prüfen → nur committen, wenn nichts
+    # dazwischenkam) liegt bewusst in kunden_auth.authenticate: sie IST die
+    # Sicherheitseigenschaft dieses Endpunkts und ist dort testbar, ohne app zu
+    # importieren (das löst Live-Supabase-Reads aus).
+    authenticated, session_id = kunden_auth.authenticate(
+        data, request.headers.get("User-Agent", "")
+    )
+    if session_id is None:
+        # Ohne brauchbare session_id gibt es auch nichts zu lösen.
+        return abort(400, "No session_id provided")
+    return {"authenticated": authenticated}
+
+
+# --- End Kunden-Modus auth ---
 
 
 # --- Dashboard routes ---

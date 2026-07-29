@@ -10,6 +10,7 @@ When current month changes, fetch old current month to finalize it, and start tr
 All datetimes in local timezone, i.e. German local time.
 """
 
+import hmac
 import os
 import time
 import travel_index
@@ -459,13 +460,50 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
 
 month_cache = MonthCache()
 
-# Authentication for dashboard routes
+# Authentication for dashboard routes.
+#
+# DASHBOARD_PASSWORD has NO default and startup fails without it. There used to
+# be a `"change-me"` fallback, which was survivable while the dashboard only
+# exposed chat statistics. It is not survivable now: the dashboard serves
+# `session_id` values (see _session_details), and since Kunden-Modus auth
+# (kunden_auth) `session_id` IS the bearer token for a customer's Buchungen and
+# Zahlstand. A forgotten env var would have meant anyone on the internet could
+# read live session_ids and replay them against /chat/stream. Failing loudly at
+# boot beats failing open in production.
 API_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
-API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "change-me")
+API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+
+if not API_PASSWORD:
+    raise RuntimeError(
+        "DASHBOARD_PASSWORD is not set. The dashboard exposes chat session_ids, "
+        "which are the Kunden-Modus auth token — refusing to start without a "
+        "password. Set DASHBOARD_PASSWORD in the environment (.env locally, "
+        "service variables on Railway)."
+    )
 
 
 def check_auth(username: str | None, password: str | None) -> bool:
-    return username == API_USERNAME and password == API_PASSWORD
+    # compare_digest: constant-time, so a wrong password cannot be recovered by
+    # timing the comparison.
+    #
+    # UTF-8 bytes, NOT str: compare_digest raises TypeError on str arguments
+    # containing non-ASCII ("comparing strings with non-ASCII characters is not
+    # supported"), where the old == simply returned False. Two consequences if
+    # left as str, both live: any request with one umlaut in the Basic-Auth
+    # header becomes an unauthenticated 500 instead of a 401, and a
+    # DASHBOARD_PASSWORD containing "ä"/"€" locks the dashboard out completely —
+    # every attempt 500s, including the correct one. The boot check above only
+    # catches an EMPTY password, so it would not have caught that.
+    #
+    # Both comparisons run before the `and` so a wrong username does not skip the
+    # password comparison; short-circuiting there would leak which half failed.
+    user_ok = hmac.compare_digest(
+        (username or "").encode("utf-8"), API_USERNAME.encode("utf-8")
+    )
+    password_ok = hmac.compare_digest(
+        (password or "").encode("utf-8"), API_PASSWORD.encode("utf-8")
+    )
+    return user_ok and password_ok
 
 
 def auth_required(view):

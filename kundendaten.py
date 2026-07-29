@@ -1,11 +1,12 @@
 """Kunden-Modus: Buchungen des eingeloggten Kunden aus TourOne.
 
-Wird nur aktiv, wenn der Widget-Request eine ``kunden_id`` mitschickt (der
-eingeloggte MeinChamäleon-Kunde). Die ID ist client-asserted und unverifiziert
-(akzeptiertes MVP-Risiko, siehe TODOS.md); deshalb sind alle Schutzmechanismen
-strukturell: das Tool hat KEINEN ID-Parameter (Closure — der Selektor wählt nur
-unter den EIGENEN Buchungen des Kunden, nie wessen), nur GET-Zugriffe, und die
-Antwort enthält ausschließlich whitelisted Felder.
+Wird nur aktiv, wenn eine ``kunden_id`` gesetzt ist. Die ID ist seit der
+Auth-Umstellung serverseitig verifiziert (``kunden_auth`` prüft die
+MeinChamäleon-Session einmal über ss.php und bindet sie an die session_id — der
+Body-Wert wird ignoriert). Zusätzlich bleiben alle Schutzmechanismen strukturell:
+das Tool hat KEINEN ID-Parameter (Closure — der Selektor wählt nur unter den
+EIGENEN Buchungen des Kunden, nie wessen), nur GET-Zugriffe, und die Antwort
+enthält ausschließlich whitelisted Felder.
 
 ``buchungen_tool(auswahl, anzahl, details)`` — Closure auf kunden_id:
   └─ GET /get/adresse?kundennummer=…                    (Hop 1, timeout=8)

@@ -4,8 +4,7 @@ __pycache__/
 
 test_faq_progress_*.json
 test_faq_results_*.json
-.gstack/
 
-# Local-only test fixture with real sample data — must not be tracked.
-# Rewrite with fabricated data before removing this line.
-tests/test_kunden_auth.py
+# Local agent/tooling scratch — never part of the repo.
+.gstack/
+.context/
