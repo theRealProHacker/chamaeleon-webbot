@@ -13,6 +13,11 @@ Captured live against the reference customer on **2026-07-18**. Re-run
 `docs/explore_kunde.py` (redacts values, shows only field shape) to refresh if
 the API changes.
 
+**Scope.** This file answers *what data is reachable and what crosses to Gemini*.
+It does **not** answer *who is allowed to be that customer* — that is the auth
+question, and `docs/kunden-auth-spec.md` owns it. See "Rules for changing this"
+below for how the two meet today.
+
 ## Reference customer
 
 - **`999999999`** (nine nines) — the designated test customer, fully populated.
@@ -81,8 +86,8 @@ In Kunden-Modus exactly three things go into the model request:
 
 | Excluded | Mechanism |
 | --- | --- |
-| The Kundennummer (`kunden_id`) | Only `is_kunde=bool(kunden_id)` reaches `format_system_prompt` (`agent.py`); the ID itself lives in the tool **closure** and is not a tool parameter, so the model can neither see it nor choose whose data is fetched (`agent_base.py:567-569` states this as an invariant). |
-| Scraped page content | `page_content` is injected only when `is_agentur` (`agent_base.py:608`), and `kunden_id` is forced to `""` on agentur requests (`app.py:99`). The two modes are **mutually exclusive**, so a logged-in customer's MeinChamäleon page is never scraped into the prompt. |
+| The Kundennummer (`kunden_id`) | Only `is_kunde=bool(kunden_id)` reaches `format_system_prompt` (`agent.py:127`); the ID itself lives in the tool **closure** (`agent.py:147-148`, `make_buchungen_tool(kunden_id)`) and is not a tool parameter, so the model can neither see it nor choose whose data is fetched (`agent_base.py:703-705` states this as an invariant). |
+| Scraped page content | `page_content` is injected only when `is_agentur` (`agent_base.py:810`), and `kunden_id` is forced to `""` on agentur requests (`app.py:109`). The two modes are **mutually exclusive**, so a logged-in customer's MeinChamäleon page is never scraped into the prompt. |
 | Everything else from both endpoints | The whitelist (6 flight fields + the customer's own Zahlstand) — fellow-traveller PII (`teilnehmerliste`), emergency contact (`adrNotfallKontakt`), `chroniken` notes, `provision`/agency fields, tax/currency detail, `pnrFileKey`, `sitzplatz` are never formatted into the tool result. |
 
 Raw `/get/adresse` and `/get/buchung` JSON exists only in `fetch_buchungen_text`
@@ -155,24 +160,37 @@ Gemini. Do not spend effort narrowing the API call.
 widens the model boundary needs a deliberate decision:
 
 - Adding a field to `FLUG_FELDER`.
-- Giving `kunden_fluege_tool` a parameter, or otherwise letting the model
-  influence *which* customer is looked up — that breaks the closure guarantee.
+- Giving `buchungen_tool` a parameter that selects a *customer*, or otherwise
+  letting the model influence *whose* record is looked up — that breaks the
+  closure guarantee. (`auswahl`/`anzahl`/`details` are fine: they only slice the
+  bound customer's own bookings.)
 - Putting the `kunden_id` into the system prompt or any tool argument.
 - Injecting `page_content` on a Kunden-Modus request, or otherwise allowing
   `is_agentur` and `is_kunde` to be true at once — a MeinChamäleon page can
   itself contain PII, so mode exclusivity is a privacy control, not a detail.
 - Logging tool results or raw responses to Supabase/stdout.
 
-**Open:** the `kunden_id` is client-asserted and unverified, so the full surface
-above is the exposure if any of those mechanisms were loosened. Fix is
-server-side verification — see the IDOR item in `TODOS.md`.
+**Open — where `kunden_id` comes from, and it differs by environment.** This
+document describes *what* is reachable once a `kunden_id` exists; who is allowed
+to name one is the separate IDOR question, and it is **half-migrated**:
+
+| | Source of `kunden_id` | Exposure |
+| --- | --- | --- |
+| **Live (deployed today)** | the widget asserts it in the `/chat/stream` body, server trusts it | **anyone knowing a valid Kundennummer reaches the whole surface documented here** |
+| **This working tree (not pushed)** | `kunden_auth.resolve(session_id)`, from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is ignored | requires the customer's own live login |
+
+Do not read the second row as "fixed". It is implemented and unit-tested
+locally; the fix is only real once the push (M2), the transport verification
+(M3) and the widget change (M5) have all landed — **`docs/kunden-auth-spec.md`
+is authoritative for that status.** Until then, treat every field listed in this
+document as reachable by a spoofed ID.
 
 **2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
 returns past *and* upcoming bookings (newest first), on the explicit assumption
 that the `kunden_id` is not guessable. Under a spoofed ID this widens the
 exposure from a single upcoming trip to the customer's whole booking history;
-still only the six whitelisted flight fields + title/dates reach Gemini. Revisit
-together with the IDOR fix.
+still only the six whitelisted flight fields + title/dates reach Gemini. That
+assumption is what the auth work (spec §2) replaces with a verified session.
 
 **2026-07-27 — flights tool → `buchungen_tool`; Zahlstand now crosses to Gemini
 (owner decision).** `kunden_fluege_tool` folded into `buchungen_tool` (rough list
@@ -183,4 +201,5 @@ Betrag + due dates, bereits eingegangen), status, and headcount now reach Gemini
 in addition to the flight fields — grounded in the chat analysis (payment is the
 #1 unserved data lookup). Fellow-traveller PII, emergency contact, chroniken,
 provision/agency and tax/currency detail stay out. Under a spoofed ID the
-exposure now includes the customer's financials — weigh against the IDOR fix.
+exposure now includes the customer's financials, which is why the auth work is
+the head of this feature's critical path (`docs/kunden-auth-spec.md`).

@@ -9,19 +9,28 @@
   Regenerate the field list with `docs/explore_kunde.py`. **Fetching the full
   record is accepted** — it stays server-side; the boundary that matters is the
   model request, so review changes to `kundendaten.py` against that.
-- [ ] **IDOR revisit — verify kunden_id server-side.** The widget-sent
-      `kunden_id` is client-asserted; anyone with a valid Kundennummer can read
-      that customer's **entire booking history incl. financials** (past +
-      upcoming flights AND Zahlstand — Gesamtpreis, offener Betrag, Zahlungs-
-      termine — via `buchungen_tool` details=true) through the chat endpoint.
-      Widened 2026-07-24 (all bookings) and 2026-07-27 (Zahlstand) on the "IDs
-      are unguessable" assumption. Accepted for MVP
-      ("IDs are unguessable" — note: 999999999 exists, but that is the
-      designated test customer). Real fix: a server-verifiable MeinChamäleon
-      session token — ask the TourOne/chamdev owner what exists, then verify it
-      in `app.py` before enabling the mode. First thing to revisit post-MVP.
-      Mitigations shipped: closure tool without ID parameter, GET-only, field
-      whitelist (no PNR), input allowlist, global 100/h rate limit.
+- [ ] **IDOR — verify `kunden_id` server-side. Still open in production.**
+      Live, the widget asserts `kunden_id` and the server trusts it, so anyone
+      with a valid Kundennummer can read that customer's whole booking history +
+      Zahlstand through the chat endpoint. v2 (server derives the Kundennummer
+      from a `ss.php`-verified MeinChamäleon session and binds it to
+      `session_id`) is **implemented and unit-tested in the working tree,
+      2026-07-28/29, and NOT pushed.** It closes nothing until it ships.
+      → **`docs/kunden-auth-spec.md` is the authoritative status** — remaining
+      work, owners, widget contract, go-live order and the fallback all live
+      there. Do not track the state here as well; that is how the two drifted
+      apart last time. `docs/kunden-auth-plan.md` is the rationale/history.
+      Two things worth repeating outside the spec:
+      **(a)** v1 was pushed and force-reverted from live on 2026-07-28 (it
+      assumed same-site cookies, so it was inert) and a real customer sample
+      incl. a password hash leaked into that commit — treat that hash as
+      compromised and never let real `ss.php` output back into the repo.
+      **(b)** Until v2 ships, the structural defenses are what is holding:
+      closure tool with no customer parameter, GET-only, field whitelist,
+      ID allowlist, 100/h rate limit.
+      Separate owner reports (site-side, independent of the chatbot): `ss.php`
+      over-exposes the session (hash/salt/PII to any cookie-bearer);
+      `session.use_strict_mode` is off (session fixation).
 - [ ] **`is_kunde` logging shares the `is_agentur` schema question** (below):
       kunden conversations are not logged to Supabase at all. The stdout
       `[tool_call] … is_kunde=True` line is now **DEBUG-only** (gated
