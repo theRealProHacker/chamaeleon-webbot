@@ -60,7 +60,7 @@ code's title, but the 6 exceptions are genuinely different trips (`NAFAM_DRR` is
 "Deutscher Reisering Jubiläumsreise", `NAFAM` is "Erfahrungsreise"), and in a
 booking context a confidently wrong trip name is worse than an unresolved code.
 
-### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (only on `details=true`, max `MAX_DETAIL`=5)
+### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (only on `details=true`, once per selected booking)
 
 | Field | Use |
 | --- | --- |
@@ -214,6 +214,24 @@ The surface here is therefore dark in production rather than customer-accessible
 residual risks that survive the fix (a Reisebook inline re-login can leave a stale
 binding for up to 12h, and a dev-host login is a valid auth path for the production
 chat; both in spec §8).
+
+**2026-07-30 — display caps removed (owner decision).** The bot must be able to
+see **every** booking of its customer, in full. Previously `MAX_DETAIL=5` capped
+the detail view and `OVERVIEW_CAP=25` the rough list. Because `anzahl` slices only
+from the front and there is no offset, those were not per-call limits but hard
+ceilings: at most the 5 soonest upcoming plus the 5 most recent past could ever be
+seen in detail, no matter how often the model asked. A long-standing customer's
+older trips were unreachable.
+
+Both caps are gone. Hop 2 now runs concurrently (`DETAIL_PARALLEL=8`) so latency
+stops being linear in the booking count — measured against a 0.15s-per-request
+stub: 20 bookings 0.95s instead of 3.50s, 40 bookings 1.26s instead of 6.50s. The
+bound limits only how many requests hit TourOne at once, never how much the
+customer can see. A booking whose Hop 2 fails is skipped and the gap is stated in
+the answer, so a partial list never reads as complete.
+
+**This widens what reaches Gemini in volume, not in kind** — same whitelisted
+fields per booking, but now potentially dozens of blocks in one tool result.
 
 **2026-07-30 — ordering fixed, "next trip" now labelled.** `auswahl="alle"` (the
 default) sorted by `vonDat` **descending**, so with several future bookings the

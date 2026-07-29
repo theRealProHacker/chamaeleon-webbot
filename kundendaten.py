@@ -21,7 +21,8 @@ enthält ausschließlich whitelisted Felder.
             anzahl N>0           → nur die ersten N der Auswahl
             ├─ details=false → grobe Liste (Titel, Zeitraum, Buchungsnr.),
             │                  NUR Hop 1, kein Hop 2
-            └─ details=true  → je Buchung (gedeckelt auf MAX_DETAIL):
+            └─ details=true  → je Buchung, OHNE Deckel, nebenläufig
+                                                       (DETAIL_PARALLEL):
                  GET /get/buchung?vorgangsNummer=…       (Hop 2)
                  → Whitelist → Status, Reisende, Zahlstand, Flüge
 
@@ -45,6 +46,7 @@ im Gemini-Request landet. Änderungen hier gegen diese Grenze prüfen.
 
 import datetime
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 import pytz
@@ -58,14 +60,23 @@ from travel_index import _tourone_get, get_titel_for_code
 # die Wartezeit pro Request enger begrenzt sein (Entscheidung 5A).
 TIMEOUT = 8
 
-# Detailansicht: die Kette ist 1 + N Requests à TIMEOUT, also muss N begrenzt
-# sein. anzahl/auswahl grenzen normal schon ein; MAX_DETAIL ist die harte
-# Obergrenze für "alle, details=true".
-MAX_DETAIL = 5
+# Detailansicht: KEINE Obergrenze auf der Buchungszahl (Owner-Entscheidung
+# 2026-07-30 — der Bot muss alle Buchungen eines Kunden voll einsehen können).
+# Vorher deckelte MAX_DETAIL=5 auf die 5 relevantesten; weil anzahl nur von vorne
+# schneidet und es keinen Offset gibt, waren ältere Buchungen im Detail damit
+# grundsätzlich unerreichbar, nicht nur pro Aufruf.
+#
+# Bezahlt wird das mit Nebenläufigkeit statt mit einem Limit: Hop 2 läuft
+# gebündelt (gemessen 2026-07-30: Hop 1 ~0,51s, Hop 2 ~0,15s), sonst wäre die
+# Antwortzeit linear in der Buchungszahl. Die Schranke begrenzt nur, wie viele
+# Requests gleichzeitig auf TourOne treffen — nicht, wie viele Buchungen der
+# Kunde sehen kann.
+DETAIL_PARALLEL = 8
 
-# Grobe Liste braucht keinen Hop 2 (nur Hop-1-Daten), ist also billig; diese
-# Anzeige-Grenze verhindert nur einen Riesen-Dump bei Vielbuchern.
-OVERVIEW_CAP = 25
+# Grobe Liste braucht keinen Hop 2 (nur Hop-1-Daten), ist also billig — und seit
+# der Owner-Entscheidung 2026-07-30 auch ungedeckelt. Der frühere OVERVIEW_CAP=25
+# hätte einem Vielbucher seine ältesten Reisen verschwiegen, und zwar unbehebbar:
+# anzahl schneidet nur von vorne ab.
 
 # Nur diese Felder aus flugdaten erreichen jemals das Modell/den Kunden.
 # pnrFileKey (PNR/Buchungsreferenz) und interne IDs bleiben bewusst draußen.
@@ -315,6 +326,38 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
     return "\n".join(zeilen)
 
 
+def _hop2_alle(ausgewaehlt: list) -> list:
+    """Hop 2 für JEDE ausgewählte Buchung, nebenläufig, in Eingangsreihenfolge.
+
+    Ein Fehler pro Buchung wird zu ``None`` und lässt die übrigen unberührt: eine
+    einzelne kaputte Buchung darf nicht die ganze Antwort kosten.
+
+    Nebenläufig, weil die Deckelung weg ist — sequenziell wäre die Wartezeit
+    linear in der Buchungszahl (~0,15s je Hop 2). ``DETAIL_PARALLEL`` begrenzt
+    nur die gleichzeitigen Requests gegen TourOne, nicht die Gesamtzahl.
+    """
+    if not ausgewaehlt:
+        return []
+
+    def hole(eingebettet: dict):
+        try:
+            return _tourone_get(
+                "/get/buchung",
+                {"vorgangsNummer": eingebettet["vorgang"]},
+                timeout=TIMEOUT,
+            )
+        except Exception as e:
+            print(f"[kundendaten] buchung lookup failed: {e}")
+            return None
+
+    if len(ausgewaehlt) == 1:  # kein Pool für einen einzelnen Request
+        return [hole(ausgewaehlt[0])]
+    with ThreadPoolExecutor(
+        max_workers=min(DETAIL_PARALLEL, len(ausgewaehlt))
+    ) as pool:
+        return list(pool.map(hole, ausgewaehlt))
+
+
 def fetch_buchungen_text(
     kunden_id: str, auswahl: str = "alle", anzahl: int = 0, details: bool = False
 ) -> str:
@@ -345,7 +388,7 @@ def fetch_buchungen_text(
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
 
     if not details:
-        gezeigt = ausgewaehlt[:OVERVIEW_CAP]
+        gezeigt = ausgewaehlt
         # Die erste noch nicht begonnene Reise der (sortierten) Auswahl ist die
         # nächste. "läuft gerade" zählt nicht — eine laufende Reise ist nicht die
         # nächste, und sie sortiert wegen ihres vonDat davor.
@@ -364,22 +407,12 @@ def fetch_buchungen_text(
             _overview_zeile(b, heute, ist_naechste=(i == naechste))
             for i, b in enumerate(gezeigt)
         ]
-        text = "Deine Buchungen:\n" + "\n".join(zeilen)
-        if len(ausgewaehlt) > OVERVIEW_CAP:
-            text += f"\n… und {len(ausgewaehlt) - OVERVIEW_CAP} weitere"
-        return text
+        return "Deine Buchungen:\n" + "\n".join(zeilen)
 
     bloecke: list[str] = []
     fehler_gesehen = False
-    for eingebettet in ausgewaehlt[:MAX_DETAIL]:
-        try:
-            buchung = _tourone_get(
-                "/get/buchung",
-                {"vorgangsNummer": eingebettet["vorgang"]},
-                timeout=TIMEOUT,
-            )
-        except Exception as e:
-            print(f"[kundendaten] buchung lookup failed: {e}")
+    for eingebettet, buchung in zip(ausgewaehlt, _hop2_alle(ausgewaehlt)):
+        if buchung is None:
             fehler_gesehen = True
             continue
         if not isinstance(buchung, dict):
@@ -389,11 +422,11 @@ def fetch_buchungen_text(
     if not bloecke:
         return FEHLER_TEXT if fehler_gesehen else KEINE_BUCHUNGEN_TEXT
     text = "Deine Buchungen im Detail:\n\n" + "\n\n".join(bloecke)
-    if len(ausgewaehlt) > MAX_DETAIL:
-        text += (
-            f"\n\n… und {len(ausgewaehlt) - MAX_DETAIL} weitere "
-            "(grenze mit auswahl/anzahl ein)"
-        )
+    if fehler_gesehen:
+        # Teilerfolg ehrlich benennen, statt eine lückenhafte Liste als
+        # vollständig auszugeben — sonst schließt der Kunde aus dem Fehlen einer
+        # Reise, dass es sie nicht gibt.
+        text += "\n\n(Zu einzelnen Buchungen konnte ich gerade keine Details laden.)"
     return text
 
 
@@ -429,6 +462,11 @@ def make_buchungen_tool(kunden_id: str):
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer). true =
           Detailansicht je Buchung (Status, Reisende, Zahlstand, Flüge). Erst
           die grobe Liste holen, dann bei Bedarf mit details=true nachfassen.
+          Beide Ansichten sind vollständig — sie kürzen nicht. Die Detailansicht
+          kostet aber einen Abruf je Buchung, also grenze mit auswahl/anzahl
+          ein, wenn der Kunde nur nach bestimmten Reisen fragt.
+        Stornierte Buchungen sind mit dabei; nur die Detailansicht weist sie als
+          „Status: storniert" aus, die grobe Liste kann das nicht.
         """
         return fetch_buchungen_text(kunden_id, auswahl, anzahl, details)
 

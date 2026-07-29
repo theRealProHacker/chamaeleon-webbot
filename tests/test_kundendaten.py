@@ -374,26 +374,74 @@ def test_detail_ohne_flugdaten(monkeypatch):
     assert "8.198,00 €" in text  # Zahlstand trotzdem vorhanden
 
 
-def test_detail_cap_begrenzt_hop2(monkeypatch):
+def test_detail_holt_jede_buchung_ohne_deckel(monkeypatch):
+    """Owner-Entscheidung 2026-07-30: der Bot muss ALLE Buchungen voll einsehen.
+
+    Vorher deckelte MAX_DETAIL=5, und weil anzahl nur von vorne schneidet und es
+    keinen Offset gibt, waren ältere Buchungen im Detail unerreichbar — nicht nur
+    pro Aufruf, sondern grundsätzlich.
+    """
     calls = fake_tourone(
         monkeypatch,
         {
             "/get/adresse": adresse_mit(
                 [eingebettete_buchung(str(i)) for i in range(10)]
             ),
-            "/get/buchung": volle_buchung(),
+            "/get/buchung": lambda params: volle_buchung(
+                vorgang=params["vorgangsNummer"]
+            ),
         },
     )
-    kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
-    assert len(calls) == 1 + kd.MAX_DETAIL
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
+    assert len(calls) == 1 + 10  # Hop 1 + je Buchung ein Hop 2
+    for i in range(10):
+        assert f"Buchungsnummer: {i}" in text
+    assert "weitere" not in text
+
+
+def test_detail_behaelt_die_reihenfolge_trotz_nebenlaeufigkeit(monkeypatch):
+    """pool.map liefert in Eingangsreihenfolge — die Sortierung darf nicht davon
+    abhängen, welcher Request zuerst zurückkommt."""
+    buchungen = [
+        eingebettete_buchung("FRUEH", von="2099-08-08 00:00:00", bis="2099-08-22 00:00:00"),
+        eingebettete_buchung("SPAET", von="2099-08-17 00:00:00", bis="2099-09-01 00:00:00"),
+        eingebettete_buchung("ALT", von=VERGANGEN_VON, bis=VERGANGEN_BIS),
+    ]
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit(buchungen),
+            "/get/buchung": lambda params: volle_buchung(
+                vorgang=params["vorgangsNummer"]
+            ),
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
+    positionen = [text.index(f"Buchungsnummer: {v}") for v in ("FRUEH", "SPAET", "ALT")]
+    assert positionen == sorted(positionen)
+
+
+def test_grobe_liste_ohne_deckel(monkeypatch):
+    """Auch die Übersicht kürzt nicht mehr — OVERVIEW_CAP hätte einem Vielbucher
+    seine ältesten Reisen unbehebbar verschwiegen."""
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit(
+            [eingebettete_buchung(str(i)) for i in range(40)]
+        )},
+    )
+    text = kd.fetch_buchungen_text("999999999", auswahl="alle", details=False)
+    for i in range(40):
+        assert f"Buchungsnummer {i}" in text
+    assert "weitere" not in text
 
 
 def test_detail_teilerfolg_zeigt_verfuegbare(monkeypatch):
-    zustand = {"n": 0}
-
+    # An der Buchungsnummer festgemacht, nicht an einem Zähler: Hop 2 läuft
+    # nebenläufig, ein "der erste Call" wäre nicht mehr deterministisch (und ein
+    # geteilter Zähler ohne Lock wäre obendrein ein Datenrennen im Test selbst).
     def buchung_handler(params):
-        zustand["n"] += 1
-        if zustand["n"] == 1:
+        if params["vorgangsNummer"] == "126001":
             raise RuntimeError("timeout")
         return volle_buchung()
 
@@ -407,7 +455,9 @@ def test_detail_teilerfolg_zeigt_verfuegbare(monkeypatch):
         },
     )
     text = kd.fetch_buchungen_text("999999999", auswahl="alle", details=True)
-    assert "8.198,00 €" in text  # der zweite Call liefert → Detail gewinnt
+    assert "8.198,00 €" in text  # die zweite Buchung liefert → Detail gewinnt
+    # Die Lücke muss benannt werden, sonst liest sich die Liste als vollständig.
+    assert "keine Details laden" in text
 
 
 # --- make_buchungen_tool ------------------------------------------------------
