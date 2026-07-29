@@ -170,20 +170,21 @@ widens the model boundary needs a deliberate decision:
   itself contain PII, so mode exclusivity is a privacy control, not a detail.
 - Logging tool results or raw responses to Supabase/stdout.
 
-**Open — where `kunden_id` comes from, and it differs by environment.** This
+**Where `kunden_id` comes from — server-verified since 2026-07-29.** This
 document describes *what* is reachable once a `kunden_id` exists; who is allowed
-to name one is the separate IDOR question, and it is **half-migrated**:
+to name one was the separate IDOR question, and the server half has shipped:
 
 | | Source of `kunden_id` | Exposure |
 | --- | --- | --- |
-| **Live (deployed today)** | the widget asserts it in the `/chat/stream` body, server trusts it | **anyone knowing a valid Kundennummer reaches the whole surface documented here** |
-| **This working tree (not pushed)** | `kunden_auth.resolve(session_id)`, from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is ignored | requires the customer's own live login |
+| **Before 2026-07-29** | the widget asserted it in the `/chat/stream` body, server trusted it | anyone knowing a valid Kundennummer reached the whole surface documented here |
+| **Live now** | `kunden_auth.resolve(session_id)` only, bound from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is **ignored outright** | a spoofed ID reaches nothing. And because no shipped widget calls `/kunde/auth` yet, `resolve` returns `""` for every request — so **nothing** in this document is currently reachable by anyone |
 
-Do not read the second row as "fixed". It is implemented and unit-tested
-locally; the fix is only real once the push (M2), the transport verification
-(M3) and the widget change (M5) have all landed — **`docs/kunden-auth-spec.md`
-is authoritative for that status.** Until then, treat every field listed in this
-document as reachable by a spoofed ID.
+The client-asserted path is gone, not merely deprecated: the field is read
+nowhere. What is still outstanding is the widget change (M5) that supplies a real
+session, so the surface here is presently dark rather than customer-accessible.
+**`docs/kunden-auth-spec.md` is authoritative for that status** — including the
+one residual leak that survives the fix (a Reisebook inline re-login can leave a
+stale binding for up to 12h; spec §8).
 
 **2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
 returns past *and* upcoming bookings (newest first), on the explicit assumption

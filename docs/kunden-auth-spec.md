@@ -16,7 +16,9 @@ contradict each other last time (plan, eng review Issue 6).
 
 Status: **server deployed 2026-07-29 and dark.** `/kunde/auth` is live and
 fail-closed; no widget calls it, so Kunden-Modus is off for every customer until
-M5. Next: M3.
+M5. **Transport proven end to end (C1, C2, C3 all hold).** The M5 widget patch is
+written and verified but **not committed** — the last remaining step is pushing
+`cham-chatbot`, which is a different repo and a different owner decision.
 Last updated 2026-07-29.
 
 ---
@@ -34,10 +36,10 @@ Last updated 2026-07-29.
 | Independent review, round 3 (2026-07-29) | **DONE** — 3 more fixed: body-read memory amplification *introduced by round 2*, nested-key parse bug, endpoint-name coupling. One finding **not** closeable in code → §8 | — |
 | `DASHBOARD_PASSWORD` set on Railway | **DONE** — confirmed by owner 2026-07-29 | owner |
 | Sign-off + push | **DONE** 2026-07-29 — `2976e85`; service booted, `/kunde/auth` answers 400, proxy healthy | — |
-| C2/C3 verification (one curl) | **MISSING — make-or-break** | dev |
+| C2/C3 verification (one curl) | **DONE** 2026-07-29 — `{"authenticated":true}` against the deployed route with a test account. Session is portable to Railway's egress IP; `PHPSESSID` is the only cookie `ss.php` needs | — |
 | C1 — widget is not a cross-origin iframe | **DONE** — verified live 2026-07-29 | — |
 | C1 — authenticated cookie is JS-readable | **DONE** — verified 2026-07-29, logged-in Console returned the token | — |
-| Widget: read `PHPSESSID`, call `/kunde/auth` | **MISSING — feature stays dark without it** | owner |
+| Widget: read `PHPSESSID`, call `/kunde/auth` | **WRITTEN, NOT SHIPPED** — patch applied and verified in the `cham-chatbot` working tree 2026-07-29, uncommitted. Feature stays dark until it is pushed | owner |
 
 Deployed as `aaa77ef` (code + tests) and `2976e85` (docs), pushed 2026-07-29
 together with the older unpushed `13bc7a4`.
@@ -186,6 +188,8 @@ curl -sX POST https://chamaeleon-webbot-production.up.railway.app/kunde/auth \
 
 - `{"authenticated":true}` → **C2 and C3 both hold.** The session is portable to
   our IP, and `PHPSESSID` is the only cookie `ss.php` needs. Proceed.
+  **This is what happened, 2026-07-29.** The §7 fallback is therefore not needed;
+  it stays documented in case the site later adds `HttpOnly` or IP-binds sessions.
 - `{"authenticated":false}` → C2 fails. The session is IP- or UA-bound, or a WAF
   blocks the datacenter IP. **Stop. Revert. Go to §7.**
 
@@ -243,11 +247,34 @@ If M3 comes back `authenticated:false` while demonstrably logged in, run
 `document.cookie` again and keep the full output — a second cookie that `ss.php`
 needs (condition C3) is the first thing to suspect.
 
-### M5. The widget change — the feature stays dark without it
-Owner-side, in `cham-chatbot/chatbot.html`. **That file is ISO-8859-1 — never
-edit it with a UTF-8 tool; patch it via Python with an explicit encoding.**
+### M5. The widget change — WRITTEN 2026-07-29, not yet pushed
+In `cham-chatbot/chatbot.html`. **That file is ISO-8859-1 — never edit it with a
+UTF-8 tool; patch it via Python with an explicit encoding.**
 
-Full contract in §5.
+Full contract in §5. What was applied, as four asserted-unique replacements:
+
+1. `getKundenId()` (the old client-side Kundennummer reader) **deleted**, replaced
+   by `let kundenAuthPromise = null;` and `authenticateKundenModus()` exactly as
+   §5(a) specifies — unconditional call, `.catch()` so a failure is non-fatal.
+2. `initializeChatSession()` ends with `kundenAuthPromise = authenticateKundenModus();`.
+3. `processMessageStream()` opens with `if (kundenAuthPromise) { await kundenAuthPromise; }`
+   — requirement 2, the await before the first stream.
+4. The `requestBody.kunden_id` else-branch **deleted** — §5(b).
+
+Verified in the working tree before any commit:
+
+| Check | Result |
+|---|---|
+| Encoding preserved | 43 non-ASCII bytes before and after, unchanged; the added code is ASCII-only |
+| Old paths gone | `getKundenId` 0, `kunden_id` 0 occurrences; `getKundenVorname` still present (unrelated, 5×) |
+| Syntax | `node --check` passes on the extracted 43,989-char inline script |
+| Call fires | Observed live via a staged copy: `POST …/kunde/auth` on page load |
+| Body shape | `{"session_id":"session_…","phpsessid":""}` — captured with a `fetch` spy. The empty `phpsessid` is the point: it proves the **unconditional** call of requirement 1, which is what clears a stale binding |
+| CORS | Real origin → `access-control-allow-origin: https://www.chamaeleon-reisen.de`; rogue origin → 200 with **no** ACAO header |
+
+`cham-chatbot` is a separate repo under a different org
+(`github.com/TourOne/cham-chatbot`). Pushing it is what makes the feature live for
+customers, so it is an explicit owner decision, not a follow-on to the backend push.
 
 ## 5. Widget contract (specification)
 
@@ -287,8 +314,8 @@ async function authenticateKundenModus() {
 3. **Call it on every chat open, not once per stored session.** The stored
    `session_id` survives 12h across page loads; the login behind it may not.
 
-> **⚠ Requirement 3 is NOT satisfiable at the call site this section prescribes,
-> and that is an open decision for M5 — not an implementation detail.**
+> **⚠ Requirement 3 is NOT satisfiable at the call site this section prescribes.
+> Decided at M5 (owner, 2026-07-29): call on page load only, literal §5(a).**
 > Verified against `cham-chatbot/chatbot.html` on 2026-07-29: `initializeChatSession()`
 > is invoked once, at the bottom of the inline script (`:2195`), i.e. **per page
 > load**. `openChat` (`:1285-1302`) only toggles CSS classes and calls nothing.
@@ -300,13 +327,13 @@ async function authenticateKundenModus() {
 > Why it matters: the site's Reisebook inline login (`[data-rb-kundenlogin-submit]`)
 > authenticates over AJAX and **does not navigate**. The PHP session identity
 > changes with no page load, so a per-page-load auth never re-runs and the binding
-> still points at the previous customer. That is a live cross-customer leak, and
-> it is the case requirement 3 exists to prevent.
+> still points at the previous customer.
 >
-> Note the main login form and the logout control *do* reload, so the common
-> paths are covered; this is specifically the in-page login. Decide at M5 whether
-> to hook the five entry points, gate on message *send* rather than chat *open*
-> (one choke point instead of five), or adopt the per-request transport in §12.
+> The main login form and the logout control *do* reload, so the common paths are
+> covered. What page-load-only leaves open is the inline-login case, now carried
+> as an explicit accepted risk in §8 rather than left implicit — with the two
+> alternatives that were weighed and not taken: hooking all five entry points, or
+> the per-request transport in §12. Reopen it there, not here.
 
 **(b) Stop sending `kunden_id`.** The widget still sets
 `requestBody.kunden_id = kundenId`. The server ignores it, so this is inert —
@@ -330,18 +357,25 @@ throttled).
 M1 DASHBOARD_PASSWORD  ✔ done
 M4 C1 DevTools check   ✔ done 2026-07-29 — both halves, cookie is JS-readable
                                                           │
-M2 sign-off + push ──────────────► M3 curl (C2+C3) ───────┤
+M2 sign-off + push ✔ ────────────► M3 curl (C2+C3) ✔ true ┤
                                                           │
                                        ┌──────────────────┴───────────┐
                                   M3   │                              │  M3
                                  true  ▼                              ▼  false
-                            M5 widget change ──► LIVE           §7 fallback
+                            M5 widget change              §7 fallback — not needed
+                            ✔ written, verified
+                            ☐ pushed ──────────► LIVE
 ```
 
 M4 was deliberately taken first: no dependencies, five seconds, and a failure
 there would have killed the transport before a push was spent on it. It passed,
-so the only remaining make-or-break is M3 — and M3 needs the deploy to exist,
-because the point is that `ss.php` sees **Railway's** egress IP.
+and M3 then returned `true`, so the transport is settled and §7 is dead weight
+kept only against a future `HttpOnly`.
+
+Everything left is one action: push `cham-chatbot`. The backend has been live and
+fail-closed since M2, so nothing degrades while that waits — the feature is simply
+off. Kunden-Modus turns on for customers the moment the widget ships, which is why
+the push is the go-live event and not a cleanup step.
 
 ## 7. If C1 or C2 fails — the fallback
 
@@ -375,6 +409,29 @@ signature check. `unbind`/`bind`/`resolve`, the route, the rate-limit path and
   an IP.
 - **`ss.php` over-exposes the session** (hash, salt, PII to any cookie-bearer).
   Site vulnerability, independent of the chatbot — separate owner report.
+
+- **The Reisebook inline login can leave a stale binding for up to 12h**
+  (owner decision, 2026-07-29 — page-load-only auth, see §5(a)). Auth runs from
+  `initializeChatSession()`, i.e. once per page load. The site's Reisebook inline
+  login (`[data-rb-kundenlogin-submit]`) changes the PHP session identity over AJAX
+  **without navigating**, so in that one flow the auth never re-runs and the
+  binding still names whoever was authenticated before. Concretely: A logs in
+  inline, B logs in inline in the same browser without a reload, and B's chat can
+  answer with A's bookings and Zahlstand until the 12h TTL expires.
+
+  Why it is accepted rather than fixed: the two flows that matter for a customer
+  switch — the main login form and the logout control — both reload, so both
+  re-authenticate correctly. The leak needs a same-browser handoff *plus* the one
+  login path that does not navigate. Against that, hooking all five chat entry
+  points is five separately-failable call sites for one uncovered flow, and the
+  per-request transport (§12) reverses a settled decision. Page-load-only is the
+  smallest diff that covers the common paths.
+
+  What would reopen it: any report of a wrong-customer answer, or the site moving
+  its main login to AJAX too — at which point the fix is §12, not more hooks.
+  Note this is the same shape as the 12h-TTL risk above (a binding outliving the
+  login behind it), but a distinct trigger: that one needs an already-open tab,
+  this one survives new tabs and new page loads.
 
 - **`print_r` is structurally ambiguous, but no injection vector was found
   (measured 2026-07-29).** `print_r` emits values raw and unquoted, so a value
@@ -507,6 +564,11 @@ so nobody has to rediscover the set:
 | **M3** (curl) | §1 C2/C3 row, §M3 | record the result and the date. On `false`: **do not tidy** — switch this whole file to the §7 fallback and say why the transport died |
 | **M4** (DevTools) | §1 C1 row, §M4 half 2 | `HttpOnly` yes/no, measured, dated |
 | **M5** (widget) | §1 widget row; **then** `docs/kundendaten-datenzugriff.md` "Rules for changing this" | only here may the two-row live/tree table collapse into a single verified story, and only then may `TODOS.md`'s IDOR item be checked off |
+
+**"After M5" means after the widget is *pushed*, not after it is written.** As of
+2026-07-29 the patch exists only in the `cham-chatbot` working tree, so the two
+edits above are still owed and `TODOS.md` is correctly unchecked. Writing them now
+would be exactly the Issue-6 failure this table exists to prevent.
 
 `docs/kunden-auth-plan.md` never gets updated for status — it is history and
 says so. Append to it only when a *decision* changes.

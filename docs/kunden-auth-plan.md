@@ -125,7 +125,7 @@ push and on the widget, not on writing the code — see Order of work.)
   No session token transits, no `ss.php` replay, forgery-proof — but needs the
   owner to build the endpoint. Keep this ready in case a condition fails.
 
-## Code delta — IMPLEMENTED 2026-07-28 (not pushed; C1/C2 still unproven)
+## Code delta — as first written, 2026-07-28
 
 - `kunden_auth.verify_meinchamaeleon_session(phpsessid, user_agent="")` — takes the
   forwarded token as an argument, builds `cookies={"PHPSESSID": phpsessid}` and a
@@ -334,6 +334,13 @@ Keeping the cookie-forwarding transport makes these requirements, not nice-to-ha
   That is the honest shape and it can stay. **What still must not happen before
   M2+M3+M5 have all landed: collapsing it to a single "verified" story.** The
   Issue 6 failure mode is a doc that describes the tree as if it were production.
+
+  **Later that day:** M2 and M3 landed, so that table was rewritten — still two
+  rows, now *before 2026-07-29* vs. *live now*, because the working-tree row had
+  become production. It still refuses to call the IDOR fixed: M5 is unshipped, so
+  it says the surface is **dark** instead. The Issue-6 guard therefore holds in the
+  other direction now — do not let it read as "verified" while no widget supplies a
+  session.
 
 ## Rollout (fail-closed)
 
@@ -572,5 +579,9 @@ silent AND untested AND unhandled — **0 critical gaps.**
   deployed route). A failed C2 means revert and switch to the signed-token fallback.
   Deploy prerequisite: `DASHBOARD_PASSWORD` must exist on Railway before the push, or
   the service will refuse to boot by design.
+- **Those gates have since closed** (2026-07-29): a third review round fixed 3 more
+  findings, then M4 (C1), M2 (push) and M3 (C2/C3, `authenticated:true`) all passed.
+  Read the verdict above as the state on 2026-07-28, not as open work. The spec's §1
+  table is the live status.
 
 NO UNRESOLVED DECISIONS

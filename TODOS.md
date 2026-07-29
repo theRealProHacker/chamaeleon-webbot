@@ -9,13 +9,16 @@
   Regenerate the field list with `docs/explore_kunde.py`. **Fetching the full
   record is accepted** — it stays server-side; the boundary that matters is the
   model request, so review changes to `kundendaten.py` against that.
-- [ ] **IDOR — verify `kunden_id` server-side. Still open in production.**
-      Live, the widget asserts `kunden_id` and the server trusts it, so anyone
-      with a valid Kundennummer can read that customer's whole booking history +
-      Zahlstand through the chat endpoint. v2 (server derives the Kundennummer
-      from a `ss.php`-verified MeinChamäleon session and binds it to
-      `session_id`) is **implemented and unit-tested in the working tree,
-      2026-07-28/29, and NOT pushed.** It closes nothing until it ships.
+- [ ] **IDOR — verify `kunden_id` server-side. Server half shipped, widget half
+      not.** Until 2026-07-29 the widget asserted `kunden_id` and the server
+      trusted it, so anyone with a valid Kundennummer could read that customer's
+      whole booking history + Zahlstand through the chat endpoint. v2 (server
+      derives the Kundennummer from a `ss.php`-verified MeinChamäleon session and
+      binds it to `session_id`) is **deployed since 2026-07-29**: a body
+      `kunden_id` is now ignored outright, so the spoofing path is gone.
+      Still unchecked because the widget change that supplies a real session is
+      **written but not pushed** — so Kunden-Modus currently resolves to `""` for
+      every customer. The box gets ticked when that ships, not before.
       → **`docs/kunden-auth-spec.md` is the authoritative status** — remaining
       work, owners, widget contract, go-live order and the fallback all live
       there. Do not track the state here as well; that is how the two drifted
@@ -25,9 +28,9 @@
       assumed same-site cookies, so it was inert) and a real customer sample
       incl. a password hash leaked into that commit — treat that hash as
       compromised and never let real `ss.php` output back into the repo.
-      **(b)** Until v2 ships, the structural defenses are what is holding:
-      closure tool with no customer parameter, GET-only, field whitelist,
-      ID allowlist, 100/h rate limit.
+      **(b)** The structural defenses still stand behind the session check and
+      are what keep a bug in it from being fatal: closure tool with no customer
+      parameter, GET-only, field whitelist, ID allowlist, 100/h rate limit.
       Separate owner reports (site-side, independent of the chatbot): `ss.php`
       over-exposes the session (hash/salt/PII to any cookie-bearer);
       `session.use_strict_mode` is off (session fixation).
