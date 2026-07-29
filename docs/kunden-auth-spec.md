@@ -16,9 +16,9 @@ contradict each other last time (plan, eng review Issue 6).
 
 Status: **server deployed 2026-07-29 and dark.** `/kunde/auth` is live and
 fail-closed; no widget calls it, so Kunden-Modus is off for every customer until
-M5. **Transport proven end to end (C1, C2, C3 all hold).** The M5 widget patch is
-written and verified but **not committed** — the last remaining step is pushing
-`cham-chatbot`, which is a different repo and a different owner decision.
+M5. **Transport proven end to end (C1, C2, C3 all hold).** The M5 widget change is
+written, verified and committed (`cham-chatbot` `a59935c`, branch `kunden-id`) but
+**not pushed** — go-live is owner-side in that repo, via PR to `main`.
 Last updated 2026-07-29.
 
 ---
@@ -39,7 +39,7 @@ Last updated 2026-07-29.
 | C2/C3 verification (one curl) | **DONE** 2026-07-29 — `{"authenticated":true}` against the deployed route with a test account. Session is portable to Railway's egress IP; `PHPSESSID` is the only cookie `ss.php` needs | — |
 | C1 — widget is not a cross-origin iframe | **DONE** — verified live 2026-07-29 | — |
 | C1 — authenticated cookie is JS-readable | **DONE** — verified 2026-07-29, logged-in Console returned the token | — |
-| Widget: read `PHPSESSID`, call `/kunde/auth` | **WRITTEN, NOT SHIPPED** — patch applied and verified in the `cham-chatbot` working tree 2026-07-29, uncommitted. Feature stays dark until it is pushed | owner |
+| Widget: read `PHPSESSID`, call `/kunde/auth` | **COMMITTED, NOT SHIPPED** — `cham-chatbot` `a59935c` on branch `kunden-id`, 2026-07-29, verified. Local only; feature stays dark until it reaches `main` | owner |
 
 Deployed as `aaa77ef` (code + tests) and `2976e85` (docs), pushed 2026-07-29
 together with the older unpushed `13bc7a4`.
@@ -272,9 +272,13 @@ Verified in the working tree before any commit:
 | Body shape | `{"session_id":"session_…","phpsessid":""}` — captured with a `fetch` spy. The empty `phpsessid` is the point: it proves the **unconditional** call of requirement 1, which is what clears a stale binding |
 | CORS | Real origin → `access-control-allow-origin: https://www.chamaeleon-reisen.de`; rogue origin → 200 with **no** ACAO header |
 
-`cham-chatbot` is a separate repo under a different org
-(`github.com/TourOne/cham-chatbot`). Pushing it is what makes the feature live for
-customers, so it is an explicit owner decision, not a follow-on to the backend push.
+Committed as `a59935c` on branch **`kunden-id`** (owner decision 2026-07-29:
+commit locally, do not push). `cham-chatbot` is a separate repo under a different
+org, `github.com/TourOne/cham-chatbot`, and it is **not** a push-to-deploy repo the
+way the backend is: `kunden-id` is a feature branch, and `main` is the deploy
+lineage reached by PR (`develop` → `main`, cf. PR #18). So going live is
+`push kunden-id` → PR → merge to `main`, all owner-side. Nothing degrades while it
+waits — the backend is live and fail-closed, so Kunden-Modus is simply off.
 
 ## 5. Widget contract (specification)
 
@@ -364,7 +368,8 @@ M2 sign-off + push ✔ ────────────► M3 curl (C2+C3) �
                                  true  ▼                              ▼  false
                             M5 widget change              §7 fallback — not needed
                             ✔ written, verified
-                            ☐ pushed ──────────► LIVE
+                            ✔ committed (kunden-id)
+                            ☐ push + PR to main ─► LIVE
 ```
 
 M4 was deliberately taken first: no dependencies, five seconds, and a failure
@@ -372,10 +377,11 @@ there would have killed the transport before a push was spent on it. It passed,
 and M3 then returned `true`, so the transport is settled and §7 is dead weight
 kept only against a future `HttpOnly`.
 
-Everything left is one action: push `cham-chatbot`. The backend has been live and
-fail-closed since M2, so nothing degrades while that waits — the feature is simply
-off. Kunden-Modus turns on for customers the moment the widget ships, which is why
-the push is the go-live event and not a cleanup step.
+Everything left is owner-side in `cham-chatbot`: push `kunden-id`, PR it to `main`.
+The backend has been live and fail-closed since M2, so nothing degrades while that
+waits — the feature is simply off. Kunden-Modus turns on for customers the moment
+the widget reaches `main`, which is why that merge is the go-live event and not a
+cleanup step.
 
 ## 7. If C1 or C2 fails — the fallback
 
@@ -565,10 +571,11 @@ so nobody has to rediscover the set:
 | **M4** (DevTools) | §1 C1 row, §M4 half 2 | `HttpOnly` yes/no, measured, dated |
 | **M5** (widget) | §1 widget row; **then** `docs/kundendaten-datenzugriff.md` "Rules for changing this" | only here may the two-row live/tree table collapse into a single verified story, and only then may `TODOS.md`'s IDOR item be checked off |
 
-**"After M5" means after the widget is *pushed*, not after it is written.** As of
-2026-07-29 the patch exists only in the `cham-chatbot` working tree, so the two
-edits above are still owed and `TODOS.md` is correctly unchecked. Writing them now
-would be exactly the Issue-6 failure this table exists to prevent.
+**"After M5" means after the widget reaches `main`, not after it is written or
+committed.** As of 2026-07-29 it is `cham-chatbot` `a59935c` on the local
+`kunden-id` branch, so the two edits above are still owed and `TODOS.md` is
+correctly unchecked. Writing them now would be exactly the Issue-6 failure this
+table exists to prevent.
 
 `docs/kunden-auth-plan.md` never gets updated for status — it is history and
 says so. Append to it only when a *decision* changes.

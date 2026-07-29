@@ -17,8 +17,9 @@
       binds it to `session_id`) is **deployed since 2026-07-29**: a body
       `kunden_id` is now ignored outright, so the spoofing path is gone.
       Still unchecked because the widget change that supplies a real session is
-      **written but not pushed** — so Kunden-Modus currently resolves to `""` for
-      every customer. The box gets ticked when that ships, not before.
+      **committed but not pushed** (`cham-chatbot` `a59935c`, branch `kunden-id`)
+      — so Kunden-Modus currently resolves to `""` for every customer. The box
+      gets ticked when that reaches `main`, not before.
       → **`docs/kunden-auth-spec.md` is the authoritative status** — remaining
       work, owners, widget contract, go-live order and the fallback all live
       there. Do not track the state here as well; that is how the two drifted
