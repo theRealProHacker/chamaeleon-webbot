@@ -14,12 +14,12 @@ contradict each other last time (plan, eng review Issue 6).
 - `README.md` — environment and layout; names this file as the thing to read
   before touching `kunden_auth.py`, `/kunde/auth` or the widget.
 
-Status: **server deployed 2026-07-29 and dark.** `/kunde/auth` is live and
-fail-closed; no widget calls it, so Kunden-Modus is off for every customer until
-M5. **Transport proven end to end (C1, C2, C3 all hold).** The M5 widget change is
-written, verified and committed (`cham-chatbot` `a59935c`, branch `kunden-id`) but
-**not pushed** — go-live is owner-side in that repo, via PR to `main`.
-Last updated 2026-07-29.
+Status: **server deployed and dark.** `/kunde/auth` is live and fail-closed; the
+widget on `main` does not call it, so Kunden-Modus is off for every customer.
+**Transport proven end to end (C1, C2, C3 all hold).** The M5 widget change is
+merged to `cham-chatbot` `develop` (PR #22, 2026-07-30) and therefore live on the
+dev host, but **not on `main`** — go-live is owner-side in that repo.
+Last updated 2026-07-30.
 
 ---
 
@@ -27,7 +27,7 @@ Last updated 2026-07-29.
 
 | Component | State | Owner |
 |---|---|---|
-| `kunden_auth.py` — verify / begin_auth / commit_auth / resolve | **DONE**, 32 unit tests | — |
+| `kunden_auth.py` — verify / begin_auth / commit_auth / resolve | **DONE**, 39 unit tests | — |
 | `app.py` — `POST /kunde/auth`, `/chat/stream` binding lookup | **DONE** | — |
 | `rate_limit.py` — 429 clears the binding, JSON response | **DONE** | — |
 | `dashboard.py` — `DASHBOARD_PASSWORD` mandatory | **DONE** | — |
@@ -39,7 +39,8 @@ Last updated 2026-07-29.
 | C2/C3 verification (one curl) | **DONE** 2026-07-29 — `{"authenticated":true}` against the deployed route with a test account. Session is portable to Railway's egress IP; `PHPSESSID` is the only cookie `ss.php` needs | — |
 | C1 — widget is not a cross-origin iframe | **DONE** — verified live 2026-07-29 | — |
 | C1 — authenticated cookie is JS-readable | **DONE** — verified 2026-07-29, logged-in Console returned the token | — |
-| Widget: read `PHPSESSID`, call `/kunde/auth` | **COMMITTED, NOT SHIPPED** — `cham-chatbot` `a59935c` on branch `kunden-id`, 2026-07-29, verified. Local only; feature stays dark until it reaches `main` | owner |
+| Widget: read `PHPSESSID`, call `/kunde/auth` | **ON `develop`, NOT ON `main`** — `cham-chatbot` `a59935c`, merged via PR #22 on 2026-07-30. Live on `leon.chamdev.tourone.de`; customers are still on the `main` widget, which has no Kunden-Modus at all | owner |
+| Origin → `ss.php` host map | **DONE** 2026-07-30 — dev-host sessions were verified against production `ss.php` and always failed closed. `SS_URLS` + 7 tests, both mutations caught | — |
 
 Deployed as `aaa77ef` (code + tests) and `2976e85` (docs), pushed 2026-07-29
 together with the older unpushed `13bc7a4`.
@@ -68,7 +69,7 @@ Browser on chamaeleon page (logged in)      Our backend (different origin)     c
 ## 3. What is DONE (server)
 
 **`kunden_auth.py`**
-- `verify_meinchamaeleon_session(phpsessid, user_agent="") -> str | None` —
+- `verify_meinchamaeleon_session(phpsessid, user_agent="", origin="") -> str | None` —
   validates the token shape against `\A[A-Za-z0-9,-]{16,128}\Z` *before* it can
   reach a Cookie header, replays it against `ss.php` with a browser-like UA and
   `allow_redirects=False`, extracts only `SESSION_ADRKUNDENNR`. Never raises,
@@ -91,11 +92,26 @@ Browser on chamaeleon page (logged in)      Our backend (different origin)     c
   anonymous auth had already cleared it, handing the next person the previous
   customer's Buchungen. Reproduced before the fix, and pinned by
   `test_superseded_auth_cannot_resurrect_the_previous_customer`.
+- `SS_URLS` / `ss_url_for_origin(origin)` — **which** `ss.php` the token is
+  replayed against, keyed on the request's `Origin`. A PHP session exists in
+  exactly one host's store, and `PHPSESSID` cannot cross registrable domains at
+  all, so verifying a `leon.chamdev.tourone.de` token against
+  `chamaeleon-reisen.de` always returned an empty dump — Kunden-Modus was
+  unreachable for anyone testing on the dev host (found 2026-07-30 from a live
+  session where the bot correctly denied having booking access).
+  `Origin` is client-controlled, so it is only ever a **key into the table, never
+  the URL** — otherwise an attacker points verification at an `ss.php` they
+  control and mints any Kundennummer. Unknown or absent origin, and any `http://`
+  variant of a known one, fall back to production and therefore fail closed. All
+  values are `https` because the token is password-grade; the bare domain maps
+  straight to `www` since the replay refuses redirects. Agentur origins are
+  deliberately absent — the two modes are mutually exclusive, so a binding made
+  there could never be read. See §8 for the risk this accepts.
 - `unbind` / `bind` / `resolve` — in-memory `session_id → (kunden_id, expiry)`,
   12h TTL, lock-guarded. `unbind` also cancels any auth in flight. Restart clears
   everything (fails closed). `bind` is the unconditional primitive — the route
   must not use it.
-- `authenticate(body, user_agent)` — owns the ORDER (clear → verify → commit
+- `authenticate(body, user_agent, origin)` — owns the ORDER (clear → verify → commit
   only if not superseded). It lives here, not in the view, because a mutation run
   showed the view could be reordered to clear the binding *after* `ss.php` with
   the whole suite still green — `import app` triggers live Supabase reads, so
@@ -124,7 +140,7 @@ containing `ä` or `€` into a total lockout, since every attempt including the
 correct one would raise. The boot check only catches an *empty* password.
 
 **Tests** — `tests/test_kunden_auth.py`, 32 tests, fabricated data only. Full
-non-live suite 63 passing. Mutation-checked: reverting any of the fixes above
+non-live suite 70 passing. Mutation-checked: reverting any of the fixes above
 (clear-after-verify, bind-bypassing-generation, loose indent, uncapped body)
 fails the suite. Run: `python -m pytest tests/test_kunden_auth.py -q`
 
@@ -416,6 +432,32 @@ signature check. `unbind`/`bind`/`resolve`, the route, the rate-limit path and
 - **`ss.php` over-exposes the session** (hash, salt, PII to any cookie-bearer).
   Site vulnerability, independent of the chatbot — separate owner report.
 
+- **A login on a dev host is a valid auth path for the production chat**
+  (owner decision, 2026-07-30 — the `SS_URLS` map, §3). The dev widget posts to
+  the **production** backend (the Railway URL is hardcoded in `chatbot.html`), so
+  the dev origins have to be in the production table or dev testing cannot work at
+  all. Consequence: whoever can log into `leon.chamdev.tourone.de` or
+  `chamdev.tourone.de` can obtain a binding on the production `/kunde/auth` by
+  sending that `Origin`, and the chat then reads whatever Kundennummer that dev
+  session carries. `Origin` is client-controlled, so this needs no browser — curl
+  is enough.
+
+  Why it is accepted: the security of Kunden-Modus rests on *holding a valid
+  session for the customer you claim to be*, and that is unchanged — the map only
+  decides which session store is asked. An attacker still needs real credentials
+  somewhere. What it does widen is the blast radius of a weak dev login, and how
+  much that matters depends on how protected the dev hosts are and whether they
+  share TourOne's Kundennummern with production — an owner judgement, not a code
+  property.
+
+  What would reopen it: dev hosts becoming publicly reachable or sharing
+  production customer data. The clean fix if so is to stop pointing the dev widget
+  at the production backend — then the dev entries move to a dev-only deployment
+  and production maps `chamaeleon-reisen.de` alone. Note the alternative that was
+  weighed and rejected: deriving the host from the `Origin` **directly**, which is
+  strictly worse — an attacker names their own `ss.php` and forges any customer.
+  `test_unknown_origin_verifies_against_production` pins that shut.
+
 - **The Reisebook inline login can leave a stale binding for up to 12h**
   (owner decision, 2026-07-29 — page-load-only auth, see §5(a)). Auth runs from
   `initializeChatSession()`, i.e. once per page load. The site's Reisebook inline
@@ -542,6 +584,13 @@ Added by the 2026-07-29 independent review, none of them blocking:
 Side effect on **every** call: the binding for `session_id` is cleared first.
 A call with an empty or invalid `phpsessid` is the documented way to log a
 session out of Kunden-Modus.
+
+The **`Origin` header selects which `ss.php`** the token is replayed against
+(`kunden_auth.SS_URLS`), because a PHP session only exists in its own host's
+store. It is a table key, not a URL: unknown origins verify against production,
+where a dev-host token means nothing. This is a header, not a body field, so the
+widget cannot claim an origin independently of where the page actually runs —
+though a direct caller can, which is the §8 risk.
 
 The body is parsed leniently **on purpose**: `kunden_auth.coerce_json_body`
 falls back to parsing the raw text when the media type is not JSON, because a

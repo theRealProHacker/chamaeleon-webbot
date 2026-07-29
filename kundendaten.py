@@ -1,7 +1,6 @@
 """Kunden-Modus: Buchungen des eingeloggten Kunden aus TourOne.
 
-Wird nur aktiv, wenn eine ``kunden_id`` gesetzt ist. Die ID ist seit der
-Auth-Umstellung serverseitig verifiziert (``kunden_auth`` prüft die
+Wird nur aktiv, wenn eine ``kunden_id`` gesetzt ist. Die ID ist serverseitig verifiziert (``kunden_auth`` prüft die
 MeinChamäleon-Session einmal über ss.php und bindet sie an die session_id — der
 Body-Wert wird ignoriert). Zusätzlich bleiben alle Schutzmechanismen strukturell:
 das Tool hat KEINEN ID-Parameter (Closure — der Selektor wählt nur unter den

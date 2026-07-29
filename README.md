@@ -73,7 +73,7 @@ python -m pytest tests/test_general.py tests/test_kunden_auth.py \
   tests/test_kundendaten.py tests/test_previews.py tests/test_streaming.py -q
 ```
 
-That is the non-live suite (63 tests). The remaining files need network,
+That is the non-live suite (70 tests). The remaining files need network,
 credentials or playwright and are gated behind env flags
 (`RUN_LIVE_TERMINE`, `RUN_AGENTUR_EVAL`, `RUN_MEINCHAMAELEON_EVAL`).
 

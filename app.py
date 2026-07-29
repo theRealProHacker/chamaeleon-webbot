@@ -242,8 +242,14 @@ def kunde_auth():
     # dazwischenkam) liegt bewusst in kunden_auth.authenticate: sie IST die
     # Sicherheitseigenschaft dieses Endpunkts und ist dort testbar, ohne app zu
     # importieren (das löst Live-Supabase-Reads aus).
+    # Origin entscheidet, gegen WELCHES ss.php der Token eingespielt wird: eine
+    # PHP-Session existiert nur im Store ihres eigenen Hosts, ein PHPSESSID vom
+    # Dev-Host ist für Produktion bedeutungslos (kunden_auth.SS_URLS). Der Header
+    # ist client-kontrolliert und deshalb dort nur ein Tabellen-Key, nie die URL.
     authenticated, session_id = kunden_auth.authenticate(
-        data, request.headers.get("User-Agent", "")
+        data,
+        request.headers.get("User-Agent", ""),
+        request.headers.get("Origin", ""),
     )
     if session_id is None:
         # Ohne brauchbare session_id gibt es auch nichts zu lösen.

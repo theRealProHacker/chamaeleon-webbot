@@ -187,6 +187,95 @@ def test_verify_none_on_exception(monkeypatch):
     assert ka.verify_meinchamaeleon_session(SID) is None
 
 
+# --- which ss.php (origin → host map) ----------------------------------------
+
+
+def test_verify_defaults_to_production_ss_php(monkeypatch):
+    """No origin at all → production. This is the pre-map behaviour, unchanged."""
+    spy = {}
+    _patch_get(monkeypatch, resp=_FakeResp(DUMP_EINGELOGGT), spy=spy)
+    ka.verify_meinchamaeleon_session(SID)
+    assert spy["url"] == ka.SS_URL
+
+
+def test_verify_uses_the_dev_ss_php_for_the_dev_origin(monkeypatch):
+    """The 2026-07-30 regression: a dev-host session verified against production.
+
+    A PHP session lives in exactly one host's store, and PHPSESSID cannot cross
+    registrable domains, so replaying a leon.chamdev.tourone.de token against
+    chamaeleon-reisen.de always came back empty — Kunden-Modus was unreachable
+    for anyone testing on the dev host.
+    """
+    spy = {}
+    _patch_get(monkeypatch, resp=_FakeResp(DUMP_EINGELOGGT), spy=spy)
+    kid = ka.verify_meinchamaeleon_session(
+        SID, "", "https://leon.chamdev.tourone.de"
+    )
+    assert spy["url"] == "https://leon.chamdev.tourone.de/ss.php"
+    assert kid == "999999999"
+
+
+def test_unknown_origin_verifies_against_production(monkeypatch):
+    """Origin is client-controlled: a key into the table, never the URL.
+
+    If an attacker could name the host, they would point verification at an
+    ss.php they control and mint any Kundennummer they like. Anything not in the
+    table — including a lookalike host and an http:// downgrade of a known one —
+    must fall back to production, where their token means nothing.
+    """
+    spy = {}
+    _patch_get(monkeypatch, resp=_FakeResp(DUMP_EINGELOGGT), spy=spy)
+    for rogue in (
+        "https://evil.example",
+        "https://leon.chamdev.tourone.de.evil.example",
+        "http://leon.chamdev.tourone.de",
+        "https://www.chamaeleon-reisen.de.evil.example",
+        "",
+        None,
+        123,
+        ["https://leon.chamdev.tourone.de"],
+    ):
+        ka.verify_meinchamaeleon_session(SID, "", rogue)
+        assert spy["url"] == ka.SS_URL, rogue
+
+
+def test_ss_url_map_is_https_only():
+    """The token is password-grade — no mapping may put it on an http hop."""
+    assert ka.SS_URLS, "map must not be empty"
+    for origin, url in ka.SS_URLS.items():
+        assert origin.startswith("https://"), origin
+        assert url.startswith("https://"), url
+        assert url.endswith("/ss.php"), url
+
+
+def test_bare_domain_maps_to_www_directly():
+    """chamaeleon-reisen.de 301s to www, and the replay refuses redirects."""
+    assert ka.ss_url_for_origin("https://chamaeleon-reisen.de") == ka.SS_URL
+
+
+def test_agentur_origins_are_not_in_the_map():
+    """Agentur- and Kunden-Modus are mutually exclusive, so a binding made from
+    an agentur origin could never be read. Absent on purpose, not by oversight."""
+    for origin in ka.SS_URLS:
+        assert "agt." not in origin, origin
+
+
+def test_authenticate_passes_the_origin_to_verify(monkeypatch):
+    """The wiring, not just the helper: the route's Origin must reach the map."""
+    spy = {}
+    _patch_get(monkeypatch, resp=_FakeResp(DUMP_EINGELOGGT), spy=spy)
+    ka.unbind("s-origin")
+    authenticated, sid = ka.authenticate(
+        {"session_id": "s-origin", "phpsessid": SID},
+        "",
+        "https://leon.chamdev.tourone.de",
+    )
+    assert spy["url"] == "https://leon.chamdev.tourone.de/ss.php"
+    assert (authenticated, sid) == (True, "s-origin")
+    assert ka.resolve("s-origin") == "999999999"
+    ka.unbind("s-origin")
+
+
 # --- binding (session_id as bearer token) ------------------------------------
 
 
@@ -329,7 +418,7 @@ def test_binding_is_cleared_before_ss_php_is_called(monkeypatch):
     """
     seen = {}
 
-    def spy_verify(phpsessid, user_agent=""):
+    def spy_verify(phpsessid, user_agent="", origin=""):
         seen["binding_during_verify"] = ka.resolve("clear-first")
         return "999999999"
 

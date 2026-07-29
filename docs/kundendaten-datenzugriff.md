@@ -176,15 +176,26 @@ to name one was the separate IDOR question, and the server half has shipped:
 
 | | Source of `kunden_id` | Exposure |
 | --- | --- | --- |
-| **Before 2026-07-29** | the widget asserted it in the `/chat/stream` body, server trusted it | anyone knowing a valid Kundennummer reached the whole surface documented here |
-| **Live now** | `kunden_auth.resolve(session_id)` only, bound from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is **ignored outright** | a spoofed ID reaches nothing. And because no shipped widget calls `/kunde/auth` yet, `resolve` returns `""` for every request — so **nothing** in this document is currently reachable by anyone |
+| **Before 2026-07-29** | a `kunden_id` in the `/chat/stream` body, trusted as-is | anyone knowing a valid Kundennummer reached the whole surface documented here — **by crafting the request directly**, see below |
+| **Live now** | `kunden_auth.resolve(session_id)` only, bound from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is **ignored outright** | a spoofed ID reaches nothing. And because the widget on `cham-chatbot` `main` never calls `/kunde/auth`, `resolve` returns `""` for every customer request — so **nothing** in this document is currently reachable in production |
+
+**Correction, 2026-07-30.** An earlier version of this table said the *live widget*
+asserted `kunden_id`. It never did: the widget deployed to customers is older than
+that feature — checked against the live page, which contains no `kunden_id`, no
+`phpsessid` and no `/kunde/auth`. The IDOR was real but reachable only by building
+the POST yourself, which is exactly why it mattered: the exposure never depended on
+what the widget chose to send. Beware `grep` here — the page is ISO-8859-1 and grep
+treats it as binary, silently reporting zero matches for everything; count in Python
+with an explicit encoding.
 
 The client-asserted path is gone, not merely deprecated: the field is read
 nowhere. What is still outstanding is the widget change (M5) that supplies a real
-session, so the surface here is presently dark rather than customer-accessible.
-**`docs/kunden-auth-spec.md` is authoritative for that status** — including the
-one residual leak that survives the fix (a Reisebook inline re-login can leave a
-stale binding for up to 12h; spec §8).
+session — merged to `develop`, so it is live on the dev host but not for customers.
+The surface here is therefore dark in production rather than customer-accessible.
+**`docs/kunden-auth-spec.md` is authoritative for that status** — including the two
+residual risks that survive the fix (a Reisebook inline re-login can leave a stale
+binding for up to 12h, and a dev-host login is a valid auth path for the production
+chat; both in spec §8).
 
 **2026-07-24 — upcoming-only filter removed (owner decision).** The tool now
 returns past *and* upcoming bookings (newest first), on the explicit assumption

@@ -47,6 +47,44 @@ from kundendaten import parse_kunden_id
 # cookies it returns their session (incl. SESSION_ADRKUNDENNR); without → empty.
 SS_URL = "https://www.chamaeleon-reisen.de/ss.php"
 
+# Which ss.php to replay the token against, keyed by the browser's Origin.
+#
+# A PHP session lives in ONE host's session store, and the cookie cannot cross
+# registrable domains at all — a PHPSESSID from leon.chamdev.tourone.de is
+# meaningless to chamaeleon-reisen.de's ss.php. Verifying every origin against
+# production therefore fails closed for anyone testing on a dev host, which is
+# exactly what happened on 2026-07-30 (spec §8).
+#
+# The Origin header is CLIENT-CONTROLLED, so it may only ever be a KEY into this
+# table, never the URL itself — otherwise an attacker points verification at an
+# ss.php they control and mints any Kundennummer they like. Unknown or absent →
+# production. All values are https: the token is password-grade, so an http
+# mapping would put it on the wire in cleartext (an http:// origin thus falls
+# back to production and fails closed, which is the intended outcome).
+#
+# The agentur hosts are deliberately absent: Agentur- and Kunden-Modus are
+# mutually exclusive (``app.py`` forces ``kunden_id = ""`` on agentur requests),
+# so a binding made from those origins could never be read.
+#
+# Trade-off accepted with this table (owner, 2026-07-30): a login on a dev host
+# becomes a valid auth path for the production chat, because the dev widget talks
+# to the production backend. Keep in sync with the CORS origins in ``app.py``.
+SS_URLS = {
+    "https://www.chamaeleon-reisen.de": SS_URL,
+    # Bare domain 301s to www; mapped straight to the target because the replay
+    # runs with allow_redirects=False and would otherwise fail on the 301.
+    "https://chamaeleon-reisen.de": SS_URL,
+    "https://leon.chamdev.tourone.de": "https://leon.chamdev.tourone.de/ss.php",
+    "https://chamdev.tourone.de": "https://chamdev.tourone.de/ss.php",
+}
+
+
+def ss_url_for_origin(origin) -> str:
+    """Pick the ss.php to verify against. Unknown origin → production."""
+    if not isinstance(origin, str):
+        return SS_URL
+    return SS_URLS.get(origin.strip().rstrip("/"), SS_URL)
+
 # ss.php mid-chat must not hang the auth call.
 TIMEOUT = 8
 
@@ -212,7 +250,9 @@ def extract_kundennr(body: str) -> str:
     return kunden_id
 
 
-def verify_meinchamaeleon_session(phpsessid, user_agent: str = "") -> str | None:
+def verify_meinchamaeleon_session(
+    phpsessid, user_agent: str = "", origin: str = ""
+) -> str | None:
     """Return the logged-in customer's Kundennummer, or ``None``. Never raises.
 
     ``phpsessid`` is the value the widget read from ``document.cookie`` on the
@@ -222,12 +262,17 @@ def verify_meinchamaeleon_session(phpsessid, user_agent: str = "") -> str | None
     non-200, unparsable) → ``None``, fail closed. Neither the token nor the
     response body is ever logged: the body carries the password hash, salt and
     full PII.
+
+    ``origin`` selects which ss.php the token is replayed against, because a PHP
+    session only exists in one host's store (see :data:`SS_URLS`). It is only a
+    table key, never a URL — unknown origins verify against production.
     """
     if not isinstance(phpsessid, str) or not _PHPSESSID_RE.match(phpsessid):
         return None
+    ss_url = ss_url_for_origin(origin)
     try:
         resp = requests.get(
-            SS_URL,
+            ss_url,
             cookies={"PHPSESSID": phpsessid},
             headers={"User-Agent": user_agent or DEFAULT_USER_AGENT},
             timeout=TIMEOUT,
@@ -241,10 +286,12 @@ def verify_meinchamaeleon_session(phpsessid, user_agent: str = "") -> str | None
             allow_redirects=False,
         )
     except Exception as e:
-        print(f"[kunden_auth] ss.php request failed: {type(e).__name__}")
+        # The URL is safe to log (it is one of our own constants); the token and
+        # the body never are.
+        print(f"[kunden_auth] {ss_url} request failed: {type(e).__name__}")
         return None
     if resp.status_code != 200:
-        print(f"[kunden_auth] ss.php returned status {resp.status_code}")
+        print(f"[kunden_auth] {ss_url} returned status {resp.status_code}")
         return None
     body = resp.content.decode("ISO-8859-1", errors="replace")
     return extract_kundennr(body) or None
@@ -308,12 +355,18 @@ def commit_auth(session_id: str, kunden_id: str, generation: int) -> bool:
         return True
 
 
-def authenticate(body: dict, user_agent: str = "") -> tuple[bool, str | None]:
+def authenticate(
+    body: dict, user_agent: str = "", origin: str = ""
+) -> tuple[bool, str | None]:
     """The whole /kunde/auth sequence, in the one order that is safe.
 
     Returns ``(authenticated, session_id)``; ``session_id`` is None when the body
     carried no usable one, which is the caller's cue to 400 — and the only case
     where nothing had to be cleared first.
+
+    ``origin`` is the request's ``Origin`` header, used only to pick the ss.php
+    host (:data:`SS_URLS`). It comes from the request rather than the body so the
+    widget cannot choose it independently of where the page actually runs.
 
     This lives here rather than in the view on purpose. Every security property
     of this endpoint is a property of the ORDER these calls happen in, and a
@@ -336,7 +389,10 @@ def authenticate(body: dict, user_agent: str = "") -> tuple[bool, str | None]:
     kunden_id = ""
     try:
         kunden_id = (
-            verify_meinchamaeleon_session(body.get("phpsessid", ""), user_agent) or ""
+            verify_meinchamaeleon_session(
+                body.get("phpsessid", ""), user_agent, origin
+            )
+            or ""
         )
     finally:
         committed = commit_auth(session_id, kunden_id, generation)
