@@ -14,7 +14,9 @@ contradict each other last time (plan, eng review Issue 6).
 - `README.md` — environment and layout; names this file as the thing to read
   before touching `kunden_auth.py`, `/kunde/auth` or the widget.
 
-Status: **server complete and tested locally, not pushed. Feature is dark.**
+Status: **server deployed 2026-07-29 and dark.** `/kunde/auth` is live and
+fail-closed; no widget calls it, so Kunden-Modus is off for every customer until
+M5. Next: M3.
 Last updated 2026-07-29.
 
 ---
@@ -31,22 +33,14 @@ Last updated 2026-07-29.
 | Independent review, round 2 (2026-07-29) | **DONE** — 5 fixed: bind/unbind race under gevent, unbind-skipping body paths, `compare_digest` on non-ASCII, `$` anchor, loose Kundennummer gate | — |
 | Independent review, round 3 (2026-07-29) | **DONE** — 3 more fixed: body-read memory amplification *introduced by round 2*, nested-key parse bug, endpoint-name coupling. One finding **not** closeable in code → §8 | — |
 | `DASHBOARD_PASSWORD` set on Railway | **DONE** — confirmed by owner 2026-07-29 | owner |
-| Sign-off + push | **MISSING — head of the critical path** | owner |
+| Sign-off + push | **DONE** 2026-07-29 — `2976e85`; service booted, `/kunde/auth` answers 400, proxy healthy | — |
 | C2/C3 verification (one curl) | **MISSING — make-or-break** | dev |
 | C1 — widget is not a cross-origin iframe | **DONE** — verified live 2026-07-29 | — |
 | C1 — authenticated cookie is JS-readable | **DONE** — verified 2026-07-29, logged-in Console returned the token | — |
 | Widget: read `PHPSESSID`, call `/kunde/auth` | **MISSING — feature stays dark without it** | owner |
 
-**Nothing of this feature is committed** (state at 2026-07-29). Working tree:
-modified `app.py`, `rate_limit.py`, `dashboard.py`, `kundendaten.py`, `TODOS.md`,
-`README.md`, `.gitignore`, `docs/kundendaten-datenzugriff.md`; new
-`kunden_auth.py`, `tests/test_kunden_auth.py`, `docs/kunden-auth-*.md`.
-
-One unrelated commit is already made and unpushed: `13bc7a4 chore: gitignore
-lokale Test-Fixture mit echten Sample-Daten`. It added `tests/test_kunden_auth.py`
-to `.gitignore` back when that file held real sample data; the working tree
-removes the line again because the file was rewritten with fabricated data. Both
-will go out with the M2 push — expected, just don't read the pair as a mistake.
+Deployed as `aaa77ef` (code + tests) and `2976e85` (docs), pushed 2026-07-29
+together with the older unpushed `13bc7a4`.
 
 ## 2. What the feature does
 
