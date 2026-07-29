@@ -45,7 +45,20 @@ Consumed fields (everything else in the response is received but **ignored**):
 | `buchungen[].vorgang` | key for hop 2 + shown as booking number |
 | `buchungen[].bisDat` | past/upcoming split + shown in header |
 | `buchungen[].vonDat` | sort order + shown in header |
-| `buchungen[].reiseCode` | rough-list trip title (fallback title in detail) |
+| `buchungen[].reiseCode` | key for the trip title, and last-resort title itself |
+
+`buchungen[].beschreibungen` exists in this hop but is **always an empty list**
+(measured live 2026-07-30 against the reference customer), so the rough list has
+no title of its own. It resolves `reiseCode` through the travel index
+(`travel_index.get_titel_for_code`, an in-memory peek at the catalogue built from
+`/get/reiseliste` — no extra request, no new data leaving TourOne) and falls back
+to the raw code on a miss. Without that, customers were shown internal codes like
+`COSAN_NEU` instead of `San Agustín`.
+
+The lookup is **exact-match only**. 442 of 448 suffixed codes share their base
+code's title, but the 6 exceptions are genuinely different trips (`NAFAM_DRR` is
+"Deutscher Reisering Jubiläumsreise", `NAFAM` is "Erfahrungsreise"), and in a
+booking context a confidently wrong trip name is worse than an unresolved code.
 
 ### Hop 2 — `GET /get/buchung?vorgangsNummer=<vorgang>` (only on `details=true`, max `MAX_DETAIL`=5)
 
@@ -81,6 +94,11 @@ In Kunden-Modus exactly three things go into the model request:
    view adds: status, Reisende (headcount), the **Zahlstand** (Gesamtpreis,
    Anzahlung + date, offener Betrag + date, bereits eingegangen) and the six
    flight fields.
+
+   The trip title may come from the travel index rather than the booking (see
+   Hop 1 above). That does **not** widen this boundary: the index holds the public
+   website catalogue, so the substituted value is public data keyed by a code the
+   booking already supplied — the same one field, more readable.
 
 ### Structurally excluded from Gemini
 

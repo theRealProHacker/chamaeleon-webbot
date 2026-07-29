@@ -22,7 +22,9 @@ enthält ausschließlich whitelisted Felder.
                  → Whitelist → Status, Reisende, Zahlstand, Flüge
 
 Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
-  Grobe Liste: reiseCode/beschreibungen.titel, vonDat, bisDat, vorgang.
+  Grobe Liste: Titel, vonDat, bisDat, vorgang. Der Titel kommt aus
+  beschreibungen.titel (nur Hop 2 gefüllt), sonst über den Reise-Index aus dem
+  reiseCode, sonst der reiseCode selbst — siehe ``_titel_aus_code``.
   Detail zusätzlich: status, persAdult/persChild/persBaby, die sechs
   FLUG_FELDER sowie der Zahlstand (preis, anzahlungBetrag/-Dat, restBetrag,
   schlussZahlungDat, eingangBetrag).
@@ -46,7 +48,7 @@ from langchain_core.tools import tool
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
 # Implementierung geben, und die lebt in travel_index (Entscheidung 2A).
-from travel_index import _tourone_get
+from travel_index import _tourone_get, get_titel_for_code
 
 # Der 20s-Default von _tourone_get ist für Index-Builds; mitten im Chat muss
 # die Wartezeit pro Request enger begrenzt sein (Entscheidung 5A).
@@ -150,6 +152,26 @@ def _flug_zeile(flug: dict) -> str:
     return zeile
 
 
+def _titel_aus_code(*codes: object) -> str:
+    """Erster reiseCode, den der Reise-Index zu einem echten Titel auflöst.
+
+    Hop 1 liefert pro Buchung ein LEERES ``beschreibungen``, der echte Titel steht
+    nur in Hop 2. Ohne diesen Lookup zeigte die grobe Liste deshalb den internen
+    Code (``COSAN_NEU`` statt ``San Agustín``) — die Detailansicht war schon immer
+    richtig, weil sie Hop 2 ohnehin holt.
+
+    Der Index ist In-Memory und wird nur gepeekt (siehe ``get_titel_for_code``),
+    kostet hier also keinen Request. Kennt er den Code nicht, bleibt es beim Code:
+    lieber unaufgelöst als der Titel einer anderen Reise.
+    """
+    for code in codes:
+        if isinstance(code, str) and code:
+            titel = get_titel_for_code(code)
+            if titel:
+                return titel
+    return ""
+
+
 def _buchung_titel(buchung: dict, fallback: str) -> str:
     for beschreibung in buchung.get("beschreibungen") or []:
         if isinstance(beschreibung, dict) and beschreibung.get("titel"):
@@ -230,7 +252,8 @@ def _select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
 
 def _overview_zeile(b: dict, heute: str) -> str:
     """Eine grobe Zeile pro Buchung — nur aus den Hop-1-Daten."""
-    titel = _buchung_titel(b, b.get("reiseCode") or "deine Reise")
+    code = b.get("reiseCode")
+    titel = _buchung_titel(b, _titel_aus_code(code) or code or "deine Reise")
     von, bis = str(b.get("vonDat") or ""), str(b.get("bisDat") or "")
     teile = [f'„{titel}"']
     if von:
@@ -244,8 +267,11 @@ def _overview_zeile(b: dict, heute: str) -> str:
 
 def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
     """Ein Detail-Block pro Buchung — whitelisted, deutscher Text."""
+    # Hop 2 hat den autoritativen Titel; Index und Code sind nur Notnagel, falls
+    # beschreibungen auch dort leer ist.
+    codes = (emb.get("reiseCode"), buchung.get("reiseCode"))
     titel = _buchung_titel(
-        buchung, emb.get("reiseCode") or buchung.get("reiseCode") or "deine Reise"
+        buchung, _titel_aus_code(*codes) or codes[0] or codes[1] or "deine Reise"
     )
     von = str(emb.get("vonDat") or buchung.get("vonDat") or "")
     bis = str(emb.get("bisDat") or buchung.get("bisDat") or "")

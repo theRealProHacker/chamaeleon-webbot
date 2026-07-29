@@ -581,6 +581,7 @@ _lock = threading.Lock()          # guards the atomic index swap
 _build_lock = threading.Lock()    # serialises lazy first-build so it runs once
 _index: dict[str, dict] = {}  # url -> {"codes": [...], "titel", "land", "lang", "berater"}
 _name_to_url: dict[str, str] = {}
+_titel_by_code: dict[str, str] = {}  # reisecode -> catalogue title
 _built = False
 _last_summary: dict = {}
 
@@ -771,12 +772,50 @@ def _build_index(travels: list[dict], check_live: bool = True) -> tuple[dict, di
     return index, name_to_url, summary
 
 
+def _titel_by_code_from(travels: list[dict]) -> dict[str, str]:
+    """``reisecode -> catalogue title`` for every travel, URL-matched or not.
+
+    Built from the raw travel list rather than from ``_index`` on purpose: a trip
+    that never matched a website URL still has a real title, and this map is the
+    only way to turn a booking's ``reiseCode`` into something the customer
+    recognises. Kunden-Modus needs exactly that — TourOne's ``/get/adresse``
+    returns an empty ``beschreibungen`` per booking, so the rough list would
+    otherwise have to show the raw code (``COSAN_NEU`` instead of
+    ``San Agustín``).
+    """
+    out: dict[str, str] = {}
+    for travel in travels:
+        code, titel = travel.get("code"), travel.get("titel")
+        if isinstance(code, str) and code and isinstance(titel, str) and titel.strip():
+            out[code] = titel.strip()
+    return out
+
+
+def get_titel_for_code(code: str) -> str:
+    """Catalogue title for a reisecode, or ``""`` when unknown.
+
+    EXACT match only, deliberately. Suffixed codes usually share their base title
+    (measured 2026-07-30: 442 of 448 do), but the 6 exceptions are real, different
+    trips — ``NAFAM_DRR`` is "Deutscher Reisering Jubiläumsreise" while ``NAFAM``
+    is "Erfahrungsreise". In a booking context a confidently wrong trip name is
+    worse than an unresolved code, so a miss stays a miss and the caller keeps its
+    own fallback.
+
+    PEEKS at the current map without triggering a build — same reason as
+    :func:`get_berater`: this runs inside a chat reply and must never block behind
+    the minute-long index build. Before the first build it simply returns "".
+    """
+    if not isinstance(code, str) or not code:
+        return ""
+    return _titel_by_code.get(code, "")
+
+
 def rebuild() -> dict:
     """Fetch all travels and atomically swap in a fresh index. Returns summary.
 
     On a fetch failure the current index is left untouched (like sitemap_sync).
     """
-    global _index, _name_to_url, _built, _last_summary
+    global _index, _name_to_url, _titel_by_code, _built, _last_summary
     try:
         travels = fetch_all_travels()
     except Exception as e:  # network / API failure: keep the old index
@@ -784,9 +823,11 @@ def rebuild() -> dict:
         return {"error": str(e)}
 
     new_index, new_names, summary = _build_index(travels)
+    new_titel_by_code = _titel_by_code_from(travels)
     with _lock:
         _index = new_index  # atomic reassignment, never in-place mutation
         _name_to_url = new_names
+        _titel_by_code = new_titel_by_code
         _built = True
         _last_summary = summary
     _unknown_statuses_logged.clear()  # re-arm the once-per-status warning

@@ -153,6 +153,74 @@ def test_overview_ohne_hop2(monkeypatch):
     assert len(calls) == 1  # grobe Liste macht keinen /get/buchung-Call
 
 
+def _titel_map(monkeypatch, mapping):
+    """Reise-Index vortäuschen, ohne den (minutenlangen) Build anzustoßen."""
+    monkeypatch.setattr(kd, "get_titel_for_code", lambda code: mapping.get(code, ""))
+
+
+def test_overview_zeigt_echten_titel_statt_reisecode(monkeypatch):
+    """Hop 1 liefert leeres beschreibungen — der Code allein ist für den Kunden
+    unlesbar (`COSAN_NEU`). Der Reise-Index löst ihn zum Katalogtitel auf."""
+    _titel_map(monkeypatch, {"NAWDH": "Wüstenhauch"})
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])})
+    text = kd.fetch_buchungen_text("999999999", details=False)
+    assert '„Wüstenhauch"' in text
+    assert "NAWDH" not in text
+
+
+def test_overview_faellt_auf_den_code_zurueck_wenn_der_index_ihn_nicht_kennt(monkeypatch):
+    """Ein Miss bleibt ein Miss. Suffix-Codes teilen meist den Basistitel, aber
+    nicht immer (NAFAM_DRR vs. NAFAM sind verschiedene Reisen) — ein selbstsicher
+    falscher Reisename in einer Buchung ist schlimmer als ein roher Code."""
+    _titel_map(monkeypatch, {})
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])})
+    text = kd.fetch_buchungen_text("999999999", details=False)
+    assert '„NAWDH"' in text
+
+
+def test_overview_titel_kostet_keinen_zusaetzlichen_request(monkeypatch):
+    """Der Lookup ist ein In-Memory-Peek; die grobe Liste bleibt bei einem Hop."""
+    _titel_map(monkeypatch, {"NAWDH": "Wüstenhauch"})
+    calls = fake_tourone(
+        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
+    )
+    kd.fetch_buchungen_text("999999999", details=False)
+    assert len(calls) == 1
+
+
+def test_detail_zieht_hop2_titel_dem_index_vor(monkeypatch):
+    """Hop 2 ist autoritativ: dort steht der Titel der Buchung selbst, während der
+    Index den Katalogstand zeigt. Bei Abweichung gewinnt die Buchung."""
+    _titel_map(monkeypatch, {"NAWDH": "Katalog-Titel"})
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung()]),
+            "/get/buchung": volle_buchung(titel="Titel der Buchung"),
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "Titel der Buchung" in text
+    assert "Katalog-Titel" not in text
+
+
+def test_detail_nutzt_den_index_wenn_hop2_keinen_titel_hat(monkeypatch):
+    """Notnagel-Kette: beschreibungen leer → Index → Code."""
+    _titel_map(monkeypatch, {"NAWDH": "Katalog-Titel"})
+    ohne_titel = volle_buchung()
+    ohne_titel["beschreibungen"] = []
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung()]),
+            "/get/buchung": ohne_titel,
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "Katalog-Titel" in text
+    assert "NAWDH" not in text
+
+
 def test_auswahl_trennt_kommende_und_vergangene(monkeypatch):
     fake_tourone(
         monkeypatch,
