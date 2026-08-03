@@ -17,13 +17,22 @@ the request body.
       └─ commit_auth(session_id, agentur_id, generation)
               └─ writes ONLY if no newer auth (or unbind) intervened.
 
-⚠ UNVERIFIED TRANSPORT. ``docs/kunden-auth-spec.md`` M3/M4 confirmed for `www`
-only, on 2026-07-29. Nobody has checked whether the **agt** ``PHPSESSID`` is
-readable from ``document.cookie`` — if it is ``HttpOnly``, this module is dead
-code and the answer is the signed-token transport in spec §7. What IS confirmed
-(2026-07-31) is that ``ss.php`` answers 200 anonymously and that a browser-viewed
-logged-in agt session carries ``SESSION_AGTNR``. Owner chose to build ahead of
-the check; see plan Risk 1 / task T1.
+TRANSPORT — PROVEN END TO END for the agt hosts (owner):
+
+* **C1(agt), 2026-08-03** — the agt ``PHPSESSID`` IS readable from
+  ``document.cookie``, so it is not ``HttpOnly`` and the widget can forward it.
+* **C2(agt), 2026-08-04** — an agt session replays from Railway's datacentre
+  egress. This was the one that could have killed the feature quietly: agt is a
+  login-gated B2B portal and could have pinned sessions to their origin IP, in
+  which case this module would return ``None`` for every real login — fail-closed
+  and correct, but dead in production while every test stayed green, because all
+  of them fake the transport.
+* Plus: ``ss.php`` answers 200 anonymously on both agt hosts (2026-07-30), and a
+  logged-in agt session carries ``SESSION_AGTNR`` (2026-07-31).
+
+So the signed-token transport in ``docs/kunden-auth-spec.md`` §7 is NOT needed
+here. Nothing about the replay path is assumed any more; if this module stops
+authenticating, the cause is elsewhere.
 
 ⚠ The ss.php dump for an agency session is MORE dangerous than a customer one:
 it carries the password hash, salt, IBAN, USt-IdNr and a plaintext password in

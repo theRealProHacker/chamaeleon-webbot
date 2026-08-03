@@ -65,10 +65,14 @@ a second service, a bare local run) needs it set.
   agency API contract, whitelist, structural guarantees, milestones, open
   questions. The session key was found on 2026-07-31 (`SESSION_AGTNR`); the
   server half M1–M4 is implemented (`agentur_auth.py`, `agenturdaten.py`,
-  `POST /agentur/auth`). Not live: the widget half (M5) sits on `cham-chatbot`
-  PR #24, and nobody has verified that the **agt** `PHPSESSID` is readable from
-  `document.cookie` — if it is `HttpOnly`, the transport has to change. See §12
-  and the plan's Risk 1.
+  `POST /agentur/auth`). **The transport is proven end to end for the agt hosts**
+  — C1(agt) 2026-08-03 (the agt `PHPSESSID` is readable from `document.cookie`)
+  and C2(agt) 2026-08-04 (an agt session replays from Railway's egress) — so the
+  §7 signed-token fallback is not needed. Not live: the widget half (M5) sits on
+  `cham-chatbot` PR #24. Before go-live, the plan's §9.4 privacy question is the
+  remaining blocker: if independent mobile Reiseberater*innen share one
+  Agenturnummer, each sees the others' bookings, and no code change can fix it.
+  See §12 and §10 M5/M6.
 - `docs/kundendaten-datenzugriff.md` — what customer data the TourOne API
   exposes, what we use, and exactly what crosses into a Gemini request. The
   boundary to protect when changing `kundendaten.py`.

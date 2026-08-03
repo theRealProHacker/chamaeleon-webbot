@@ -243,6 +243,39 @@ to all-entries-`XX`.**
 Treat `""` and `None` as "not cancelled" — 6 entries total, and the alternative
 is calling a live trip cancelled on a blank field.
 
+#### 3.4 Two `ACTION` shapes the review caught unmeasured (2026-08-03)
+
+§3.3 measured `LEISTUNGEN[]` exhaustively and `ACTION` **not at all** beyond
+`AgenturNummer`. The pre-deploy review flagged both consequences. Sampled live:
+**284 bookings across 12 agencies**, aggregates only.
+
+**`ACTION.AgenturCommission` is a euro AMOUNT, not a rate.** This needed
+settling because the sibling fields in the same payload are explicitly split
+into `AgenturCommissionPreis` (amount) and `AgenturCommissionProzent` (rate), so
+the unsuffixed name carried no answer — and rendering a rate as euros is a
+confident wrong number about money, the one thing this feature cannot afford.
+Measured: **280/280 bookings match the sum of `LEISTUNGEN[].AgenturCommissionPreis`
+exactly** (largest delta 1 cent, rounding). Median ratio to `GesamtPreis` = 0.10,
+against a median `AgenturCommissionProzent` of 10.00. JSON type is `str` (280)
+or `None` (4) — both covered by `agenturdaten._euro`. **The euro rendering in
+`_detail_block` is therefore correct and now documented as such.** This is the
+same argument that kept hop 2's `provision` / `eigenProvBetrag` out (§10) —
+applied, not assumed.
+
+**A booking can carry several `P` entries, and they are separate legs.** 367 `P`
+entries on 260 bookings-with-`P` (1.41 each). **65 bookings (25%) have more than
+one, and on 45 of those (69%) the date spans DIFFER** — real legs, not
+per-traveller duplicates. Taking only the first (the original `_reise_eintrag`)
+rendered one leg's span as the whole trip on **~17% of all bookings**, and the
+error is invisible: nothing raises, the trip just looks short. **The span is now
+min/max across all `P` entries** (`agenturdaten._reise_eintraege`); ranging over
+`P` entries does not reopen the 41/436 window-widening problem above, because
+every `P` entry *is* trip.
+
+`LeistungsStatus` never differs between the `P` entries of one booking (0 of 65),
+so Rule 4 above stands unchanged — `all()` over the `P` entries is equivalent to
+the old first-`P` rule and is the more conservative form.
+
 ### Hop 2 — per-booking detail
 
 `GET /get/buchung?vorgangsNummer=<vorgangsNummer>` — the **same endpoint
@@ -734,6 +767,8 @@ Kunden-Modus, plus one new guard that is specific to this endpoint.
 | **M2** | `agenturdaten.py` hop 1 → coarse list (`auswahl` / `anzahl`), G2 guard, error-text split per §7. | — |
 | ~~**M3**~~ | ~~Hop 2 detail view + G3 ownership cross-check + partial-failure note.~~ **DONE** — but built differently than planned, see below. | — |
 | **M4** | Prompt block in `agent_base.py`: when to call the tool, read-only framing, no self-built agt URLs. | — |
+| ~~**T1**~~ | ~~Verify C1(agt): is the agt `PHPSESSID` readable from `document.cookie`, or `HttpOnly`?~~ **DONE 2026-08-03 — readable.** The transport holds; the §7 signed-token fallback is not needed. This was the make-or-break check the server half was built ahead of. | owner |
+| ~~**T2**~~ | ~~Verify C2(agt): does an agt session replay from Railway's datacentre egress?~~ **DONE 2026-08-04 — it does.** With T1 this makes the transport **proven end to end for agt**, the same standard `www` reached on 2026-07-29. It mattered because a failure here is the silent kind: `verify_agentur_session` would return `None` for every real login — fail-closed and correct, but dead in production with all 220 tests green, since every one of them fakes the transport. | owner |
 | **M5** | Widget: read `PHPSESSID` on agt pages, `POST /agentur/auth` **unconditionally on every chat open** — including when no cookie is found, or a stale binding survives on a shared browser. Plus the D10 display name: read `oAgtData.exp.vorname` defensively and render it in the UI (§6b) — client-side only, never sent to the backend. `cham-chatbot`, feature branch → PR, never straight to `main`. | owner |
 | **M6** | Go-live: M1–M4 pushed (webbot `main` deploys on push) before M5 reaches the widget's `main`. Server first, always. | owner |
 
@@ -811,6 +846,53 @@ Unit, no network — mirror `tests/test_kunden_auth.py` (39 tests) and
   (`RUN_AGENTUR_EVAL`).
 - **Fixtures are fabricated only.** Never commit real `ss.php` output or real
   agency/customer records — a Kunden v1 commit leaked a password hash and salt.
+
+### 11.1 Pre-deploy review, 2026-08-03 — what got pinned, what stayed open
+
+The review mutated each guard and re-ran the suite. Everything below **survived
+its mutation with 213/213 green**, i.e. the guard was correct but nothing would
+have caught it regressing. Seven are now pinned (suite 220):
+
+| Guard | Mutation that used to pass | Test |
+|---|---|---|
+| `agentur_id` comes from the binding, not the body | read it from `data.get("agentur_id")` | `test_agentur_id_kommt_aus_der_bindung_nicht_aus_dem_body` |
+| Kunden/Agentur modes are exclusive | drop the `"" if is_agentur` guard | `test_kunden_und_agentur_modus_schliessen_sich_aus` |
+| G3 checks **per row**, not per response | keep every row unless *no* row matches | `test_g3_verwirft_die_fremde_zeile_zwischen_eigenen` |
+| G3 fails closed on a missing `AgenturNummer` | admit rows where the field is absent | `test_g3_verwirft_zeile_ohne_agenturnummer` |
+| `begin_auth` runs **before** ss.php | move it into the `finally` block | `test_die_bindung_ist_waehrend_ss_php_schon_geloest` |
+| hop-2 detail pairs with **its own** booking | `reversed()` the zip | `test_hop2_detail_landet_bei_seiner_eigenen_buchung` |
+| span covers **all** `P` entries (§3.4) | take `reisen[:1]` | `test_zeitraum_spannt_ueber_alle_p_eintraege` |
+
+Every test page before this was homogeneous (all own rows, or a single foreign
+one), which is why the per-row property was unpinned: a per-batch check passes
+both shapes.
+
+**Still open, deliberately (owner, 2026-08-03):**
+
+- **The 429 path on `/agentur/auth` is not exercised end-to-end.** The existing
+  test calls `rate_limit._unbind_rate_limited_session("agentur_auth")` by hand;
+  `_on_rate_limit` itself is only covered for `/kunde/auth`
+  (`tests/test_kunden_auth.py:571`). Reverting the dispatch to `== AUTH_ENDPOINT`
+  makes a 429 on `/agentur/auth` skip the unbind **and** return an SSE 200 —
+  fail-OPEN — with the whole suite green. Both route decorators now bind their
+  endpoint from `rate_limit.AUTH_ENDPOINT` / `AGENTUR_AUTH_ENDPOINT`, so a rename
+  can no longer split them, but the behaviour itself stays unpinned.
+- **Hop 2 has no G2-style transport guard.** `_hop2_alle` calls `_tourone_get`
+  directly, and `_normalise_row` can yield `vorgang == ""`, which `requests` sends
+  as `?vorgangsNummer=` (it drops only `None`). G3-on-hop-2 still gates what is
+  rendered, so this is a missing depth layer, not a live leak.
+- **`agt.chamdev.tourone.de` is a valid auth path to production booking data.**
+  The same trade-off `kunden_auth.py` documents and the owner accepted for the
+  customer path — but the agency payload is a whole book of business, not one
+  customer's trips, and `agentur_auth.py` does not restate it.
+- **Untested:** the `if agentur_id:` tool gate in `agent.call_stream`; the origin
+  pass-through in `authenticate` (dropping it kills the mode silently — there is
+  no production fallback here); the `DETAIL_ROW_CAP` boundary at exactly the cap.
+- **Outside this feature:** `app.proxy` is wrapped in an unbounded `functools.cache`
+  keyed only on `path` (query string ignored, no rate limit) in the same single
+  worker that holds every binding; `kundendaten` logs full exception objects,
+  whose `HTTPError` message embeds the query string and so the Kundennummer —
+  `agenturdaten` deliberately logs only `type(e).__name__`.
 
 ## 12. The agency session — confirmed 2026-07-31
 
