@@ -462,7 +462,7 @@ month_cache = MonthCache()
 
 # Authentication for dashboard routes.
 #
-# LOGGING_PASSWORD has NO default and startup fails without it. There used to
+# DASHBOARD_PASSWORD has NO default and startup fails without it. There used to
 # be a `"change-me"` fallback, which was survivable while the dashboard only
 # exposed chat statistics. It is not survivable now: the dashboard serves
 # `session_id` values (see _session_details), and since Kunden-Modus auth
@@ -470,14 +470,14 @@ month_cache = MonthCache()
 # Zahlstand. A forgotten env var would have meant anyone on the internet could
 # read live session_ids and replay them against /chat/stream. Failing loudly at
 # boot beats failing open in production.
-API_USERNAME = os.environ.get("LOGGING_USERNAME", "admin")
-API_PASSWORD = os.environ.get("LOGGING_PASSWORD", "")
+API_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
+API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 
 if not API_PASSWORD:
     raise RuntimeError(
-        "LOGGING_PASSWORD is not set. The dashboard exposes chat session_ids, "
+        "DASHBOARD_PASSWORD is not set. The dashboard exposes chat session_ids, "
         "which are the Kunden-Modus auth token — refusing to start without a "
-        "password. Set LOGGING_PASSWORD in the environment (.env locally, "
+        "password. Set DASHBOARD_PASSWORD in the environment (.env locally, "
         "service variables on Railway)."
     )
 
@@ -491,7 +491,7 @@ def check_auth(username: str | None, password: str | None) -> bool:
     # supported"), where the old == simply returned False. Two consequences if
     # left as str, both live: any request with one umlaut in the Basic-Auth
     # header becomes an unauthenticated 500 instead of a 401, and a
-    # LOGGING_PASSWORD containing "ä"/"€" locks the dashboard out completely —
+    # DASHBOARD_PASSWORD containing "ä"/"€" locks the dashboard out completely —
     # every attempt 500s, including the correct one. The boot check above only
     # catches an EMPTY password, so it would not have caught that.
     #
@@ -523,7 +523,7 @@ def auth_required(view):
 
 # Routes
 @auth_required
-def LOGGING_data():
+def DASHBOARD_data():
     """
     General dashboard data endpoint. Returns aggregated stats for all months
     """
@@ -562,7 +562,7 @@ def LOGGING_data():
     return jsonify(payload)
 
 
-def _LOGGING_month(_month_key: MonthKey) -> MonthDetail:
+def _DASHBOARD_month(_month_key: MonthKey) -> MonthDetail:
     """
     Endpoint for fetching detailed data for a specific month, including individual chats.
     """
@@ -575,18 +575,18 @@ def _LOGGING_month(_month_key: MonthKey) -> MonthDetail:
 
 
 @auth_required
-def LOGGING_month(month: MonthKey):
+def DASHBOARD_month(month: MonthKey):
     month_cache.current_month_rollover()  # check if we need to rollover to new month
     if not month:
         return jsonify({"error": "Missing 'month' query parameter"}), 400
     elif month not in month_cache._cache:
         return jsonify({"error": f"Month '{month}' not found in cache"}), 404
 
-    return jsonify(_LOGGING_month(month))
+    return jsonify(_DASHBOARD_month(month))
 
 
 @auth_required
-def LOGGING_index():
+def DASHBOARD_index():
     return send_from_directory("static/dashboard", "index.html")
 
 
@@ -639,10 +639,10 @@ month_cache.load_all()
 
 # Define dashboard routes
 routes = [
-    ("/api/dashboard", LOGGING_data),
-    ("/api/dashboard/<string:month>", LOGGING_month),
-    ("/dashboard", LOGGING_index),
-    ("/dashboard/", LOGGING_index),
+    ("/api/dashboard", DASHBOARD_data),
+    ("/api/dashboard/<string:month>", DASHBOARD_month),
+    ("/dashboard", DASHBOARD_index),
+    ("/dashboard/", DASHBOARD_index),
     ("/admin", admin_index),
     ("/admin/", admin_index),
     ("/admin/reindex", reindex_travels, ["POST"]),

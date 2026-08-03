@@ -26,12 +26,12 @@ the cap.
 | --- | --- | --- |
 | `GEMINI_API_KEY` | **yes** — `ValueError` at import (`agent_base.py`) | the model |
 | `SUPABASE_URL` / `SUPABASE_KEY` | **yes** — assert at import (`db_logging.py`) | chat logging, dashboard, sitemap versions |
-| `LOGGING_PASSWORD` | **yes** — `RuntimeError` at import (`dashboard.py`) | dashboard basic-auth; no default on purpose, see below |
-| `LOGGING_USERNAME` | no (`admin`) | dashboard basic-auth user |
+| `DASHBOARD_PASSWORD` | **yes** — `RuntimeError` at import (`dashboard.py`) | dashboard basic-auth; no default on purpose, see below |
+| `DASHBOARD_USERNAME` | no (`admin`) | dashboard basic-auth user |
 | `TOURONE_BEARER_TOKEN` | no, but warns | TourOne API: termine index and Kunden-Modus bookings |
 | `DEBUG` | no (`false`) | verbose logs, incl. the `[tool_call]` line |
 
-`LOGGING_PASSWORD` has **no fallback and that is deliberate.** The dashboard
+`DASHBOARD_PASSWORD` has **no fallback and that is deliberate.** The dashboard
 serves live `session_id` values, and `session_id` is the Kunden-Modus bearer
 token — a forgotten variable used to mean `"change-me"` guarded a customer's
 bookings and Zahlstand. Boot fails loudly instead. Any new environment (staging,
