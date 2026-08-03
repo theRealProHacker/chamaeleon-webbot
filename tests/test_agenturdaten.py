@@ -148,7 +148,13 @@ def test_datum_kommt_aus_leistungvondat_nicht_ddmmyy(monkeypatch):
 
 
 def test_kommende_auswahl_findet_zukuenftige_reise(monkeypatch):
-    """Mit DDMMYY wäre diese Auswahl für JEDE Agentur immer leer."""
+    """Mit DDMMYY wäre diese Auswahl für JEDE Agentur immer leer.
+
+    Uhr festgenagelt: die Fixture-Reise liegt im Mai 2027, und ohne das hier
+    schlüge der Test ab dem 15.05.2027 fehl — aus einem Grund, der nichts mit
+    dem zu tun hat, was er prüft.
+    """
+    monkeypatch.setattr(agenturdaten, "heute_berlin", lambda: "2026-08-03")
     monkeypatch.setattr(agenturdaten, "_tourone_get", lambda *a, **k: _page([_row()]))
     text = agenturdaten.fetch_buchungen_text("12345", auswahl="kommende")
     assert "4711" in text
@@ -553,3 +559,100 @@ def test_cap_verweigert_bevor_hop2_feuert(monkeypatch):
     )
     agenturdaten.fetch_buchungen_text("12345", details=True)
     assert [p for p, _ in gerufen] == ["/get/buchungLeistungenListe"]
+
+
+# --- G3: die Prüfung ist PRO ZEILE, nicht pro Antwort -------------------------
+
+
+def test_g3_verwirft_die_fremde_zeile_zwischen_eigenen(monkeypatch):
+    """Gemischte Seite: eine fremde Zeile darf nicht mitfahren.
+
+    Bis hierher war jede Testseite homogen — entweder nur eigene Zeilen oder eine
+    einzelne fremde. Beides bleibt grün, wenn man die Prüfung von „pro Zeile" auf
+    „pro Antwort" abschwächt (verwerfe nur, wenn KEINE Zeile passt). Genau dann
+    reicht eine eigene Buchung, um beliebig viele fremde durchzuwinken.
+    """
+    monkeypatch.setattr(
+        agenturdaten,
+        "_tourone_get",
+        lambda *a, **k: _page(
+            [
+                _row(agt="12345", vorgang="4711", kunde="Familie Muster"),
+                _row(agt="99999", vorgang="9999", kunde="Fremde Agentur"),
+            ]
+        ),
+    )
+    text = agenturdaten.fetch_buchungen_text("12345")
+
+    assert "4711" in text
+    assert "9999" not in text
+    assert "Fremde Agentur" not in text
+
+
+def test_g3_verwirft_zeile_ohne_agenturnummer(monkeypatch):
+    """Fail closed: ohne Nachweis keine Zeile — etwa nach einer Feldumbenennung.
+
+    Hop 2 hat diesen Test längst (test_g3_hop2_verwirft_fehlende_agtnr); Hop 1
+    hatte ihn nicht, obwohl dort dieselbe Umbenennung dieselbe Wirkung hätte.
+    """
+    row = _row()
+    del row["buchungLeistungen"]["ACTION"]["AgenturNummer"]
+    monkeypatch.setattr(agenturdaten, "_tourone_get", lambda *a, **k: _page([row]))
+
+    assert agenturdaten.fetch_buchungen_text("12345") == agenturdaten.G3_FEHLER_TEXT
+
+
+# --- Hop 2 landet bei SEINER Buchung ------------------------------------------
+
+
+def test_hop2_detail_landet_bei_seiner_eigenen_buchung(monkeypatch):
+    """Die zip()-Paarung hängt an der Reihenfolge von pool.map.
+
+    Vertauschte Paarung wirft nichts und sieht plausibel aus: jede Buchung zeigt
+    dann den Zahlstand ihrer Nachbarin. „Ist die Buchung bezahlt" ist die
+    Kernfrage am Counter — eine Verwechslung ist eine falsche Geldaussage.
+    """
+    rows = [_row(vorgang="4711"), _row(vorgang="4712")]
+
+    def detail(vorgang):
+        return _detail(
+            vorgang=vorgang,
+            restBetrag=1111.0 if vorgang == "4711" else 2222.0,
+        )
+
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api(rows, detail))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+
+    block_4711, block_4712 = text.split("Buchung 4712")
+    assert "1.111,00" in block_4711 and "2.222,00" not in block_4711
+    assert "2.222,00" in block_4712 and "1.111,00" not in block_4712
+
+
+# --- Mehrere P-Einträge = mehrere Reiseabschnitte ------------------------------
+
+
+def test_zeitraum_spannt_ueber_alle_p_eintraege(monkeypatch):
+    """Gemessen 2026-08-03: 25% der Buchungen tragen mehr als einen P-Eintrag,
+    und bei 69% davon sind die Zeiträume verschieden.
+
+    Nur den ersten zu nehmen rendert einen Abschnitt als die ganze Reise — der
+    Fehler wirft nichts und sieht bloß nach einer kurzen Reise aus.
+    """
+    rows = [
+        _row(
+            leistungen=[
+                _leistung(von="2027-05-01 00:00:00", bis="2027-05-14 00:00:00"),
+                _leistung(von="2027-05-14 00:00:00", bis="2027-05-28 00:00:00",
+                          bez="Verlängerung Sossusvlei"),
+                # Zusatzleistung mit reisefremdem Datum: darf die Spanne NICHT weiten.
+                _leistung(anf="V", bez="Versicherung", von="2026-11-02 00:00:00",
+                          bis="2028-01-31 00:00:00"),
+            ]
+        )
+    ]
+    monkeypatch.setattr(agenturdaten, "_tourone_get", lambda *a, **k: _page(rows))
+    text = agenturdaten.fetch_buchungen_text("12345")
+
+    assert "01.05.2027 – 28.05.2027" in text
+    assert "14.05.2027)" not in text   # nicht die Spanne des ersten Abschnitts
+    assert "31.01.2028" not in text    # und nicht die der Versicherung

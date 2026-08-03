@@ -327,3 +327,31 @@ def test_tool_output_traegt_die_agenturnummer(monkeypatch):
     t = agenturdaten.make_buchungen_agentur_tool("54321")
     out = t.invoke({})
     assert out.startswith("Agenturnummer: 54321")
+
+
+def test_die_bindung_ist_waehrend_ss_php_schon_geloest(monkeypatch):
+    """begin_auth muss VOR ss.php laufen, nicht erst danach.
+
+    Nur den Endzustand zu prüfen (test_fehlgeschlagener_reauth_loest_die_alte_
+    bindung) reicht nicht: begin_auth in den finally-Block zu verschieben lässt
+    jenen Test grün und öffnet trotzdem ein Fenster von TIMEOUT Sekunden, in dem
+    resolve() noch die VORIGE Agentur liefert. Am geteilten Counter ist genau das
+    die Lücke — der Nächste bekommt die Buchungen des Vorigen, solange dessen
+    ss.php-Aufruf läuft. Gegenstück zu test_kunden_auth.test_binding_is_cleared_
+    before_ss_php_is_called.
+    """
+    gesehen = {}
+
+    def spy(phpsessid, user_agent="", origin=""):
+        gesehen["waehrend"] = aa.resolve("clear-first-agt")
+        return "22222"
+
+    monkeypatch.setattr(aa, "verify_agentur_session", spy)
+    aa.bind("clear-first-agt", "11111")
+    aa.authenticate(
+        {"session_id": "clear-first-agt", "phpsessid": VALID_SID}, origin=AGT_ORIGIN
+    )
+
+    assert gesehen["waehrend"] is None, "Vor-Agentur war während ss.php noch gebunden"
+    assert aa.resolve("clear-first-agt") == "22222"
+    aa.unbind("clear-first-agt")

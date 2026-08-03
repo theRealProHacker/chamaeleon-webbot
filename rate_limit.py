@@ -45,16 +45,21 @@ MESSAGE_LIMIT = "200 per hour"
 # _on_rate_limit. Was a bare string compared with ==; Agentur-Modus added a
 # second auth route with exactly the same requirement.
 #
-# The agentur VIEW is named agentur_auth_route, but its ENDPOINT is
-# "agentur_auth" — see app.py. Keys here are endpoints.
-AUTH_ENDPOINTS = {
-    "kunde_auth": "kunden_auth",
-    "agentur_auth": "agentur_auth",
-}
-
-# Back-compat alias: the Kunden-Modus endpoint name is still referenced as a
-# single value where a route decorator needs one.
+# Keys are ENDPOINT names, not view names: the agentur view is called
+# agentur_auth_route while its endpoint is "agentur_auth" (see app.py).
+#
+# Both routes bind their endpoint FROM these constants, so the dict and the
+# decorators cannot drift apart. They did briefly: /agentur/auth was registered
+# with a bare "agentur_auth" string while /kunde/auth used the constant, and a
+# rename on either side would have silently dropped that route out of
+# AUTH_ENDPOINTS — i.e. fail OPEN on its 429, the exact hole this map closes.
 AUTH_ENDPOINT = "kunde_auth"
+AGENTUR_AUTH_ENDPOINT = "agentur_auth"
+
+AUTH_ENDPOINTS = {
+    AUTH_ENDPOINT: "kunden_auth",
+    AGENTUR_AUTH_ENDPOINT: "agentur_auth",
+}
 
 
 def _unbind_rate_limited_session(endpoint: str) -> None:

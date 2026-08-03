@@ -121,7 +121,7 @@ def parse_kunden_id(value: object) -> str:
     return value
 
 
-def _heute() -> str:
+def heute_berlin() -> str:
     """Today in Berlin as ``YYYY-MM-DD`` (matches TourOne date strings)."""
     return datetime.datetime.now(pytz.timezone("Europe/Berlin")).strftime("%Y-%m-%d")
 
@@ -187,7 +187,7 @@ def _titel_aus_code(*codes: object) -> str:
     return ""
 
 
-def _buchung_titel(buchung: dict, fallback: str) -> str:
+def buchung_titel(buchung: dict, fallback: str) -> str:
     for beschreibung in buchung.get("beschreibungen") or []:
         if isinstance(beschreibung, dict) and beschreibung.get("titel"):
             return beschreibung["titel"]
@@ -278,7 +278,7 @@ def select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
 def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
     """Eine grobe Zeile pro Buchung — nur aus den Hop-1-Daten."""
     code = b.get("reiseCode")
-    titel = _buchung_titel(b, _titel_aus_code(code) or code or "deine Reise")
+    titel = buchung_titel(b, _titel_aus_code(code) or code or "deine Reise")
     von, bis = str(b.get("vonDat") or ""), str(b.get("bisDat") or "")
     teile = [f'„{titel}"']
     if von:
@@ -299,7 +299,7 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
     # Hop 2 hat den autoritativen Titel; Index und Code sind nur Notnagel, falls
     # beschreibungen auch dort leer ist.
     codes = (emb.get("reiseCode"), buchung.get("reiseCode"))
-    titel = _buchung_titel(
+    titel = buchung_titel(
         buchung, _titel_aus_code(*codes) or codes[0] or codes[1] or "deine Reise"
     )
     von = str(emb.get("vonDat") or buchung.get("vonDat") or "")
@@ -382,7 +382,7 @@ def fetch_buchungen_text(
     if not alle:
         return KEINE_BUCHUNGEN_TEXT
 
-    heute = _heute()
+    heute = heute_berlin()
     ausgewaehlt = select(alle, auswahl, anzahl, heute)
     if not ausgewaehlt:
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'

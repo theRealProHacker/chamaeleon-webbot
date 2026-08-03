@@ -229,3 +229,85 @@ def test_termine_tool_strips_fragment_and_host(monkeypatch):
     monkeypatch.setattr(travel_index, "query_termine", lambda *a, **k: [])
     agent_base.termine_tool_base("https://www.chamaeleon-reisen.de/Afrika/Marokko/Atlas-ALL#termine")
     assert seen == ["/Afrika/Marokko/Atlas-ALL"]
+
+
+def _fake_stream(sink):
+    """call_stream-Ersatz, der (kunden_id, agentur_id) mitschreibt."""
+
+    def fake(messages, endpoint, name, telefon, is_agentur,
+             page_content="", kunden_id="", agentur_id=""):
+        sink.append((kunden_id, agentur_id))
+        yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
+
+    return fake
+
+
+def test_agentur_id_kommt_aus_der_bindung_nicht_aus_dem_body(monkeypatch):
+    """Die Agenturnummer ist serverseitig abgeleitet — der Body wird ignoriert.
+
+    Das ist DIE Sicherheitseigenschaft des Modus, und sie war ungeprüft: ersetzt
+    man den resolve()-Aufruf durch data.get("agentur_id"), wird die Agentur frei
+    wählbar und die ganze Suite bleibt trotzdem grün. is_agentur allein schaltet
+    ebenfalls nichts frei — es ist nur ein Header-Spiegel.
+    """
+    import queue
+
+    import agentur_auth
+    import app
+
+    gesehen = []
+    monkeypatch.setattr(app, "call_stream", _fake_stream(gesehen))
+    monkeypatch.setattr(app, "log_queue", queue.Queue())
+
+    client = app.app.test_client()
+    agt_header = {"Origin": "https://agt.chamaeleon-reisen.de"}
+    payload = {
+        "session_id": "agt-sid",
+        "messages": [{"role": "user", "content": "Welche Buchungen haben wir?"}],
+        "current_url": "/Agentur",
+        # Behauptung aus dem Body — muss folgenlos bleiben.
+        "agentur_id": "99999",
+    }
+
+    client.post("/chat/stream", json=payload, headers=agt_header)   # keine Bindung
+    agentur_auth.bind("agt-sid", "12345")
+    client.post("/chat/stream", json=payload, headers=agt_header)   # gebunden
+    agentur_auth.unbind("agt-sid")
+
+    assert [a for _, a in gesehen] == ["", "12345"]
+
+
+def test_kunden_und_agentur_modus_schliessen_sich_aus(monkeypatch):
+    """Beide Bindungen auf einer session_id: es gilt genau die des Modus.
+
+    Ohne den Guard bekäme ein Agentur-Counter zusätzlich das Kunden-Tool — zwei
+    Identitäten in einer Anfrage. Die getrennten Stores (test_agentur_auth) sind
+    die halbe Miete; erzwungen wird die Exklusivität aber hier in chat_stream.
+    """
+    import queue
+
+    import agentur_auth
+    import app
+    import kunden_auth
+
+    gesehen = []
+    monkeypatch.setattr(app, "call_stream", _fake_stream(gesehen))
+    monkeypatch.setattr(app, "log_queue", queue.Queue())
+
+    kunden_auth.bind("beide-sid", "999999")
+    agentur_auth.bind("beide-sid", "12345")
+
+    client = app.app.test_client()
+    payload = {"session_id": "beide-sid", "messages": [{"role": "user", "content": "hi"}]}
+
+    client.post(
+        "/chat/stream",
+        json={**payload, "current_url": "/Agentur"},
+        headers={"Origin": "https://agt.chamaeleon-reisen.de"},
+    )
+    client.post("/chat/stream", json={**payload, "current_url": "/Afrika/Namibia"})
+
+    kunden_auth.unbind("beide-sid")
+    agentur_auth.unbind("beide-sid")
+
+    assert gesehen == [("", "12345"), ("999999", "")]

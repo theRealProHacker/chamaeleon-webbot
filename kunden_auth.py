@@ -131,10 +131,12 @@ _KUNDENNR_RE_VALUE = re.compile(r"\A[0-9]{4,12}\Z")
 # it was quantified (2026-07-29, full working in docs/kunden-auth-plan.md):
 # V8 emits k·2^-52, the token is floor(k·36^9/2^52), the most probable token has
 # 45 preimages → H∞ = 46.508 bits, plus 25.36 bits of Date.now() over the 12h
-# window ≈ 71.87 bits. A 100k-IP botnet at the 100/h/IP cap needs ~5e8 YEARS to
-# hit any one of 100 bound sessions. Guessing is not a threat and the rate limit
-# is not what stops it. Do NOT spend effort hardening the generator; switching to
-# crypto.getRandomValues() is one line of hygiene, not a fix.
+# window ≈ 71.87 bits. A 100k-IP botnet at the 200/h/IP cap (rate_limit.
+# MESSAGE_LIMIT — raised from 100 with Agentur-Modus, so the figure halves)
+# needs ~2.5e8 YEARS to hit any one of 100 bound sessions. Guessing is not a
+# threat and the rate limit is not what stops it. Do NOT spend effort hardening
+# the generator; switching to crypto.getRandomValues() is one line of hygiene,
+# not a fix.
 #
 # The real exposure is where the token is STORED and COPIED: it is also the
 # Supabase log key (a DB/dashboard reader can lift it — accepted MVP risk), it

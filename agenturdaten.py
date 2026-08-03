@@ -55,11 +55,12 @@ from typing import Literal
 
 from langchain_core.tools import tool
 
-import kundendaten
 from kundendaten import (
+    buchung_titel,
     flug_zeile,
     fmt_datum,
     fmt_euro,
+    heute_berlin,
     personen_text,
     select,
     zahlstand_zeilen,
@@ -143,12 +144,44 @@ def _leistungen(bl: dict) -> list[dict]:
     return [e for e in (bl.get("LEISTUNGEN") or []) if isinstance(e, dict)]
 
 
-def _reise_eintrag(leistungen: list[dict]) -> dict | None:
-    """Der P-Eintrag (die gebuchte Reise), oder None bei 50/486 Buchungen."""
-    for e in leistungen:
-        if e.get("Anforderung") == REISE_ANFORDERUNG:
-            return e
-    return None
+def _reise_eintraege(leistungen: list[dict]) -> list[dict]:
+    """ALLE P-Einträge, nicht nur der erste — gemessen 2026-08-03.
+
+    Eine Buchung kann mehrere Reisen tragen: 284 Buchungen / 12 Agenturen ergaben
+    367 P-Einträge auf 260 Buchungen mit P (1,41 je Buchung). **65 Buchungen (25%)
+    haben mehr als einen, und bei 45 davon (69%) sind die Zeiträume VERSCHIEDEN** —
+    es sind echte Reiseabschnitte, keine Teilnehmer-Dubletten.
+
+    Nur den ersten zu nehmen (so stand es hier bis zum Review) rendert auf ~17%
+    aller Buchungen den Zeitraum EINES Abschnitts als den der ganzen Reise. Der
+    Fehler wirft nichts und sieht plausibel aus: die Reise ist einfach zu kurz.
+
+    ``LeistungsStatus`` weicht dagegen nie zwischen den P-Einträgen ab (0 von 65),
+    deshalb bleibt die Statusregel unverändert konservativ.
+    """
+    return [e for e in leistungen if e.get("Anforderung") == REISE_ANFORDERUNG]
+
+
+def _text(value: object) -> str:
+    """Ein Freitextfeld der API → eine einzeilige, ungefährliche Zeichenkette.
+
+    Zwei Aufgaben, beide nicht kosmetisch:
+
+    * ``str()`` VOR ``strip()``. Der JSON-Typ ist nirgends zugesichert; käme eine
+      Zahl statt eines Strings, schlüge ``.strip()`` mit AttributeError auf —
+      außerhalb des ``try`` in :func:`fetch_buchungen_text`, also entgegen dessen
+      Zusage „Wirft nie".
+    * **Zeilenumbrüche raus.** Die Tool-Antwort ist zeilenorientiert und das Modell
+      liest sie als belegte Tatsachen. Ein ``\\n`` in einem Namen oder einer
+      Leistungsbezeichnung fälscht sonst eigene Zeilen — ein zweites
+      „- Gesamtpreis: …" oder „- Status: …" ist für das Modell nicht von einer
+      echten Zeile zu unterscheiden. Die Reichweite endet an der eigenen Agentur
+      (das Tool nimmt keine Agenturnummer entgegen), aber sie reicht für eine
+      falsche Aussage über den Zahlstand.
+    """
+    if value is None:
+        return ""
+    return " ".join(str(value).split())
 
 
 def _tag(value: object) -> str:
@@ -216,22 +249,28 @@ def _normalise_row(row: dict, agentur_id: str) -> dict | None:
         return None
 
     leistungen = _leistungen(bl)
-    reise = _reise_eintrag(leistungen)
+    reisen = _reise_eintraege(leistungen)
+    # Der erste P-Eintrag benennt die Reise. Bei mehreren Abschnitten ist das der
+    # erste Abschnitt — für den Titel richtig, für den ZEITRAUM nicht (s.u.).
+    reise = reisen[0] if reisen else None
 
-    # Regel 1: die Spanne des P-Eintrags; ohne P-Eintrag min/max über alles.
-    # NICHT pauschal min/max — Versicherungen, Regenwald-Spenden und Gutscheine
-    # tragen Daten ohne Reisebedeutung und weiten das Fenster falsch (41/436).
-    if reise is not None:
-        von, bis = _tag(reise.get("leistungVonDat")), _tag(reise.get("leistungBisDat"))
-    else:
-        vons = [d for d in (_tag(e.get("leistungVonDat")) for e in leistungen) if d]
-        biss = [d for d in (_tag(e.get("leistungBisDat")) for e in leistungen) if d]
-        von, bis = (min(vons) if vons else ""), (max(biss) if biss else "")
+    # Regel 1: die Spanne über ALLE P-Einträge; ohne P-Eintrag min/max über alles.
+    # NICHT pauschal min/max über alle Leistungen — Versicherungen,
+    # Regenwald-Spenden und Gutscheine tragen Daten ohne Reisebedeutung und weiten
+    # das Fenster falsch (41/436). Über die P-Einträge zu spannen tut das nicht:
+    # jeder von ihnen IST Reise (gemessen 2026-08-03, siehe _reise_eintraege).
+    spanne = reisen or leistungen
+    vons = [d for d in (_tag(e.get("leistungVonDat")) for e in spanne) if d]
+    biss = [d for d in (_tag(e.get("leistungBisDat")) for e in spanne) if d]
+    von, bis = (min(vons) if vons else ""), (max(biss) if biss else "")
 
-    # Regel 4: der Status des P-Eintrags gewinnt. Ein „alle XX"-Test meldete 6
-    # von 436 stornierten Reisen als aktiv (Reise storniert, Restposten offen).
-    if reise is not None:
-        storniert = reise.get("LeistungsStatus") == "XX"
+    # Regel 4: der Status der P-Einträge gewinnt. Ein „alle XX"-Test über ALLE
+    # Leistungen meldete 6 von 436 stornierten Reisen als aktiv (Reise storniert,
+    # Restposten offen) — deshalb nur über die P-Einträge. Zwischen ihnen weicht
+    # der Status nie ab (0 von 65 Mehrfach-P-Buchungen), `all` ist also
+    # gleichbedeutend mit der alten Erste-P-Regel und die konservativere Form.
+    if reisen:
+        storniert = all(e.get("LeistungsStatus") == "XX" for e in reisen)
     else:
         stati = [e.get("LeistungsStatus") for e in leistungen]
         storniert = bool(stati) and all(s == "XX" for s in stati)
@@ -246,19 +285,28 @@ def _normalise_row(row: dict, agentur_id: str) -> dict | None:
         "bisDat": bis,
         "storniert": storniert,
         # Whitelist (§6): der NAME des Bestellers, nie Straße/PLZ/Ort/Telefon.
-        "kunde": (kunde.get("VornameTitel") or "").strip(),
+        # str() vor strip(): der JSON-Typ ist nirgends zugesichert, und eine Zahl
+        # statt eines Strings würde hier mit AttributeError aufschlagen — AUSSERHALB
+        # des try in fetch_buchungen_text, also entgegen dessen „Wirft nie".
+        "kunde": _text(kunde.get("VornameTitel")),
+        # GEMESSEN 2026-08-03 (284 Buchungen / 12 Agenturen): AgenturCommission ist
+        # ein EURO-BETRAG, kein Prozentsatz. 280/280 stimmen exakt mit der Summe der
+        # LEISTUNGEN[].AgenturCommissionPreis überein (max. 1 Cent Rundung); der
+        # Median des Verhältnisses zu GesamtPreis ist 0,10 bei einem Median-
+        # AgenturCommissionProzent von 10,00. Typ ist str (280) bzw. None (4) —
+        # beides deckt _euro ab. Damit ist die Euro-Formatierung unten belegt und
+        # nicht geraten; sie fiel im Review genau deshalb auf, weil §3.3 nur
+        # LEISTUNGEN[] vermessen hatte und ACTION nie.
         "provision": action.get("AgenturCommission"),
         "gesamtpreis": action.get("GesamtPreis"),
         # D9: Mitreisende sind für Agenturen bewusst DRIN — anders als im
         # Kundenpfad (kundendaten.py sagt „Bewusst DRAUSSEN: Mitreisende-PII").
         # Die Asymmetrie ist gewollt und darf nicht in eine Richtung
         # vereinheitlicht werden: die Agentur hat die Buchung selbst angelegt.
-        "teilnehmer": [
-            (t.get("Name") or "").strip() for t in teilnehmer if t.get("Name")
-        ],
+        "teilnehmer": [n for n in (_text(t.get("Name")) for t in teilnehmer) if n],
         "leistungen": [
             {
-                "bezeichnung": (e.get("LeistungsBezeichnung") or "").strip(),
+                "bezeichnung": _text(e.get("LeistungsBezeichnung")),
                 "von": _tag(e.get("leistungVonDat")),
                 "bis": _tag(e.get("leistungBisDat")),
                 "storniert": e.get("LeistungsStatus") == "XX",
@@ -339,7 +387,7 @@ def _hop2_freigeben(detail: object, agentur_id: str) -> dict | None:
     return detail
 
 
-def _detail_block(b: dict, detail: dict | None, heute: str) -> str:
+def _detail_block(b: dict, detail: dict | None) -> str:
     """Ein Detailblock je Buchung: Hop-1-Inhalt, um Hop 2 ergänzt.
 
     ``detail=None`` (Abruf fehlgeschlagen oder G3 verworfen) kostet nur den
@@ -352,7 +400,7 @@ def _detail_block(b: dict, detail: dict | None, heute: str) -> str:
     detail = detail or {}
     # Hop 2 hat den autoritativen Titel; die gemessene Kette aus _titel ist der
     # Notnagel, wenn beschreibungen auch dort leer ist.
-    titel = kundendaten._buchung_titel(detail, b["titel"])
+    titel = buchung_titel(detail, b["titel"])
     kopf = f'Buchung {b["vorgang"]} — „{titel}"'
     if b["vonDat"] and b["bisDat"]:
         kopf += f" ({fmt_datum(b['vonDat'])} – {fmt_datum(b['bisDat'])})"
@@ -442,7 +490,7 @@ def fetch_buchungen_text(
         )
         return G3_FEHLER_TEXT
 
-    heute = kundendaten._heute()
+    heute = heute_berlin()
     ausgewaehlt = select(alle, auswahl, anzahl, heute)
     if not ausgewaehlt:
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
@@ -476,7 +524,7 @@ def fetch_buchungen_text(
     for b, roh_detail in zip(ausgewaehlt, _hop2_alle(ausgewaehlt)):
         detail = _hop2_freigeben(roh_detail, agentur_id)
         details_fehlen = details_fehlen or detail is None
-        bloecke.append(_detail_block(b, detail, heute))
+        bloecke.append(_detail_block(b, detail))
 
     text = "Buchungen dieser Agentur im Detail:\n\n" + "\n\n".join(bloecke)
     if details_fehlen:

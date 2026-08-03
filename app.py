@@ -264,16 +264,27 @@ def kunde_auth():
     return {"authenticated": authenticated}
 
 
+# --- End Kunden-Modus auth ---
+
+
 # --- Agentur-Modus auth ---
 #
 # ⚠ Die View heißt agentur_auth_ROUTE, nicht agentur_auth. `def agentur_auth():`
 # auf Modulebene würde das globale Binding überschreiben, das `import
 # agentur_auth` oben angelegt hat — jeder spätere agentur_auth.resolve(...) in
-# chat_stream wirft dann AttributeError → 500 auf JEDEM Agentur-Chat. Nichts
-# fängt das ab: die Testsuite importiert app bewusst nie (das löst
-# Live-Supabase-Reads aus). Der endpoint-Name bleibt "agentur_auth", damit
-# rate_limit.AUTH_ENDPOINTS unverändert passt.
-@app.route("/agentur/auth", methods=["POST"], endpoint="agentur_auth")
+# chat_stream wirft dann AttributeError → 500 auf JEDEM Agentur-Chat.
+#
+# Der endpoint-Name kommt aus rate_limit.AGENTUR_AUTH_ENDPOINT (wie /kunde/auth
+# aus AUTH_ENDPOINT), damit Route und rate_limit.AUTH_ENDPOINTS nicht
+# auseinanderlaufen können: fiele diese Route aus der Map, liefe ihr 429
+# fail-OPEN.
+#
+# Was das Shadowing abfängt, ist seit dem Review test_general.py — die beiden
+# chat_stream-Tests importieren app und posten echt gegen /chat/stream, also
+# würde ein überschriebenes agentur_auth dort als 500 auffallen.
+@app.route(
+    "/agentur/auth", methods=["POST"], endpoint=rate_limit.AGENTUR_AUTH_ENDPOINT
+)
 @limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
 def agentur_auth_route():
     """Verify the agt-Login once and bind die Agenturnummer an die session_id.
@@ -295,7 +306,7 @@ def agentur_auth_route():
     return {"authenticated": authenticated}
 
 
-# --- End Kunden-Modus auth ---
+# --- End Agentur-Modus auth ---
 
 
 # --- Dashboard routes ---
