@@ -63,11 +63,12 @@ a second service, a bare local run) needs it set.
 - **`docs/agentur-modus-plan.md`** — Agentur-Modus (verified Reiseprofi identity
   + agency booking data). **Authoritative** for that feature: measured TourOne
   agency API contract, whitelist, structural guarantees, milestones, open
-  questions. The session key was found on 2026-07-31 (`SESSION_AGTNR`); M1/M2/M4
-  are implemented (`agentur_auth.py`, `agenturdaten.py`, `POST /agentur/auth`).
-  Not live: the widget side (M5) is still open, and nobody has verified that the
-  **agt** `PHPSESSID` is readable from `document.cookie` — if it is `HttpOnly`,
-  the transport has to change. See §12 and the plan's Risk 1.
+  questions. The session key was found on 2026-07-31 (`SESSION_AGTNR`); the
+  server half M1–M4 is implemented (`agentur_auth.py`, `agenturdaten.py`,
+  `POST /agentur/auth`). Not live: the widget half (M5) sits on `cham-chatbot`
+  PR #24, and nobody has verified that the **agt** `PHPSESSID` is readable from
+  `document.cookie` — if it is `HttpOnly`, the transport has to change. See §12
+  and the plan's Risk 1.
 - `docs/kundendaten-datenzugriff.md` — what customer data the TourOne API
   exposes, what we use, and exactly what crosses into a Gemini request. The
   boundary to protect when changing `kundendaten.py`.

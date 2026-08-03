@@ -732,7 +732,7 @@ Kunden-Modus, plus one new guard that is specific to this endpoint.
 | ~~**M0**~~ | ~~Read the agency session key.~~ **DONE 2026-07-31 — `SESSION_AGTNR`, bare digits** (§12). | owner |
 | **M1** | `agentur_auth.py` + `POST /agentur/auth` + `rate_limit` wiring, fail-closed, unit-tested against fabricated dumps. Deployable **dark** — no widget calls it yet, exactly how Kunden-Modus shipped. | — |
 | **M2** | `agenturdaten.py` hop 1 → coarse list (`auswahl` / `anzahl`), G2 guard, error-text split per §7. | — |
-| **M3** | Hop 2 detail view + G3 ownership cross-check + partial-failure note. | — |
+| ~~**M3**~~ | ~~Hop 2 detail view + G3 ownership cross-check + partial-failure note.~~ **DONE** — but built differently than planned, see below. | — |
 | **M4** | Prompt block in `agent_base.py`: when to call the tool, read-only framing, no self-built agt URLs. | — |
 | **M5** | Widget: read `PHPSESSID` on agt pages, `POST /agentur/auth` **unconditionally on every chat open** — including when no cookie is found, or a stale binding survives on a shared browser. Plus the D10 display name: read `oAgtData.exp.vorname` defensively and render it in the UI (§6b) — client-side only, never sent to the backend. `cham-chatbot`, feature branch → PR, never straight to `main`. | owner |
 | **M6** | Go-live: M1–M4 pushed (webbot `main` deploys on push) before M5 reaches the widget's `main`. Server first, always. | owner |
@@ -740,6 +740,41 @@ Kunden-Modus, plus one new guard that is specific to this endpoint.
 Sequencing note: Kunden-Modus is the precedent and it is **still not live for
 real customers** — the widget half sits on `cham-chatbot` `develop` (PR #22), not
 `main`. Do not let this feature's server half imply the customer one shipped.
+
+### How M3 actually came out (2026-08-03)
+
+§3's measurement predates §3.3's. Hop 1 turned out to carry `KUNDE`,
+`TEILNEHMERS[]` and `LEISTUNGEN[]` in full, so the split between the hops is
+**not** the one this plan assumed:
+
+- **Hop 2 is now only what hop 1 lacks:** the Zahlstand, `flugdaten[]`,
+  `personen`/`persAdult`/`persChild`/`persBaby`, and the authoritative
+  `beschreibungen[].titel`. The Zahlstand is the reason it exists at all — "is
+  this booking paid" is a counter question and appears nowhere in
+  `buchungLeistungenListe`.
+- **A hop-2 failure no longer drops the booking.** `kundendaten` skips a booking
+  whose hop 2 failed, because there its hop 1 carries almost nothing. Here hop 1
+  carries title, dates, Besteller, travellers, price, commission and
+  Leistungen — discarding all of it because a Zahlstand fetch failed would be
+  worse than naming the gap. So the block renders without the hop-2 lines and
+  the answer ends with an explicit note. §7's rule, one level down: a missing
+  value must never read as a zero one.
+- **G3 runs twice**, and the second one is not ceremonial: `/get/buchung` takes a
+  bare `vorgangsNummer` and has **no agency filter at all**, so the only thing
+  binding a detail record to the agency is that the number came from a
+  G3-checked hop-1 row. The returned `agtNr` is therefore re-checked
+  independently, and a missing `agtNr` fails closed.
+- **Not done, deliberately: hop 2's `provision` / `eigenProvBetrag`.** §6
+  whitelists them, but §3.3 never measured their format, and hop 1's
+  `ACTION.AgenturCommission` already renders the commission. If `provision` is a
+  *percentage*, formatting it as euros yields a confident wrong number about
+  money — the one place this feature cannot afford one. Measure the two fields
+  before adding them; until then the single measured field stands alone.
+
+`DETAIL_ROW_CAP = 25` stays, and stays deliberately unlike the customer path,
+which the owner uncapped on 2026-07-30. A customer has a handful of their own
+bookings; an agency has up to 191 of other people's, and the cap is a prompt-size
+limit before it is a request-count one.
 
 ## 11. Test plan
 

@@ -150,7 +150,7 @@ def fmt_euro(value: object) -> str:
     return f"{value:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _flug_zeile(flug: dict) -> str:
+def flug_zeile(flug: dict) -> str:
     """One whitelisted flight segment as a German bullet line."""
     flugnr = flug.get("flugnr") or ""
     airline = flug.get("airline") or ""
@@ -206,7 +206,7 @@ def zeit_marker(von: str, bis: str, heute: str) -> str:
     return ""
 
 
-def _personen_text(buchung: dict) -> str:
+def personen_text(buchung: dict) -> str:
     """``2 (2 Erwachsene)`` aus persAdult/persChild/persBaby; "" wenn leer."""
     a = buchung.get("persAdult") or 0
     k = buchung.get("persChild") or 0
@@ -224,7 +224,7 @@ def _personen_text(buchung: dict) -> str:
     return f"{gesamt} ({', '.join(teile)})"
 
 
-def _zahlstand_zeilen(buchung: dict) -> list[str]:
+def zahlstand_zeilen(buchung: dict) -> list[str]:
     """Whitelisted Zahlstand-Zeilen — nur die kundenrelevanten Beträge/Termine."""
     zeilen = []
     preis = fmt_euro(buchung.get("preis"))
@@ -313,14 +313,14 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
         zeilen.append("- Status: storniert")
         return "\n".join(zeilen)
     zeilen.append("- Status: gebucht")
-    pers = _personen_text(buchung)
+    pers = personen_text(buchung)
     if pers:
         zeilen.append(f"- Reisende: {pers}")
-    zeilen.extend(_zahlstand_zeilen(buchung))
+    zeilen.extend(zahlstand_zeilen(buchung))
     fluege = [f for f in buchung.get("flugdaten") or [] if isinstance(f, dict)]
     if fluege:
         fluege.sort(key=lambda f: (f.get("rang") or 0, str(f.get("abflug") or "")))
-        zeilen.extend(_flug_zeile(f) for f in fluege)
+        zeilen.extend(flug_zeile(f) for f in fluege)
     else:
         zeilen.append("- Flüge: noch nicht eingebucht (oft erst kurz vor Abreise)")
     return "\n".join(zeilen)

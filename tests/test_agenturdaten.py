@@ -284,3 +284,272 @@ def test_tool_closure_nimmt_keine_agenturnummer():
     assert "agentur_id" not in t.args
     assert "agenturNummer" not in t.args
     assert set(t.args) <= {"auswahl", "anzahl", "details"}
+
+
+# --- Hop 2: Zahlstand, Flüge, und G3 ein zweites Mal ---------------------------
+#
+# ``/get/buchung`` kennt keinen Agenturfilter — es ist über die bloße
+# vorgangsNummer adressiert. Dass sie aus einer G3-geprüften Hop-1-Zeile stammt,
+# ist die einzige Bindung an die Agentur, deshalb wird sie an der Rückgabe
+# unabhängig nachgeprüft.
+
+
+def _detail(agt="12345", vorgang="4711", status="OK", fluege=None, **extra):
+    """Erfundene Hop-2-Antwort. Trägt bewusst auch Felder, die DRAUSSEN bleiben."""
+    d = {
+        "agtNr": agt,
+        # Der Mandant (Chamäleon selbst). Steht hier, damit ein Regress, der ihn
+        # statt agtNr vergleicht, an test_g3_hop2_akzeptiert_mandant_nicht scheitert.
+        "mandantAgtNr": "99",
+        "vorgang": vorgang,
+        "status": status,
+        "beschreibungen": [{"titel": "Namibia — Zauber der Weite"}],
+        "preis": 4200.0,
+        "anzahlungBetrag": 840.0,
+        "anzahlungDat": "2027-01-15 00:00:00",
+        "restBetrag": 3360.0,
+        "schlussZahlungDat": "2027-03-20 00:00:00",
+        "eingangBetrag": 840.0,
+        "personen": 2,
+        "persAdult": 2,
+        "flugdaten": [
+            {
+                "rang": 1,
+                "flugnr": "LH576",
+                "airline": "LH",
+                "vonCo3Code": "FRA",
+                "nachCo3Code": "WDH",
+                "abflug": "2027-05-01 20:15:00",
+                "ankunft": "2027-05-02 06:30:00",
+            }
+        ]
+        if fluege is None
+        else fluege,
+        # Bewusst DRAUSSEN (Plan §6) — dürfen im gerenderten Text nie auftauchen.
+        "pnrFileKey": "PNRGEHEIM",
+        "bookNotiz": "interne Notiz Kunde nervt",
+        "chroniken": [{"text": "interner Chronikeintrag"}],
+        "adrNotfallKontakt": "Notfall Oma 0170",
+        "adrEmail": "privat@example.invalid",
+        "teilnehmerliste": [
+            {"name": "Anna Muster", "gebDat": "1980-03-04", "email": "anna@example.invalid"}
+        ],
+    }
+    d.update(extra)
+    return d
+
+
+def _api(rows, detail=None, gerufen=None):
+    """Fake für BEIDE Hops; unterschieden wird am Pfad, wie in der echten API."""
+
+    def call(path, params=None, **k):
+        if gerufen is not None:
+            gerufen.append((path, dict(params or {})))
+        if path == "/get/buchung":
+            d = detail(params["vorgangsNummer"]) if callable(detail) else detail
+            if isinstance(d, Exception):
+                raise d
+            return d
+        return _page(rows)
+
+    return call
+
+
+def test_grobe_liste_loest_keinen_hop2_aus(monkeypatch):
+    """details=false ist der billige Pfad und muss es bleiben."""
+    gerufen = []
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api([_row()], _detail(), gerufen)
+    )
+    agenturdaten.fetch_buchungen_text("12345", details=False)
+    assert [p for p, _ in gerufen] == ["/get/buchungLeistungenListe"]
+
+
+def test_details_holt_genau_einen_hop2_je_buchung(monkeypatch):
+    gerufen = []
+    rows = [_row(vorgang=str(4711 + i)) for i in range(3)]
+    monkeypatch.setattr(
+        agenturdaten,
+        "_tourone_get",
+        _api(rows, lambda v: _detail(vorgang=v), gerufen),
+    )
+    agenturdaten.fetch_buchungen_text("12345", details=True)
+    hop2 = [params["vorgangsNummer"] for p, params in gerufen if p == "/get/buchung"]
+    assert sorted(hop2) == ["4711", "4712", "4713"]
+
+
+def test_details_zeigt_den_zahlstand(monkeypatch):
+    """Der Grund, dass es Hop 2 gibt: „ist die Buchung bezahlt?"."""
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" in text
+    assert "Offener Betrag" in text
+    assert "Bereits eingegangen" in text
+    assert "3.360,00" in text
+
+
+def test_gesamtpreis_steht_genau_einmal(monkeypatch):
+    """Hop 1 (GesamtPreis) und Hop 2 (preis) sind dieselbe Zahl.
+
+    Zwei „Gesamtpreis"-Zeilen sind für das Modell zwei Tatsachen.
+    """
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert text.count("- Gesamtpreis:") == 1
+
+
+def test_details_zeigt_fluege(monkeypatch):
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "LH576" in text and "FRA" in text and "WDH" in text
+
+
+def test_ohne_flugdaten_sagt_noch_nicht_eingebucht(monkeypatch):
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api([_row()], _detail(fluege=[]))
+    )
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "noch nicht eingebucht" in text
+
+
+def test_hop2_titel_schlaegt_den_hop1_titel(monkeypatch):
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Zauber der Weite" in text
+
+
+# --- G3 auf Hop 2 -------------------------------------------------------------
+
+
+def test_g3_hop2_verwirft_fremde_buchung(monkeypatch):
+    """Eine Detailantwort mit fremder agtNr darf keine Zahlen beisteuern."""
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api([_row()], _detail(agt="99999"))
+    )
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" not in text
+    assert "LH576" not in text
+    assert "Zauber der Weite" not in text
+    # Der Hop-1-Teil bleibt stehen, und die Lücke wird benannt.
+    assert "Anna Muster" in text
+    assert "nicht leer" in text
+
+
+def test_g3_hop2_akzeptiert_mandant_nicht(monkeypatch):
+    """mandantAgtNr ist Chamäleon selbst — als Ausweis wäre sie wertlos."""
+    monkeypatch.setattr(
+        agenturdaten,
+        "_tourone_get",
+        _api([_row()], _detail(agt="99999", mandantAgtNr="12345")),
+    )
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" not in text
+
+
+def test_g3_hop2_verwirft_fehlende_agtnr(monkeypatch):
+    """Fail closed: ohne Nachweis kein Detail (z.B. nach einer Feldumbenennung)."""
+    d = _detail()
+    del d["agtNr"]
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], d))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" not in text
+    assert "nicht leer" in text
+
+
+def test_g3_hop2_normalisiert_typen(monkeypatch):
+    """int-typisierte agtNr ist gültig — sonst verschwände jeder Zahlstand."""
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail(agt=12345)))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" in text
+    assert "nicht leer" not in text
+
+
+# --- Teilausfall --------------------------------------------------------------
+
+
+def test_teilausfall_nennt_die_luecke_und_behaelt_den_rest(monkeypatch):
+    """Eine kaputte Buchung darf weder die Antwort kosten noch stumm fehlen."""
+    rows = [_row(vorgang="4711"), _row(vorgang="4712", kunde="Familie Zweite")]
+
+    def detail(vorgang):
+        if vorgang == "4712":
+            raise RuntimeError("500")
+        return _detail(vorgang=vorgang)
+
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api(rows, detail))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "Anzahlung" in text  # die heile Buchung ist vollständig
+    assert "Familie Zweite" in text  # die kaputte ist trotzdem da
+    assert "nicht leer" in text  # und die Lücke ist benannt
+    assert agenturdaten.KEINE_BUCHUNGEN_TEXT not in text
+
+
+def test_ohne_hop2_keine_behauptung_ueber_fluege(monkeypatch):
+    """„noch nicht eingebucht" wäre eine Aussage über ungesehene Daten."""
+
+    def boom(vorgang):
+        raise RuntimeError("timeout")
+
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], boom))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "noch nicht eingebucht" not in text
+
+
+def test_vollstaendige_details_ohne_hinweis(monkeypatch):
+    """Der Teilausfall-Hinweis darf nicht bei jeder Antwort mitlaufen."""
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "nicht leer" not in text
+
+
+# --- Storno und Status --------------------------------------------------------
+
+
+def test_hop2_status_xx_storniert_auch_gegen_hop1(monkeypatch):
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api([_row()], _detail(status="XX"))
+    )
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "- Status: storniert" in text
+    # Zahlstand und Flüge einer stornierten Reise sind irreführend.
+    assert "Offener Betrag" not in text
+    assert "LH576" not in text
+
+
+def test_fehlender_hop2_status_storniert_nicht(monkeypatch):
+    """Ein fehlendes Feld darf keine gebuchte Reise stornieren."""
+    d = _detail()
+    del d["status"]
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], d))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "- Status: gebucht" in text
+
+
+# --- Whitelist auf Hop 2 ------------------------------------------------------
+
+
+def test_hop2_pii_und_interna_erreichen_den_text_nie(monkeypatch):
+    """Hop 2 trägt deutlich mehr als Hop 1 — die Allowlist muss auch hier greifen."""
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    for verboten in (
+        "PNRGEHEIM",
+        "nervt",
+        "Chronikeintrag",
+        "Notfall Oma",
+        "privat@example.invalid",
+        "1980-03-04",
+        "anna@example.invalid",
+    ):
+        assert verboten not in text, verboten
+
+
+def test_cap_verweigert_bevor_hop2_feuert(monkeypatch):
+    """Die Verweigerung muss billiger sein als die Arbeit, die sie ablehnt."""
+    gerufen = []
+    rows = [_row(vorgang=str(1000 + i)) for i in range(agenturdaten.DETAIL_ROW_CAP + 5)]
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api(rows, _detail(), gerufen)
+    )
+    agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert [p for p, _ in gerufen] == ["/get/buchungLeistungenListe"]

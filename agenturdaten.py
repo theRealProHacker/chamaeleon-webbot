@@ -1,16 +1,22 @@
 """Agentur-Modus Buchungsdaten — die Buchungen EINER Agentur aus TourOne.
 
-Gegenstück zu :mod:`kundendaten`, aber ein anderer Datenpfad: ein einziger Hop
-liefert hier alles.
+Gegenstück zu :mod:`kundendaten`, mit demselben Zwei-Hop-Aufbau — aber Hop 1 ist
+hier bereits ungewöhnlich reichhaltig:
 
     GET /get/buchungLeistungenListe?agenturNummer=<agtNr>   (Hop 1, timeout=8)
       └─ buchungLeistungen.{ACTION, KUNDE, TEILNEHMERS[], LEISTUNGEN[]}
+           ├─ details=false → grobe Liste, NUR Hop 1
+           └─ details=true  → je Buchung, nebenläufig (DETAIL_PARALLEL):
+                GET /get/buchung?vorgangsNummer=…            (Hop 2)
+                → Zahlstand, Flüge, Personenzahl, autoritativer Titel
 
-``details`` ist deshalb nur eine RENDERTIEFE über derselben Antwort und kostet
-keinen zusätzlichen Request — anders als im Kundenpfad, wo details=true einen
-Hop 2 je Buchung auslöst.
+Die Arbeitsteilung ist nicht willkürlich: Hop 1 liefert Reisende, Provision und
+Einzelleistungen bereits mit (anders als im Kundenpfad), Hop 2 liefert
+ausschließlich das, was dort fehlt. Der **Zahlstand** ist der Grund, dass es Hop 2
+überhaupt gibt — „ist die Buchung bezahlt" ist eine der Kernfragen am Counter und
+steht in ``buchungLeistungenListe`` nirgends.
 
-Zwei Wächter, beide nicht optional (Plan §8):
+Drei Wächter, alle nicht optional (Plan §8):
 
 * **G2** — ``agenturNummer`` weglassen liefert HTTP 200 mit den Buchungen des
   GESAMTEN Mandanten (223.588 Stück). Deshalb geht jeder Request durch
@@ -24,6 +30,15 @@ Zwei Wächter, beide nicht optional (Plan §8):
   dieselbe Antwort mischt Typen (``vorgangsNummer`` str, ``vorgangsId`` int).
   Ein naives ``!=`` würde bei int-Ankunft JEDE Zeile JEDER Agentur verwerfen und
   der Bot meldete „keine Buchungen" — genau das Versagen, das §7 verhindern soll.
+* **G3 auf Hop 2** — ``/get/buchung`` kennt KEINEN Agenturfilter, es ist über die
+  bloße ``vorgangsNummer`` adressiert (derselbe Endpunkt, den auch der Kundenpfad
+  benutzt). Dass die Nummer aus einer bereits G3-geprüften Hop-1-Zeile stammt,
+  ist die einzige Bindung an die Agentur — und genau deshalb wird sie an der
+  Rückgabe unabhängig nachgeprüft: ``buchung.agtNr`` muss die gebundene Nummer
+  sein. Auch hier ``mandantAgtNr`` NICHT vergleichen; das ist der Mandant und
+  passt nie. Verwirft dieser Check etwas, ist das kein Leerzustand, sondern eine
+  Bug- oder Angriffssignatur: der Block entfällt, es wird laut geloggt, und die
+  Antwort sagt, dass Details fehlen.
 
 Die Sammelregeln über ``LEISTUNGEN[]`` sind gemessen, nicht geraten — 15
 Agenturen, 486 Buchungen, 2131 Einträge (docs/agentur-modus-plan.md §3.3). Die
@@ -35,23 +50,42 @@ Rohziffern. Es wird ausschließlich ``leistungVonDat``/``leistungBisDat``
 gelesen (``YYYY-MM-DD HH:MM:SS``).
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 from langchain_core.tools import tool
 
 import kundendaten
-from kundendaten import fmt_datum, fmt_euro, select, zeit_marker
+from kundendaten import (
+    flug_zeile,
+    fmt_datum,
+    fmt_euro,
+    personen_text,
+    select,
+    zahlstand_zeilen,
+    zeit_marker,
+)
 from travel_index import _tourone_get, get_titel_for_code
 
 TIMEOUT = 8
 
-# Ab wie vielen Zeilen ``details=true`` verweigert wird. In ZEILEN, nicht
-# Requests: mit nur einem Hop ist die Promptgröße die einzige Schranke, die die
-# Streichung von Hop 2 überlebt hat. Eine voll gerenderte Zeile misst ~250
-# Zeichen gegen ~90 für eine grobe — bei den beobachteten 191 Buchungen der
-# Unterschied zwischen ~4k und ~12k Tokens, und die eine gefragte Buchung
-# ertrinkt unter 190 anderen.
+# Ab wie vielen Buchungen ``details=true`` verweigert wird. Die bindende
+# Schranke ist die PROMPTGRÖSSE, nicht die Requestzahl: eine voll gerenderte
+# Buchung misst ~250 Zeichen gegen ~90 für eine grobe — bei den beobachteten 191
+# Buchungen der Unterschied zwischen ~4k und ~12k Tokens, und die eine gefragte
+# Buchung ertrinkt unter 190 anderen. Dass der Deckel nebenbei auch die Hop-2-
+# Requests begrenzt, ist ein Nebeneffekt; er stand schon hier, als es Hop 2 in
+# diesem Modul nicht gab.
+#
+# Bewusst anders als im Kundenpfad, der seit dem 30.07.2026 UNGEDECKELT ist: ein
+# Kunde hat eine Handvoll eigener Buchungen, eine Agentur bis zu 191 fremder.
 DETAIL_ROW_CAP = 25
+
+# Gleichzeitige Hop-2-Requests gegen TourOne. Wie im Kundenpfad: begrenzt die
+# Last, nicht die Sichtbarkeit — wie viele Buchungen im Detail erscheinen,
+# entscheidet allein DETAIL_ROW_CAP. Bei ~0,13s je Hop 2 (Plan §3) bleiben die
+# maximal 25 Buchungen so unter einer halben Sekunde statt über drei.
+DETAIL_PARALLEL = 8
 
 # Die Anforderung, die die gebuchte REISE bezeichnet (gemessen: erster Eintrag
 # bei 422/486 Buchungen, längste Zeitspanne bei 391/486). Alle anderen Codes
@@ -254,23 +288,118 @@ def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
     return "- " + " · ".join(teile)
 
 
-def _detail_block(b: dict, heute: str) -> str:
-    """Ein Detailblock je Buchung — aus DERSELBEN Hop-1-Antwort, kein Abruf."""
-    kopf = f'Buchung {b["vorgang"]} — „{b["titel"]}"'
+def _hop2_alle(ausgewaehlt: list) -> list:
+    """Hop 2 für jede ausgewählte Buchung, nebenläufig, in Eingangsreihenfolge.
+
+    Ein Fehler je Buchung wird zu ``None`` und lässt die übrigen unberührt — eine
+    einzelne kaputte Buchung darf nicht die ganze Antwort kosten. Nebenläufig aus
+    demselben Grund wie im Kundenpfad: sequenziell wäre die Wartezeit linear in
+    der Buchungszahl.
+    """
+    if not ausgewaehlt:
+        return []
+
+    def hole(b: dict):
+        try:
+            return _tourone_get(
+                "/get/buchung", {"vorgangsNummer": b["vorgang"]}, timeout=TIMEOUT
+            )
+        except Exception as e:
+            print(f"[agenturdaten] buchung lookup failed: {type(e).__name__}")
+            return None
+
+    if len(ausgewaehlt) == 1:  # kein Pool für einen einzelnen Request
+        return [hole(ausgewaehlt[0])]
+    with ThreadPoolExecutor(max_workers=min(DETAIL_PARALLEL, len(ausgewaehlt))) as pool:
+        return list(pool.map(hole, ausgewaehlt))
+
+
+def _hop2_freigeben(detail: object, agentur_id: str) -> dict | None:
+    """G3 auf Hop 2 — die Detailantwort gehört dieser Agentur, oder sie entfällt.
+
+    ``/get/buchung`` hat keinen Agenturfilter; die einzige Bindung ist, dass die
+    ``vorgangsNummer`` aus einer bereits geprüften Hop-1-Zeile stammt. Diese
+    Prüfung macht sie unabhängig nachweisbar.
+
+    Verglichen wird ``agtNr``, NIEMALS ``mandantAgtNr`` — das ist Chamäleon
+    selbst und würde die Buchung jeder beliebigen Agentur durchwinken.
+
+    Fehlt ``agtNr``, wird ebenfalls verworfen: ``str(None) != "12345"``. Das ist
+    Absicht. Würde TourOne das Feld umbenennen, verschwänden die Detailblöcke
+    hörbar (Log + Hinweis in der Antwort), statt ungeprüft weiterzulaufen.
+    """
+    if not isinstance(detail, dict):
+        return None
+    if str(detail.get("agtNr")).strip() != str(agentur_id).strip():
+        print(
+            "[agenturdaten] G3 (Hop 2): agtNr weicht von der gebundenen "
+            "Agenturnummer ab — Detailblock verworfen"
+        )
+        return None
+    return detail
+
+
+def _detail_block(b: dict, detail: dict | None, heute: str) -> str:
+    """Ein Detailblock je Buchung: Hop-1-Inhalt, um Hop 2 ergänzt.
+
+    ``detail=None`` (Abruf fehlgeschlagen oder G3 verworfen) kostet nur den
+    Zahlstand-, Flug- und Personenteil — der Block bleibt. Bewusst anders als im
+    Kundenpfad, wo eine Buchung ohne Hop 2 komplett entfällt: dort trägt Hop 1
+    fast nichts, hier trägt er Titel, Zeitraum, Besteller, Reisende, Preis,
+    Provision und Einzelleistungen. Die alle wegen eines fehlenden Zahlstands zu
+    unterschlagen wäre schlechter als die Lücke zu benennen.
+    """
+    detail = detail or {}
+    # Hop 2 hat den autoritativen Titel; die gemessene Kette aus _titel ist der
+    # Notnagel, wenn beschreibungen auch dort leer ist.
+    titel = kundendaten._buchung_titel(detail, b["titel"])
+    kopf = f'Buchung {b["vorgang"]} — „{titel}"'
     if b["vonDat"] and b["bisDat"]:
         kopf += f" ({fmt_datum(b['vonDat'])} – {fmt_datum(b['bisDat'])})"
     zeilen = [kopf + ":"]
-    zeilen.append("- Status: " + ("storniert" if b["storniert"] else "gebucht"))
+    # Hop 1 leitet den Status aus dem P-Eintrag ab (gemessene Regel 4), Hop 2
+    # trägt ihn auf Buchungsebene. Storniert ist storniert, sobald eine der
+    # beiden Quellen das sagt — aber nur, wenn Hop 2 wirklich einen Status
+    # geliefert hat: ein fehlendes Feld darf keine Buchung stornieren.
+    storniert = b["storniert"]
+    status = detail.get("status")
+    if isinstance(status, str) and status.strip():
+        storniert = storniert or status.strip() != "OK"
+    zeilen.append("- Status: " + ("storniert" if storniert else "gebucht"))
     if b["kunde"]:
         zeilen.append(f"- Besteller: {b['kunde']}")
     if b["teilnehmer"]:
         zeilen.append(f"- Reisende: {', '.join(b['teilnehmer'])}")
-    preis = _euro(b["gesamtpreis"])
-    if preis:
-        zeilen.append(f"- Gesamtpreis: {preis}")
+    # Aus Hop 2, und nicht aus den Namen ableitbar: die Aufteilung in
+    # Erwachsene/Kinder/Kleinkinder, an der die Preise hängen.
+    pers = personen_text(detail)
+    if pers:
+        zeilen.append(f"- Personen: {pers}")
+
+    # Zahlstand und Flüge nur bei aktiver Buchung — bei einer stornierten Reise
+    # sind offene Beträge und Flugzeiten irreführend (Regel aus dem Kundenpfad).
+    zahlstand = [] if storniert else zahlstand_zeilen(detail)
+    # zahlstand_zeilen rendert den Gesamtpreis aus Hop 2 (``preis``). Dann darf
+    # der aus Hop 1 (``ACTION.GesamtPreis``) nicht ein zweites Mal daneben
+    # stehen — zwei „Gesamtpreis"-Zeilen sind für das Modell zwei Tatsachen.
+    if not any(z.startswith("- Gesamtpreis:") for z in zahlstand):
+        preis = _euro(b["gesamtpreis"])
+        if preis:
+            zeilen.append(f"- Gesamtpreis: {preis}")
+    zeilen.extend(zahlstand)
     provision = _euro(b["provision"])
     if provision:
         zeilen.append(f"- Provision: {provision}")
+    if detail and not storniert:
+        fluege = [f for f in detail.get("flugdaten") or [] if isinstance(f, dict)]
+        if fluege:
+            fluege.sort(key=lambda f: (f.get("rang") or 0, str(f.get("abflug") or "")))
+            zeilen.extend(flug_zeile(f) for f in fluege)
+        else:
+            # Nur sagbar, wenn Hop 2 wirklich geantwortet hat. Nach einem
+            # fehlgeschlagenen Abruf wäre „noch nicht eingebucht" eine
+            # Behauptung über Daten, die wir gar nicht gesehen haben.
+            zeilen.append("- Flüge: noch nicht eingebucht (oft erst kurz vor Abreise)")
     posten = [
         "  · "
         + p["bezeichnung"]
@@ -342,9 +471,24 @@ def fetch_buchungen_text(
         ]
         return "Buchungen dieser Agentur:\n" + "\n".join(zeilen)
 
-    return "Buchungen dieser Agentur im Detail:\n\n" + "\n\n".join(
-        _detail_block(b, heute) for b in ausgewaehlt
-    )
+    details_fehlen = False
+    bloecke = []
+    for b, roh_detail in zip(ausgewaehlt, _hop2_alle(ausgewaehlt)):
+        detail = _hop2_freigeben(roh_detail, agentur_id)
+        details_fehlen = details_fehlen or detail is None
+        bloecke.append(_detail_block(b, detail, heute))
+
+    text = "Buchungen dieser Agentur im Detail:\n\n" + "\n\n".join(bloecke)
+    if details_fehlen:
+        # Teilerfolg ehrlich benennen. Ohne diesen Satz liest sich ein Block
+        # ohne Zahlstand wie „nichts bezahlt, keine Flüge" statt wie „gerade
+        # nicht abrufbar" — dieselbe Verwechslung, die §7 für die ganze Liste
+        # verhindert, nur eine Ebene tiefer.
+        text += (
+            "\n\n(Zu einzelnen Buchungen konnte ich gerade keine Zahlungs- und "
+            "Flugdaten laden. Die Angaben dazu fehlen oben, sie sind nicht leer.)"
+        )
+    return text
 
 
 def make_buchungen_agentur_tool(agentur_id: str):
@@ -375,11 +519,13 @@ def make_buchungen_agentur_tool(agentur_id: str):
           neuesten). Welche die nächste Reise ist, musst du NICHT aus der
           Reihenfolge erschließen — genau diese Zeile ist markiert.
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer,
-          Besteller). true = Detailansicht (Reisende, Gesamtpreis, Provision,
-          Einzelleistungen). Beide stammen aus DEMSELBEN Abruf, details=true
-          kostet also keinen zusätzlichen Request — aber es macht die Ausgabe
-          lang. Hol immer erst die grobe Liste und fasse dann mit
-          auswahl/anzahl eingegrenzt und details=true nach.
+          Besteller). true = Detailansicht, zusätzlich mit Reisenden,
+          Personenzahl, Gesamtpreis, Zahlstand (Anzahlung, offener Betrag,
+          bereits eingegangen), Provision, Flügen und Einzelleistungen.
+          details=true ist deutlich teurer und die Ausgabe deutlich länger:
+          hol immer erst die grobe Liste und fasse dann mit auswahl/anzahl
+          eingegrenzt nach. Ob eine Buchung bezahlt ist, steht NUR in der
+          Detailansicht.
         Stornierte Buchungen sind mit dabei und in beiden Ansichten als
           „storniert" gekennzeichnet.
         Die Antwort beginnt mit der Agenturnummer der eingeloggten Agentur —
