@@ -35,12 +35,11 @@ the response body, not even on error.
 
 import json
 import re
-import threading
-import time
 from urllib.parse import parse_qs
 
 import requests
 
+import session_binding
 from kundendaten import parse_kunden_id
 
 # MeinChamäleon session-introspection endpoint. With the customer's session
@@ -64,7 +63,9 @@ SS_URL = "https://www.chamaeleon-reisen.de/ss.php"
 #
 # The agentur hosts are deliberately absent: Agentur- and Kunden-Modus are
 # mutually exclusive (``app.py`` forces ``kunden_id = ""`` on agentur requests),
-# so a binding made from those origins could never be read.
+# so a binding made from those origins could never be read. They live in
+# ``agentur_auth.SS_URLS_AGENTUR`` instead — the agt PHPSESSID is a DIFFERENT
+# session (the cookie is host-only), so the two tables must not be merged.
 #
 # Trade-off accepted with this table (owner, 2026-07-30): a login on a dev host
 # becomes a valid auth path for the production chat, because the dev widget talks
@@ -192,31 +193,22 @@ _KUNDENNR_RE = re.compile(
     r"^ {4}\[SESSION_ADRKUNDENNR\][ \t]*=>[ \t]*(.+?)[ \t]*$", re.MULTILINE
 )
 
-# session_id -> (kunden_id, expiry_epoch). In-memory, single-worker deploy
-# (see rate_limit.py); cleared on restart → fail closed, widget re-auths.
-_bindings: dict[str, tuple[str, float]] = {}
-_lock = threading.Lock()
+# The binding state, and the generation machinery that makes it safe under
+# concurrent auths, live in session_binding — Agentur-Modus needs exactly the
+# same thing with a different TTL and a different identity kind. The rationale
+# for every rule enforced there (why unbind must run first, why a generation is
+# claimed up front, why the newest auth wins) is in that module's docstring.
+#
+# TTL is passed as a callable so BINDING_TTL above stays the single source of
+# truth: the store reads it at bind time rather than snapshotting it at import.
+_store = session_binding.new_store(lambda: BINDING_TTL)
 
-# session_id -> generation of the /kunde/auth call currently in flight for it.
-#
-# "Single worker" means one PROCESS, not one request at a time: the Dockerfile
-# runs gunicorn -k gevent with --worker-connections 1000, so up to 1000 greenlets
-# interleave inside that worker and the ss.php call (TIMEOUT seconds) yields.
-# _lock therefore guards individual dict operations but NOT the
-# unbind → verify → bind sequence, and the "unbind always runs first" invariant
-# does not survive concurrency:
-#
-#   t=0.0  A (logged in) opens the chat  → unbind, then ss.php stalls 3s
-#   t=0.5  B (logged out) opens the chat → unbind, ss.php fast, no bind
-#   t=3.0  A's call resumes              → bind(session → A)   ← lands LAST
-#          B is holding a session that resolves to A's Kundennummer.
-#
-# Same shared browser, same stored session_id, no attacker — just latency
-# ordering. So an auth now claims a generation up front and may only write its
-# result if nothing superseded it in the meantime. Newest auth wins, always.
-# Entries are removed the moment an auth settles, so this never accumulates.
-_inflight: dict[str, int] = {}
-_auth_seq = 0
+# Live aliases onto the store's own dicts, kept because the tests and rate_limit
+# read them directly. Safe ONLY because nothing ever reassigns store["bindings"]
+# or store["inflight"] — they are mutated in place, never swapped. That is the
+# whole reason session_binding is functions over a dict and not a class.
+_bindings: dict[str, tuple[str, float]] = _store["bindings"]
+_inflight: dict[str, int] = _store["inflight"]
 
 
 def extract_kundennr(body: str) -> str:
@@ -312,11 +304,7 @@ def unbind(session_id: str) -> None:
     afterwards, because its generation is gone. Used by the 429 path in
     rate_limit.py, which has to clear the binding without running the view.
     """
-    if not session_id:
-        return
-    with _lock:
-        _bindings.pop(session_id, None)
-        _inflight.pop(session_id, None)
+    session_binding.unbind(_store, session_id)
 
 
 def begin_auth(session_id: str) -> int:
@@ -327,14 +315,7 @@ def begin_auth(session_id: str) -> int:
     handed to :func:`commit_auth`; that is what stops a slow auth from resurrecting
     an identity a later one already cleared (see ``_inflight``).
     """
-    global _auth_seq
-    if not session_id:
-        return 0
-    with _lock:
-        _bindings.pop(session_id, None)
-        _auth_seq += 1
-        _inflight[session_id] = _auth_seq
-        return _auth_seq
+    return session_binding.begin(_store, session_id)
 
 
 def commit_auth(session_id: str, kunden_id: str, generation: int) -> bool:
@@ -344,15 +325,7 @@ def commit_auth(session_id: str, kunden_id: str, generation: int) -> bool:
     /kunde/auth for the same session_id started (or an unbind ran) while we were
     waiting on ss.php — its outcome is authoritative and ours is discarded.
     """
-    if not session_id:
-        return False
-    with _lock:
-        if _inflight.get(session_id) != generation:
-            return False
-        del _inflight[session_id]
-        if kunden_id:
-            _bindings[session_id] = (kunden_id, time.time() + BINDING_TTL)
-        return True
+    return session_binding.commit(_store, session_id, kunden_id, generation)
 
 
 def authenticate(
@@ -413,10 +386,7 @@ def bind(session_id: str, kunden_id: str) -> None:
     goes through begin_auth/commit_auth so a superseded auth cannot overwrite a
     newer one.
     """
-    if not session_id or not kunden_id:
-        return
-    with _lock:
-        _bindings[session_id] = (kunden_id, time.time() + BINDING_TTL)
+    session_binding.bind(_store, session_id, kunden_id)
 
 
 def read_capped_body(req, max_bytes: int = AUTH_BODY_MAX_BYTES) -> str:
@@ -485,14 +455,4 @@ def coerce_json_body(parsed, raw_text: str) -> dict:
 
 def resolve(session_id: str) -> str | None:
     """Verified kunden_id for this session, or ``None`` (never bound / expired)."""
-    if not session_id:
-        return None
-    with _lock:
-        entry = _bindings.get(session_id)
-        if entry is None:
-            return None
-        kunden_id, expiry = entry
-        if time.time() >= expiry:
-            del _bindings[session_id]
-            return None
-        return kunden_id
+    return session_binding.resolve(_store, session_id)

@@ -10,7 +10,7 @@ enthält ausschließlich whitelisted Felder.
 ``buchungen_tool(auswahl, anzahl, details)`` — Closure auf kunden_id:
   └─ GET /get/adresse?kundennummer=…                    (Hop 1, timeout=8)
        ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
-       └─ Objekt → buchungen[] → _select(auswahl, anzahl):
+       └─ Objekt → buchungen[] → select(auswahl, anzahl):
             auswahl "alle"       → kommende (näheste voran), dann vergangene
                                    (neueste voran) — NICHT stumpf nach vonDat
                                    absteigend, sonst steht die am weitesten
@@ -126,7 +126,7 @@ def _heute() -> str:
     return datetime.datetime.now(pytz.timezone("Europe/Berlin")).strftime("%Y-%m-%d")
 
 
-def _fmt_datum(value: str) -> str:
+def fmt_datum(value: str) -> str:
     """``2026-09-01 00:00:00`` → ``01.09.2026`` (fallback: raw value)."""
     try:
         return datetime.datetime.strptime(value[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
@@ -143,7 +143,7 @@ def _fmt_zeitpunkt(value: str) -> str:
         return value
 
 
-def _fmt_euro(value: object) -> str:
+def fmt_euro(value: object) -> str:
     """``4099.5`` → ``4.099,50 €`` (deutsche Notation); "" für Nicht-Zahlen."""
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return ""
@@ -194,7 +194,7 @@ def _buchung_titel(buchung: dict, fallback: str) -> str:
     return fallback
 
 
-def _zeit_marker(von: str, bis: str, heute: str) -> str:
+def zeit_marker(von: str, bis: str, heute: str) -> str:
     """kommend / läuft gerade / vergangen aus den Datumsstrings (billig)."""
     von, bis = von[:10], bis[:10]
     if bis and bis < heute:
@@ -227,30 +227,30 @@ def _personen_text(buchung: dict) -> str:
 def _zahlstand_zeilen(buchung: dict) -> list[str]:
     """Whitelisted Zahlstand-Zeilen — nur die kundenrelevanten Beträge/Termine."""
     zeilen = []
-    preis = _fmt_euro(buchung.get("preis"))
+    preis = fmt_euro(buchung.get("preis"))
     if preis:
         zeilen.append(f"- Gesamtpreis: {preis}")
-    anzahlung = _fmt_euro(buchung.get("anzahlungBetrag"))
+    anzahlung = fmt_euro(buchung.get("anzahlungBetrag"))
     if anzahlung:
         anz_dat = str(buchung.get("anzahlungDat") or "")
         zeilen.append(
             f"- Anzahlung: {anzahlung}"
-            + (f" (fällig {_fmt_datum(anz_dat)})" if anz_dat else "")
+            + (f" (fällig {fmt_datum(anz_dat)})" if anz_dat else "")
         )
-    rest = _fmt_euro(buchung.get("restBetrag"))
+    rest = fmt_euro(buchung.get("restBetrag"))
     if rest:
         schluss_dat = str(buchung.get("schlussZahlungDat") or "")
         zeilen.append(
             f"- Offener Betrag: {rest}"
-            + (f" (fällig {_fmt_datum(schluss_dat)})" if schluss_dat else "")
+            + (f" (fällig {fmt_datum(schluss_dat)})" if schluss_dat else "")
         )
-    eingang = _fmt_euro(buchung.get("eingangBetrag"))
+    eingang = fmt_euro(buchung.get("eingangBetrag"))
     if eingang:
         zeilen.append(f"- Bereits eingegangen: {eingang}")
     return zeilen
 
 
-def _select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
+def select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
     """Filter + Sortierung des Selektors. Ungültige auswahl → wie "alle"."""
     if auswahl == "kommende":
         sel = [b for b in buchungen if str(b.get("bisDat") or "")[:10] >= heute]
@@ -282,9 +282,9 @@ def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
     von, bis = str(b.get("vonDat") or ""), str(b.get("bisDat") or "")
     teile = [f'„{titel}"']
     if von:
-        teile.append(f"({_fmt_datum(von)}" + (f" – {_fmt_datum(bis)})" if bis else ")"))
+        teile.append(f"({fmt_datum(von)}" + (f" – {fmt_datum(bis)})" if bis else ")"))
     teile.append(f"Buchungsnummer {b.get('vorgang')}")
-    marker = _zeit_marker(von, bis, heute)
+    marker = zeit_marker(von, bis, heute)
     # Welche die nächste ist, steht sonst nur implizit in der Sortierung — und die
     # hat das Modell schon falsch gelesen. Also explizit benennen.
     if ist_naechste and marker == "kommend":
@@ -306,7 +306,7 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
     bis = str(emb.get("bisDat") or buchung.get("bisDat") or "")
     kopf = f'Reise „{titel}"'
     if von and bis:
-        kopf += f" ({_fmt_datum(von)} – {_fmt_datum(bis)})"
+        kopf += f" ({fmt_datum(von)} – {fmt_datum(bis)})"
     zeilen = [kopf + ":", f"- Buchungsnummer: {buchung.get('vorgang') or emb.get('vorgang')}"]
     # status XX = storniert; dann keine Zahlstand-/Flugdaten zeigen.
     if buchung.get("status") != "OK":
@@ -383,7 +383,7 @@ def fetch_buchungen_text(
         return KEINE_BUCHUNGEN_TEXT
 
     heute = _heute()
-    ausgewaehlt = _select(alle, auswahl, anzahl, heute)
+    ausgewaehlt = select(alle, auswahl, anzahl, heute)
     if not ausgewaehlt:
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
 
@@ -396,7 +396,7 @@ def fetch_buchungen_text(
             (
                 i
                 for i, b in enumerate(gezeigt)
-                if _zeit_marker(
+                if zeit_marker(
                     str(b.get("vonDat") or ""), str(b.get("bisDat") or ""), heute
                 )
                 == "kommend"

@@ -43,6 +43,13 @@
       tolerates extra fields, log both flags — never the raw ID (DSGVO: linking
       transcripts to an identified person is a deliberate decision).
 
+## Agentur-Modus (planned 2026-07-30)
+- [ ] **Verified Reiseprofi identity + agency booking data.** Pointer only —
+      **`docs/agentur-modus-plan.md` is authoritative** for status, the measured
+      TourOne agency API contract, the whitelist, the guarantees and the
+      milestones. Do not track state here as well; that is how the Kunden docs
+      drifted apart.
+
 ## Chatbot / Agenturbereich (deferred from 2026-07-06 ship review)
 - [ ] **Log the `is_agentur` flag with chat messages** so agentur conversations
       are distinguishable in the dashboard/Supabase when detection came via

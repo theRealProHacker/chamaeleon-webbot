@@ -59,7 +59,14 @@ def test_chat_stream_threads_agentur_flag(monkeypatch):
     calls = []
 
     def fake_call_stream(
-        messages, endpoint, name, telefon, is_agentur, page_content="", kunden_id=""
+        messages,
+        endpoint,
+        name,
+        telefon,
+        is_agentur,
+        page_content="",
+        kunden_id="",
+        agentur_id="",
     ):
         calls.append(is_agentur)
         yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
@@ -118,7 +125,14 @@ def test_chat_stream_threads_page_content(monkeypatch):
     received = []
 
     def fake_call_stream(
-        messages, endpoint, name, telefon, is_agentur, page_content="", kunden_id=""
+        messages,
+        endpoint,
+        name,
+        telefon,
+        is_agentur,
+        page_content="",
+        kunden_id="",
+        agentur_id="",
     ):
         received.append(page_content)
         yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}

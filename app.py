@@ -12,6 +12,7 @@ from flask_cors import CORS
 from agent import call_stream
 from agent_base import markdownify_page_html
 from kundendaten import filter_new_tool_calls
+import agentur_auth
 import kunden_auth
 import dashboard
 import rate_limit
@@ -107,6 +108,11 @@ def chat_stream():
     # Erst NACH der Typprüfung: resolve() schlägt sonst mit TypeError (500) auf
     # einem unhashbaren session_id aus dem Body auf (JSON-Objekt/-Array).
     kunden_id = "" if is_agentur else (kunden_auth.resolve(session_id) or "")
+    # Die Agenturnummer kommt — wie die kunden_id — NUR aus der serverseitig
+    # verifizierten Bindung, nie aus dem Body. is_agentur allein ist bloß ein
+    # Header-Spiegel und beweist gar nichts; er entscheidet nur über den
+    # Prompt-Modus. Erst diese Bindung schaltet die Buchungsdaten frei.
+    agentur_id = (agentur_auth.resolve(session_id) or "") if is_agentur else ""
 
     messages = messages[:]
     logging_messages = messages[-1:]
@@ -130,6 +136,7 @@ def chat_stream():
                 is_agentur,
                 page_content,
                 kunden_id,
+                agentur_id,
             ):
                 # "Tool gefeuert" beobachtbar machen (stdout, nicht Supabase):
                 # nur Toolname + session_id, nie Argumente oder Kundendaten.
@@ -253,6 +260,37 @@ def kunde_auth():
     )
     if session_id is None:
         # Ohne brauchbare session_id gibt es auch nichts zu lösen.
+        return abort(400, "No session_id provided")
+    return {"authenticated": authenticated}
+
+
+# --- Agentur-Modus auth ---
+#
+# ⚠ Die View heißt agentur_auth_ROUTE, nicht agentur_auth. `def agentur_auth():`
+# auf Modulebene würde das globale Binding überschreiben, das `import
+# agentur_auth` oben angelegt hat — jeder spätere agentur_auth.resolve(...) in
+# chat_stream wirft dann AttributeError → 500 auf JEDEM Agentur-Chat. Nichts
+# fängt das ab: die Testsuite importiert app bewusst nie (das löst
+# Live-Supabase-Reads aus). Der endpoint-Name bleibt "agentur_auth", damit
+# rate_limit.AUTH_ENDPOINTS unverändert passt.
+@app.route("/agentur/auth", methods=["POST"], endpoint="agentur_auth")
+@limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
+def agentur_auth_route():
+    """Verify the agt-Login once and bind die Agenturnummer an die session_id.
+
+    Spiegelt /kunde/auth exakt: erst löschen, dann prüfen, nur committen wenn
+    nichts dazwischenkam. Ein Agentur-Counter ist ein GETEILTER Arbeitsplatz —
+    ein fehlgeschlagener Re-Auth darf dort nie die vorherige Agentur gebunden
+    lassen, sonst sieht der nächste Reiseprofi fremde Buchungen, Provisionen und
+    Endkunden-PII.
+    """
+    data = kunden_auth.coerce_json_body(None, kunden_auth.read_capped_body(request))
+    authenticated, session_id = agentur_auth.authenticate(
+        data,
+        request.headers.get("User-Agent", ""),
+        request.headers.get("Origin", ""),
+    )
+    if session_id is None:
         return abort(400, "No session_id provided")
     return {"authenticated": authenticated}
 

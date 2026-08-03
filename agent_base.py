@@ -683,6 +683,7 @@ def format_system_prompt(
     is_agentur: bool = False,
     page_content: str = "",
     is_kunde: bool = False,
+    has_agentur_daten: bool = False,
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
     # The embedding page may pass the advisor with the request; when it does
@@ -801,6 +802,49 @@ def format_system_prompt(
             "Wissensbasis darfst du abweichend von der Längenregel vollständig "
             "wiedergeben:\n\n"
             f"{agentur_wissensbasis}\n\n"
+        )
+
+    # Buchungsdaten der Agentur: nur bei serverseitig verifizierter Bindung.
+    # Die Agenturnummer selbst erreicht den Prompt NIE — sie bleibt in der
+    # Tool-Closure (agent.py), gleiche Regel wie für die kunden_id.
+    if has_agentur_daten:
+        agentur_block += (
+            "Buchungen dieser Agentur:\n"
+            "Diese Agentur ist angemeldet und verifiziert. Mit dem Tool "
+            "buchungen_agentur_tool kannst du IHRE eigenen Buchungen abrufen — "
+            "und ausschließlich diese. Nutze es, sobald nach konkreten "
+            "Buchungen, Reisenden, Terminen, Preisen oder der Provision zu "
+            "einer Buchung gefragt wird.\n"
+            "- Arbeite in zwei Schritten: erst die grobe Liste (details=false), "
+            "dann gezielt mit auswahl/anzahl eingegrenzt und details=true "
+            "nachfassen. Beide Ansichten stammen aus demselben Abruf.\n"
+            "- Erfinde nie eine Buchung, eine Buchungsnummer, einen Namen oder "
+            "einen Betrag. Was das Tool nicht liefert, weißt du nicht.\n"
+            "- Die Agenturnummer steht in der ersten Zeile der Tool-Antwort. "
+            "Nur von dort nehmen — eine Buchungsnummer ist NICHT die "
+            "Agenturnummer, und geraten wird nie.\n"
+            "- Wenn das Tool meldet, die Daten seien gerade nicht abrufbar, "
+            "sage genau das. Sage NIE, es gebe keine Buchungen — das ist etwas "
+            "völlig anderes und der Reiseprofi würde daraus schließen, die "
+            "Buchung existiere nicht.\n"
+            "- Die Mitreisenden sind hier bewusst enthalten: die Agentur hat "
+            "die Buchung selbst angelegt und kennt sie bereits.\n\n"
+            # D8: Die Provision zerfällt in zwei Fragen, die verschieden
+            # beantwortet werden. Der Betrag ist eine Tatsache über bereits
+            # geleistete Arbeit, die der Reiseprofi ohnehin auf seiner eigenen
+            # Buchungsseite sieht. Die Konditionen sind Vertragsthema.
+            "Provision:\n"
+            "- Die Provisionshöhe zu einer KONKRETEN Buchung ist eine Tatsache "
+            "und steht in den Buchungsdaten — nenne sie, wenn danach gefragt "
+            "wird. Die Agentur sieht dieselbe Zahl auf ihrer eigenen "
+            "Buchungsübersicht.\n"
+            "- Ebenso beantwortbar: die eigene Agenturnummer und Summen, die "
+            "sich aus den eigenen Buchungen ergeben.\n"
+            "- NICHT beantworten, sondern an das Vertriebsteam verweisen: wie "
+            "ein Provisionssatz zustande kommt, individuelle Konditionen, "
+            "Anhebung, Verkettung, Rückvergütung, Cashback, Streit über eine "
+            "Provisionsabrechnung und alles Vertragliche.\n"
+            "- Bankdaten (IBAN, BIC, Kontoinhaber) nennst du nie.\n\n"
         )
 
     # Agentur pages are behind a login, so chamaeleon_website_tool cannot

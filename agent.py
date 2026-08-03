@@ -20,6 +20,7 @@ from agent_base import (
     visa_tool_description,
     website_tool_description,
 )
+from agenturdaten import make_buchungen_agentur_tool
 from kundendaten import make_buchungen_tool
 
 # Initialize the model
@@ -92,6 +93,7 @@ def call_stream(
     is_agentur: bool = False,
     page_content: str = "",
     kunden_id: str = "",
+    agentur_id: str = "",
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -106,6 +108,9 @@ def call_stream(
             already markdownified and capped by markdownify_page_html
         kunden_id: Validated ID of the logged-in MeinChamäleon customer
             (already through parse_kunden_id); "" outside Kunden-Modus
+        agentur_id: Agenturnummer from the server-side verified binding;
+            "" unless the agency is authenticated. is_agentur alone is only a
+            header mirror and never unlocks booking data.
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -125,6 +130,7 @@ def call_stream(
         is_agentur,
         page_content,
         is_kunde=bool(kunden_id),
+        has_agentur_daten=bool(agentur_id),
     )
 
     # Convert messages to LangChain format
@@ -146,6 +152,11 @@ def call_stream(
     ]
     if kunden_id:
         tools.append(make_buchungen_tool(kunden_id))
+    # Analog für die Agentur: das Tool existiert nur bei verifizierter Bindung
+    # und ist per Closure an genau diese Agenturnummer gebunden. is_agentur
+    # allein reicht nicht — das ist nur ein Header-Spiegel.
+    if agentur_id:
+        tools.append(make_buchungen_agentur_tool(agentur_id))
     agent_executor = create_react_agent(model, tools=tools)
 
     try:
@@ -225,6 +236,7 @@ def call(
     is_agentur: bool = False,
     page_content: str = "",
     kunden_id: str = "",
+    agentur_id: str = "",
 ) -> str:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
@@ -239,6 +251,8 @@ def call(
             already markdownified and capped by markdownify_page_html
         kunden_id: Validated ID of the logged-in MeinChamäleon customer
             (already through parse_kunden_id); "" outside Kunden-Modus
+        agentur_id: Agenturnummer from the server-side verified binding;
+            "" unless the agency is authenticated
 
     Returns:
         str: The reply rendered as HTML
@@ -251,6 +265,7 @@ def call(
         is_agentur,
         page_content,
         kunden_id,
+        agentur_id,
     ):
         if event["type"] == "response":
             return event["data"]["reply"]
