@@ -172,6 +172,15 @@ concurrently bound sessions, a 100,000-IP botnet saturating the 100/h/IP limit
 needs **4.9 × 10⁸ years** on average. From a single IP: 4.9 × 10¹³ years, roughly
 3,600× the age of the universe. Do not spend effort here.
 
+> **Note, 2026-08-02 — the cap in this calculation is historical.**
+> `rate_limit.MESSAGE_LIMIT` went from 100/h to **200/h** with Agentur-Modus (an
+> agency counter sits behind one office NAT and the limiter counts per IP), so
+> every figure above halves: 2.5 × 10⁸ years and 2.5 × 10¹³ years. The verdict is
+> unchanged, and deliberately so — the conclusion was never close enough to the
+> line for a factor of two to matter, which is the reason it was safe to raise the
+> cap without re-deriving anything. Kept as written because this document is
+> history, not instructions; `docs/kunden-auth-spec.md` carries the live number.
+
 ### The generator
 
 ```js

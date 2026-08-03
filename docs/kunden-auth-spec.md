@@ -425,8 +425,8 @@ signature check. `unbind`/`bind`/`resolve`, the route, the rate-limit path and
   fails closed; the residual is the open tab. Shortening it downgrades customers
   mid-conversation.
 - **`/kunde/auth` is an `ss.php` oracle and IP-laundering proxy.** Inherent to
-  the transport. Bounded by returning only a bool and the 100/h/IP cap.
-- **100/h on `/kunde/auth`, not tighter than chat.** Tighter re-introduces the
+  the transport. Bounded by returning only a bool and the 200/h/IP cap.
+- **The same cap on `/kunde/auth` as on chat, not tighter.** Tighter re-introduces the
   false-positive class that suspended the old 15/h limit; NAT'd customers share
   an IP.
 - **`ss.php` over-exposes the session** (hash, salt, PII to any cookie-bearer).
@@ -550,7 +550,7 @@ Added by the 2026-07-29 independent review, none of them blocking:
 
 8. **`/kunde/auth` is an unauthenticated unbind primitive.** No proof of
    ownership is needed to clear a `session_id`, and the 429 path unbinds too. On
-   a shared egress IP an attacker can burn the dedicated 100/h bucket and keep an
+   a shared egress IP an attacker can burn the dedicated hourly bucket and keep an
    entire office out of Kunden-Modus indefinitely. Fails *closed*, so this is
    availability, not disclosure — but it is cheap and unauthenticated.
 9. **`rate_limit.AUTH_ENDPOINT` is a hardcoded `"kunde_auth"`** matched against
@@ -569,7 +569,7 @@ Added by the 2026-07-29 independent review, none of them blocking:
 
 ## 10. API reference
 
-**`POST /kunde/auth`** — rate limit 100/h/IP, loopback exempt.
+**`POST /kunde/auth`** — rate limit 200/h/IP, loopback exempt (`rate_limit.MESSAGE_LIMIT`, raised from 100 on 2026-08-02 with Agentur-Modus: an agency counter sits behind ONE office NAT and the limiter counts per IP).
 
 ```jsonc
 // request

@@ -18,6 +18,13 @@ It does **not** answer *who is allowed to be that customer* — that is the auth
 question, and `docs/kunden-auth-spec.md` owns it. See "Rules for changing this"
 below for how the two meet today.
 
+**Since 2026-08-04 this file covers both modes.** Everything above and in the
+next sections is Kunden-Modus. The agency half — what `agenturdaten.py` reaches
+and what of it crosses to Gemini — is the last section, "Agentur-Modus". The two
+whitelists **differ on purpose**; the divergence is documented there and must not
+be unified in either direction. `docs/agentur-modus-plan.md` stays authoritative
+for that feature's status, contract and open questions.
+
 ## Reference customer
 
 - **`999999999`** (nine nines) — the designated test customer, fully populated.
@@ -260,3 +267,105 @@ in addition to the flight fields — grounded in the chat analysis (payment is t
 provision/agency and tax/currency detail stay out. Under a spoofed ID the
 exposure now includes the customer's financials, which is why the auth work is
 the head of this feature's critical path (`docs/kunden-auth-spec.md`).
+
+---
+
+# Agentur-Modus — TourOne agency data access surface
+
+Shipped 2026-08-04 (server half M1–M4). Folded in here because §6 of
+`docs/agentur-modus-plan.md` requires it on ship; **that plan stays authoritative**
+for status, the measured API contract, milestones and open questions. This section
+answers only the one question this file exists for: *what crosses the model
+boundary.*
+
+The same rule applies as above — fetching the full record from TourOne is fine,
+it stays in process memory and is never persisted. What must stay minimal is what
+enters a Gemini request.
+
+## The difference that matters: the payload is PII-heavy from the first call
+
+`GET /get/buchungLeistungenListe?agenturNummer=…` returns, per booking, the end
+customer's **street, postcode, town and phone** plus the agency's **commission** —
+whether we want them or not. There is no field projection. So on this path the
+whitelist is not bookkeeping, it is the whole control.
+
+## What crosses to Gemini
+
+**Hop 1** — per booking: trip title, date range (`leistungVonDat`/`leistungBisDat`
+only, never the `DDMMYY` `VonDatum`/`BisDatum`), `vorgangsNummer`, cancellation
+status, the **name** of the Besteller, per-booking commission amount, total price,
+**traveller names**, and the individual `LEISTUNGEN[]` lines (label, dates,
+cancelled flag).
+
+**Hop 2** (`details=true`) — adds the authoritative trip title, headcount split
+(`persAdult`/`persChild`/`persBaby`), the Zahlstand (Gesamtpreis, Anzahlung,
+offener Betrag + due dates, bereits eingegangen) and the six whitelisted flight
+fields. The Zahlstand is the whole reason hop 2 exists: "is this booking paid" is
+the counter's core question and appears nowhere in hop 1.
+
+**Deliberately out:** `KUNDE.StrasseHausNummer` / `Postleitzahl` / `Ort` /
+`TelefonNummer`; `adr*` contact and emergency fields; `chroniken[]` and
+`bookNotiz` (internal notes); `pnrFileKey` and all internal ids; every `*Cy` and
+`steuer*` field; `MeldeAgenturNummer` and `LeistungKostentraeger`; agency master
+data (`bankIban`, `bankBic`, `kontoInhaber`, `ustIdent`, …) and `provisionsSchemas[]`.
+Also out, and not for privacy: hop 2's `provision` / `eigenProvBetrag`, whose
+format was never measured — see the commission note below.
+
+## The two deliberate divergences from Kunden-Modus
+
+**D9 — traveller names are IN for agencies, OUT for customers.** `kundendaten.py`
+says "Bewusst DRAUSSEN: Mitreisende-PII"; `agenturdaten.py` includes
+`TEILNEHMERS[].Name`. **This asymmetry is intentional and must not be "fixed" in
+either direction.** A customer asking who else is on their booking and an agency
+asking about guests it entered itself are different situations: the agency created
+the record and already sees those names on its own booking overview. Note the API
+cannot express anything finer — scope is per *booking*, not per data entry, so
+`TEILNEHMERS[]` has no provenance field and a co-traveller the customer added later
+is indistinguishable from one the agency typed.
+
+**D8 — the commission amount is a fact, the commission system is a referral.**
+Two different mechanisms, and conflating them was the first draft's mistake. The
+*field whitelist* decides what data exists in the request: the per-booking
+commission is in, because the agency reads the same number on its own overview and
+the KB already answers factual commission questions itself. The *prompt* decides
+which questions get answered: how a rate is determined, individual conditions,
+raising it, Verkettung, Rückvergütung, cashback and any billing dispute go to the
+Vertriebsteam. Excluding the field to honour a topic policy would have made the bot
+unable to state a number the user can already see, while doing nothing about the
+questions the policy actually targets.
+
+**Measured 2026-08-03 (284 bookings / 12 agencies):** `ACTION.AgenturCommission`
+is a **euro amount, not a rate** — 280/280 match the sum of
+`LEISTUNGEN[].AgenturCommissionPreis` exactly. This needed measuring because the
+siblings in the same payload split into `…Preis` and `…Prozent`, so the unsuffixed
+name answered nothing, and rendering a rate as euros would be a confident wrong
+number about money. Hop 2's `provision`/`eigenProvBetrag` are still unmeasured and
+therefore still out.
+
+## The invariant to protect
+
+Everything in the Kunden-Modus list above applies, plus one that is specific to
+this path and is the reason it is safe at all:
+
+- **The tool never takes an Agenturnummer.** `make_buchungen_agentur_tool` closes
+  over the bound number; `auswahl`/`anzahl`/`details` only slice that agency's own
+  bookings. The model may choose *which* of its own bookings and at what depth —
+  never *whose*. Prompt injection cannot cross an agency boundary.
+- **The Agenturnummer never enters the system prompt.** Same rule as `kunden_id`.
+  It reaches the model only through the tool's own output, where it is evidenced
+  rather than guessed — without that, the model invented one (measured 2026-08-02:
+  asked for the Agenturnummer it answered with the first *booking* number).
+- **G2** — omitting `agenturNummer` returns HTTP 200 with the whole tenant's
+  223,588 bookings. Every hop-1 request goes through `_agentur_get`, which refuses
+  at the transport boundary. `requests` drops `None`-valued params silently, so
+  this failure mode comes from library behaviour, not from an `if` of ours.
+- **G3** — every hop-1 row is re-checked against the bound number, comparing
+  `ACTION.AgenturNummer` and never `mandantAgtNr` (that is Chamäleon itself) or
+  `MeldeAgenturNummer` (a third party). Rows in, zero rows out is a bug signature,
+  not an empty agency, and renders as "not currently reachable".
+- **G3 on hop 2** — `/get/buchung` has *no* agency filter; the only binding is
+  that the `vorgangsNummer` came from an already-checked hop-1 row, so the returned
+  `agtNr` is verified independently. A missing `agtNr` fails closed.
+
+All five are pinned by mutation-verified tests as of 2026-08-04; see plan §11.1
+for what stayed open.
