@@ -265,7 +265,7 @@ Guessing is last. The token's risk is **storage and distribution**, not entropy:
    This is the realistic remote attack.
 3. **The dashboard** — serves live `session_id` values and, unlike `/chat/stream`
    and `/kunde/auth`, carries **no rate limit at all** (`default_limits=[]`, no
-   `@limiter.limit` on any dashboard route). `DASHBOARD_PASSWORD` is now
+   `@limiter.limit` on any dashboard route). `LOGGING_PASSWORD` is now
    mandatory, but it is open to unthrottled online guessing with the username
    defaulting to `admin`.
 4. **Shared / kiosk browsers** — mitigated by unbind-before-verify, but only if
@@ -445,7 +445,7 @@ its own reviewer, so nothing was taken on trust):
 
 ### Outside voice — OV6: dashboard password now mandatory (FIXED, owner decision)
 
-**`DASHBOARD_PASSWORD` used to fall back to the literal `"change-me"`**
+**`LOGGING_PASSWORD` used to fall back to the literal `"change-me"`**
 (`dashboard.py`), while `/api/dashboard` serves `session_id` values. This plan
 turns `session_id` into an auth token, so the documented "a dashboard reader can
 lift it" risk silently changed meaning: with the fallback in force and the env var
@@ -454,9 +454,9 @@ session_ids and replay them against `/chat/stream` to read those customers'
 Buchungen and Zahlstand.
 
 **Owner decision 2026-07-28: the default is removed and startup fails without it.**
-`API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")` plus a `RuntimeError`
+`API_PASSWORD = os.environ.get("LOGGING_PASSWORD", "")` plus a `RuntimeError`
 naming the variable and why it matters. Verified both directions: with
-`DASHBOARD_PASSWORD=""` the import raises; with it set the app boots and
+`LOGGING_PASSWORD=""` the import raises; with it set the app boots and
 `check_auth` accepts only the real credentials. `check_auth` also moved to
 `hmac.compare_digest` so a wrong password cannot be recovered by timing.
 
@@ -586,7 +586,7 @@ silent AND untested AND unhandled — **0 critical gaps.**
 - **VERDICT:** ENG CLEARED — v2 implemented locally, 49 tests passing, **not pushed**.
   Sign-off gate stands. Remaining gates: C1 (DevTools), C2/C3 (one curl against the
   deployed route). A failed C2 means revert and switch to the signed-token fallback.
-  Deploy prerequisite: `DASHBOARD_PASSWORD` must exist on Railway before the push, or
+  Deploy prerequisite: `LOGGING_PASSWORD` must exist on Railway before the push, or
   the service will refuse to boot by design.
 - **Those gates have since closed** (2026-07-29): a third review round fixed 3 more
   findings, then M4 (C1), M2 (push) and M3 (C2/C3, `authenticated:true`) all passed.

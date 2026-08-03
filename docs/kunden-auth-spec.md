@@ -30,11 +30,11 @@ Last updated 2026-07-30.
 | `kunden_auth.py` — verify / begin_auth / commit_auth / resolve | **DONE**, 39 unit tests | — |
 | `app.py` — `POST /kunde/auth`, `/chat/stream` binding lookup | **DONE** | — |
 | `rate_limit.py` — 429 clears the binding, JSON response | **DONE** | — |
-| `dashboard.py` — `DASHBOARD_PASSWORD` mandatory | **DONE** | — |
+| `dashboard.py` — `LOGGING_PASSWORD` mandatory | **DONE** | — |
 | Docs aligned (`README`, `TODOS`, datenzugriff, plan) | **DONE** 2026-07-29 — no file claims the IDOR is closed | — |
 | Independent review, round 2 (2026-07-29) | **DONE** — 5 fixed: bind/unbind race under gevent, unbind-skipping body paths, `compare_digest` on non-ASCII, `$` anchor, loose Kundennummer gate | — |
 | Independent review, round 3 (2026-07-29) | **DONE** — 3 more fixed: body-read memory amplification *introduced by round 2*, nested-key parse bug, endpoint-name coupling. One finding **not** closeable in code → §8 | — |
-| `DASHBOARD_PASSWORD` set on Railway | **DONE** — confirmed by owner 2026-07-29 | owner |
+| `LOGGING_PASSWORD` set on Railway | **DONE** — confirmed by owner 2026-07-29 | owner |
 | Sign-off + push | **DONE** 2026-07-29 — `2976e85`; service booted, `/kunde/auth` answers 400, proxy healthy | — |
 | C2/C3 verification (one curl) | **DONE** 2026-07-29 — `{"authenticated":true}` against the deployed route with a test account. Session is portable to Railway's egress IP; `PHPSESSID` is the only cookie `ss.php` needs | — |
 | C1 — widget is not a cross-origin iframe | **DONE** — verified live 2026-07-29 | — |
@@ -132,10 +132,10 @@ Browser on chamaeleon page (logged in)      Our backend (different origin)     c
 unbind) is skipped entirely and the endpoint fails *open*. Parses the body the
 same lenient way the view does, for the same reason.
 
-**`dashboard.py`** — `DASHBOARD_PASSWORD` has no default; startup raises without
+**`dashboard.py`** — `LOGGING_PASSWORD` has no default; startup raises without
 it. `check_auth` uses `hmac.compare_digest` **on utf-8 bytes**: on `str` it
 raises `TypeError` for non-ASCII, which would have turned any umlaut in a
-Basic-Auth header into an unauthenticated 500 — and a `DASHBOARD_PASSWORD`
+Basic-Auth header into an unauthenticated 500 — and a `LOGGING_PASSWORD`
 containing `ä` or `€` into a total lockout, since every attempt including the
 correct one would raise. The boot check only catches an *empty* password.
 
@@ -146,7 +146,7 @@ fails the suite. Run: `python -m pytest tests/test_kunden_auth.py -q`
 
 ## 4. What is MISSING — the remaining work
 
-### M1. `DASHBOARD_PASSWORD` on Railway — DONE (confirmed by owner 2026-07-29)
+### M1. `LOGGING_PASSWORD` on Railway — DONE (confirmed by owner 2026-07-29)
 The service **refuses to boot** without it, so this had to be in place before the
 push. Owner confirmed the Railway service variable exists. Nothing further.
 
@@ -162,7 +162,7 @@ M5 ships.
 
 Pre-push checklist:
 
-1. `DASHBOARD_PASSWORD` exists on Railway — **the service will not boot without
+1. `LOGGING_PASSWORD` exists on Railway — **the service will not boot without
    it.** (M1, confirmed 2026-07-29. Re-check if the service was recreated.)
 2. Non-live suite green: `python -m pytest tests/test_general.py
    tests/test_kunden_auth.py tests/test_kundendaten.py tests/test_previews.py
@@ -374,7 +374,7 @@ throttled).
 ## 6. Go-live sequence
 
 ```
-M1 DASHBOARD_PASSWORD  ✔ done
+M1 LOGGING_PASSWORD  ✔ done
 M4 C1 DevTools check   ✔ done 2026-07-29 — both halves, cookie is JS-readable
                                                           │
 M2 sign-off + push ✔ ────────────► M3 curl (C2+C3) ✔ true ┤
@@ -524,7 +524,7 @@ signature check. `unbind`/`bind`/`resolve`, the route, the rate-limit path and
 
 1. **Rate-limit the dashboard.** It serves live `session_id` values and has **no
    limit at all** (`default_limits=[]`; no `@limiter.limit` on any dashboard
-   route), so `DASHBOARD_PASSWORD` is open to unthrottled online guessing with
+   route), so `LOGGING_PASSWORD` is open to unthrottled online guessing with
    the username defaulting to `admin`.
 2. **Split the log key from the credential.** `session_id` is both the Supabase
    log key and the bearer token. A separate random log id is a few lines and
