@@ -85,6 +85,26 @@ def escape_genderstern(text: str) -> str:
     return "".join(parts)
 
 
+# Ein sauber beendeter Modellzug meldet STOP — auch der, der ein Tool aufruft.
+# Alles andere ist ein Vorfall: MALFORMED_FUNCTION_CALL (Gemini wollte ein Tool
+# aufrufen und hat ungültiges JSON erzeugt), SAFETY/RECITATION/
+# PROHIBITED_CONTENT (Antwort verworfen) oder MAX_TOKENS (Budget aufgebraucht).
+_NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn", ""}
+
+
+def auffaelliger_finish_reason(message) -> str:
+    """Return ``message``'s finish_reason if it is anything but a normal stop.
+
+    Empty string when the message carries no finish_reason at all (System-,
+    Human- und Tool-Nachrichten) or when the step ended normally.
+    """
+    metadata = getattr(message, "response_metadata", None) or {}
+    grund = metadata.get("finish_reason") or ""
+    if not isinstance(grund, str):
+        grund = str(grund)
+    return "" if grund in _NORMALE_FINISH_REASONS else grund
+
+
 def call_stream(
     messages: list,
     endpoint: str,
@@ -158,55 +178,132 @@ def call_stream(
     if agentur_id:
         tools.append(make_buchungen_agentur_tool(agentur_id))
     agent_executor = create_react_agent(model, tools=tools)
+    # Nur die NAMEN der gebundenen Tools — sie erklären den Verdacht (im
+    # Kunden-/Agentur-Modus ist ein Tool mehr gebunden), enthalten aber keine
+    # Kundendaten.
+    gebundene_tools = [getattr(t, "name", str(t)) for t in tools]
 
     try:
-        # Stream the agent execution
-        events = []
-        for event in agent_executor.stream(
-            {"messages": chat_history}, stream_mode="values"
-        ):
-            events.append(event)
+        # Gemini liefert gelegentlich eine leere Antwort: gemessen 26 von 1343
+        # Assistant-Turns (1,9 %, 12 von 600 Gesprächen). Ungeprüft rendert das
+        # Widget daraus eine leere Blase, speichert sie als Verlauf und schickt
+        # sie beim nächsten Mal als History mit — das Modell hält die alte Frage
+        # dann für unbeantwortet und beantwortet SIE statt der neuen, die
+        # Antworten laufen also um eine Frage versetzt weiter.
+        #
+        # Weitere Versuche sind hier billig, weil genau der Fehlerfall schnell
+        # ist: alle 26 leeren Antworten kamen in unter 3 s zurück (Median 0,74 s,
+        # ein einzelner Modellzug ohne Tool-Aufruf), während echte Antworten im
+        # Median 2,09 s und bis zu 18 s brauchen. Drei Versuche kosten im
+        # schlimmsten Fall rund 2 s und bleiben weit unter dem 30-Sekunden-
+        # Abbruch des Widgets. Eine gute Antwort kostet weiterhin genau einen
+        # Modelllauf — der Retry ist keine Steuer auf jede Nachricht.
+        reply = ""
+        for versuch in (1, 2, 3):
+            # Stream the agent execution
+            events = []
+            # Ein kaputter Tool-Aufruf ist auch dann das Signal, das wir suchen,
+            # wenn der Graph sich danach fängt: das Modell korrigiert sich im
+            # nächsten Schritt, der Kunde bekommt eine gute Antwort — und im
+            # Leer-Pfad unten sähen wir davon nie etwas. Deshalb wird JEDE
+            # Nachricht geprüft, nicht nur die letzte. stream_mode="values"
+            # liefert bei jedem Event die GESAMTE Historie erneut (siehe
+            # kundendaten.filter_new_tool_calls), deshalb der Set: sonst stünde
+            # ein Vorfall einmal pro Folge-Event im Log. Der Set lebt pro
+            # Versuch, damit ein zweiter Lauf seine eigenen Vorfälle meldet.
+            gemeldete_vorfaelle: set = set()
+            for event in agent_executor.stream(
+                {"messages": chat_history}, stream_mode="values"
+            ):
+                events.append(event)
 
-            # Check if there are new messages with tool calls
-            if "messages" in event:
-                messages = event["messages"]
-                for message in messages:
-                    # Check for tool calls in AI messages
-                    if hasattr(message, "tool_calls") and message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            yield {
-                                "type": "tool_call",
-                                "data": {
-                                    "name": tool_call["name"],
-                                    "args": tool_call["args"],
-                                    "id": tool_call.get("id", ""),
-                                },
-                            }
+                # Check if there are new messages with tool calls
+                if "messages" in event:
+                    for message in event["messages"]:
+                        # Auffälliger finish_reason — nur Metadaten ins Log:
+                        # Toolnamen, Zähler, Token-Verbrauch. Nie Nachrichten-
+                        # text, nie Tool-Argumente, nie eine Kundennummer.
+                        grund = auffaelliger_finish_reason(message)
+                        if grund:
+                            schluessel = getattr(message, "id", None) or id(message)
+                            if schluessel not in gemeldete_vorfaelle:
+                                gemeldete_vorfaelle.add(schluessel)
+                                namen = [
+                                    tc.get("name", "")
+                                    for tc in (
+                                        getattr(message, "tool_calls", None) or []
+                                    )
+                                ]
+                                print(
+                                    f"[agent] auffälliger finish_reason={grund!r} "
+                                    f"versuch={versuch}/3 "
+                                    f"tool_calls={namen} "
+                                    f"tools_gebunden={gebundene_tools} "
+                                    f"nachrichten={len(event['messages'])} "
+                                    f"usage={getattr(message, 'usage_metadata', None)}"
+                                )
 
-                    # Check for tool responses
-                    if hasattr(message, "content") and isinstance(
-                        message.content, list
-                    ):
-                        for content_item in message.content:
-                            if (
-                                isinstance(content_item, dict)
-                                and content_item.get("type") == "tool_result"
-                            ):
+                        # Check for tool calls in AI messages
+                        if hasattr(message, "tool_calls") and message.tool_calls:
+                            for tool_call in message.tool_calls:
                                 yield {
-                                    "type": "tool_response",
+                                    "type": "tool_call",
                                     "data": {
-                                        "tool_call_id": content_item.get(
-                                            "tool_call_id", ""
-                                        ),
-                                        "content": content_item.get("content", ""),
+                                        "name": tool_call["name"],
+                                        "args": tool_call["args"],
+                                        "id": tool_call.get("id", ""),
                                     },
                                 }
 
-        # Get the final response
-        response = events[-1]
+                        # Check for tool responses
+                        if hasattr(message, "content") and isinstance(
+                            message.content, list
+                        ):
+                            for content_item in message.content:
+                                if (
+                                    isinstance(content_item, dict)
+                                    and content_item.get("type") == "tool_result"
+                                ):
+                                    yield {
+                                        "type": "tool_response",
+                                        "data": {
+                                            "tool_call_id": content_item.get(
+                                                "tool_call_id", ""
+                                            ),
+                                            "content": content_item.get("content", ""),
+                                        },
+                                    }
 
-        # Extract reply from response
-        reply = response["messages"][-1].content
+            # Get the final response and extract the reply
+            letzte = events[-1]["messages"][-1] if events else None
+            reply = getattr(letzte, "content", "") if letzte is not None else ""
+
+            if isinstance(reply, str) and reply.strip():
+                break
+
+            # WARUM die Antwort leer war, steht in den Metadaten der Nachricht —
+            # und war bisher weg, sobald der Turn durch war. finish_reason trennt
+            # die Fälle sauber: MALFORMED_FUNCTION_CALL (Gemini wollte ein Tool
+            # aufrufen und hat ungültiges JSON erzeugt — passt zum Kunden-Modus,
+            # wo ein Tool mehr gebunden ist), SAFETY/RECITATION/PROHIBITED_CONTENT
+            # (Antwort verworfen, ohne Text) oder MAX_TOKENS (Denk-Tokens haben
+            # das Budget aufgebraucht). Feuert nur im Fehlerfall, also ~26 Zeilen
+            # auf 600 Gespräche.
+            print(
+                f"[agent] leere Modellantwort, Versuch {versuch}/3 "
+                f"finish_reason={(getattr(letzte, 'response_metadata', None) or {}).get('finish_reason')!r} "
+                f"tool_calls={len(getattr(letzte, 'tool_calls', None) or [])} "
+                f"usage={getattr(letzte, 'usage_metadata', None)}"
+            )
+
+        if not isinstance(reply, str) or not reply.strip():
+            # Lieber ein ehrlicher Satz als eine leere Blase: der Kunde sieht,
+            # dass etwas schiefging, und die Antwort landet nicht als leerer
+            # Turn im Verlauf, der die nächste Frage verschieben würde.
+            reply = (
+                "Entschuldige, da ist mir gerade keine Antwort gelungen. "
+                "Stell mir die Frage gerne noch einmal."
+            )
 
         # Extract recommendations
         recommendations.update(detect_recommendation_links(reply))
