@@ -375,9 +375,15 @@ def authenticate(
     if not committed:
         print("[kunden_auth] superseded by a newer auth for the same session")
     authenticated = bool(kunden_id) and committed
-    # Only prod visibility for Kunden-Modus: ungated, but once per chat open
-    # rather than per message. Never the Kundennummer, never the token.
-    print(f"[kunden_auth] authenticated={authenticated}")
+    # Der frühere ungated print("authenticated=…") ist raus. Sein Kommentar
+    # behauptete "einmal pro Chat-Öffnung" — tatsächlich ruft das Widget
+    # authenticateSession() beim SEITENAUFRUF auf, also bei jedem Klick durch
+    # die Site. Im Prod-Log vom 2026-08-04 waren das rund 70 Zeilen zwischen
+    # 09:09 und 13:45, von einem einzigen Testhost (leon.chamdev). Auf www
+    # hochgerechnet ist das die Größenordnung Zehntausende pro Tag, für ein
+    # Signal, das nichts trägt: der Normalfall ist False (jeder ausgeloggte
+    # Seitenaufruf). Die aussagekräftigen Zeilen bleiben — superseded oben,
+    # ss.php-Fehler und Statuscodes in verify_meinchamaeleon_session().
     return authenticated, session_id
 
 

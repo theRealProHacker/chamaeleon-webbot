@@ -246,6 +246,7 @@ def authenticate(
     if not committed:
         print("[agentur_auth] superseded by a newer auth for the same session")
     authenticated = bool(agentur_id) and committed
-    # Never the Agenturnummer, never the token.
-    print(f"[agentur_auth] authenticated={authenticated}")
+    # Wie im Kundenpfad entfernt: eine Zeile pro Seitenaufruf, sobald ein
+    # agt-Host das neue Widget ausliefert. Die Anomalien bleiben — superseded
+    # oben, unbekannter Origin und ss.php-Statuscodes weiter unten.
     return authenticated, session_id
