@@ -229,3 +229,91 @@ def test_jeder_versuch_meldet_seinen_eigenen_vorfall(monkeypatch, capsys):
     assert len(zeilen) == 2, f"pro Versuch ein Vorfall, {zeilen}"
     assert "versuch=1/3" in zeilen[0] and "versuch=2/3" in zeilen[1]
     assert "Alles klar!" in _reply(events)
+
+
+# --- Wächter gegen die Befunde des Reviews ------------------------------------
+
+
+def test_listen_content_ist_eine_echte_antwort(monkeypatch):
+    """Gemini liefert content als Blockliste, sobald Thinking-Blöcke dabei sind.
+
+    Ohne Normalisierung gilt eine vollständig richtige Antwort als leer, wird
+    dreimal wiederholt und am Ende durch den Entschuldigungssatz ersetzt — der
+    Kunde bekäme ein Scheitern gemeldet, während die Antwort danebenliegt.
+    """
+    inhalt = [
+        {"type": "text", "text": "Deine nächste Reise ist die "},
+        {"type": "text", "text": "Éire-Reise."},
+    ]
+    executor, events = _run(monkeypatch, [inhalt])
+    assert executor.runs == 1, "eine gute Antwort darf keinen Retry auslösen"
+    assert "Éire" in _reply(events)
+
+
+def test_leere_blockliste_zaehlt_als_leer(monkeypatch):
+    executor, events = _run(monkeypatch, [[], "Alles klar!"])
+    assert executor.runs == 2
+    assert "Alles klar!" in _reply(events)
+
+
+def test_deterministischer_abbruchgrund_wird_nicht_wiederholt(monkeypatch):
+    """SAFETY & Co. kommen bei identischem Input identisch zurück.
+
+    Ein zweiter Lauf kostet nur Tokens und wiederholt jeden Tool-Abruf.
+    """
+    for grund in ("SAFETY", "RECITATION", "PROHIBITED_CONTENT", "MAX_TOKENS"):
+        executor = _StreamExecutor([[_Msg("", finish_reason=grund, msg_id="m1")]])
+        monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
+        events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
+        assert executor.runs == 1, f"{grund} darf keinen zweiten Versuch auslösen"
+        assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+
+
+def test_normales_stop_wird_weiterhin_wiederholt(monkeypatch):
+    """Die gemessene Signatur: sauberes STOP, trotzdem kein Text."""
+    executor = _StreamExecutor([[_Msg("", finish_reason="STOP", msg_id="m1")]])
+    monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
+    list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
+    assert executor.runs == agent._MAX_VERSUCHE
+
+
+def test_zeitbudget_stoppt_weitere_versuche(monkeypatch):
+    """Ein langsamer Lauf darf den 30-Sekunden-Abbruch des Widgets nicht reißen."""
+    uhr = iter([0.0, agent._RETRY_ZEITBUDGET_S + 1.0, 99.0, 99.0])
+    monkeypatch.setattr(agent.time, "monotonic", lambda: next(uhr))
+    executor, events = _run(monkeypatch, ["", "", ""])
+    assert executor.runs == 1, "nach Überschreiten des Budgets kein weiterer Lauf"
+    assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+
+
+def test_leerer_stream_faellt_sauber_zurueck(monkeypatch):
+    """events[-1] gab es früher ungeschützt — ein leerer Stream war ein IndexError."""
+    executor = _StreamExecutor([])
+    monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
+    events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
+    assert [e.get("type") for e in events] == ["response"]
+    assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+
+
+def test_fremder_toolname_wird_nicht_ins_log_uebernommen(monkeypatch, capsys):
+    """Der Toolname kommt roh aus der Modellantwort, ungeprüft gegen die Tools."""
+    kaputt = _Msg(
+        "",
+        finish_reason="MALFORMED_FUNCTION_CALL",
+        tool_calls=[{"name": "ERFUNDEN_vom_modell", "args": {}, "id": "t1"}],
+        msg_id="m1",
+    )
+    _run_stream(monkeypatch, [[kaputt]])
+    zeile = _vorfall_zeilen(capsys)[0]
+    assert "ERFUNDEN_vom_modell" not in zeile
+    assert "<unbekannt>" in zeile
+
+
+def test_vorfallzeilen_sind_pro_versuch_gedeckelt(monkeypatch, capsys):
+    """Eine Schleife im Modell darf nicht Dutzende Zeilen aus einer Anfrage machen."""
+    viele = [
+        _Msg("", finish_reason="MALFORMED_FUNCTION_CALL", msg_id=f"m{i}")
+        for i in range(12)
+    ]
+    _run_stream(monkeypatch, [viele])
+    assert len(_vorfall_zeilen(capsys)) == agent._MAX_VORFALL_ZEILEN

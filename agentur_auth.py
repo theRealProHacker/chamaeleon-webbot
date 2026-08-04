@@ -248,5 +248,6 @@ def authenticate(
     authenticated = bool(agentur_id) and committed
     # Wie im Kundenpfad entfernt: eine Zeile pro Seitenaufruf, sobald ein
     # agt-Host das neue Widget ausliefert. Die Anomalien bleiben — superseded
-    # oben, unbekannter Origin und ss.php-Statuscodes weiter unten.
+    # oben, unbekannter Origin und ss.php-Statuscodes in
+    # verify_agentur_session().
     return authenticated, session_id

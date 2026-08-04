@@ -1,4 +1,5 @@
 import re
+import time
 
 import mistune
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
@@ -89,7 +90,29 @@ def escape_genderstern(text: str) -> str:
 # Alles andere ist ein Vorfall: MALFORMED_FUNCTION_CALL (Gemini wollte ein Tool
 # aufrufen und hat ungültiges JSON erzeugt), SAFETY/RECITATION/
 # PROHIBITED_CONTENT (Antwort verworfen) oder MAX_TOKENS (Budget aufgebraucht).
-_NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn", ""}
+# "stop"/"end_turn" stehen vorsorglich drin, falls hier je ein anderer Anbieter
+# gebunden wird; Gemini liefert ausschließlich Großschreibung.
+_NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn"}
+
+_MAX_VERSUCHE = 3
+
+# Deckel für die Vorfall-Zeilen eines Versuchs. Ein Modell, das in einer
+# MALFORMED_FUNCTION_CALL-Schleife hängt, erzeugt bis zum Rekursionslimit von
+# create_react_agent (25) ein gutes Dutzend auffälliger Nachrichten; ohne Deckel
+# wären das Dutzende Zeilen aus einer einzigen Anfrage.
+_MAX_VORFALL_ZEILEN = 5
+
+# Ein neuer Versuch startet nur, solange der Turn insgesamt darunter liegt. Das
+# Widget bricht nach 30 s ab und bekommt bis zum finalen response-Event kein
+# einziges Byte, die 30 s sind also eine harte Frist für den ganzen Turn. Der
+# gemessene Leer-Bug ist schnell (Median 0,74 s), ein langsamer Lauf ist ein
+# anderer Fehler — den zu wiederholen hieße, den Abbruch zu provozieren.
+_RETRY_ZEITBUDGET_S = 6.0
+
+_LEERE_ANTWORT_FALLBACK = (
+    "Entschuldige, da ist mir gerade keine Antwort gelungen. "
+    "Stell mir die Frage gerne noch einmal."
+)
 
 
 def auffaelliger_finish_reason(message) -> str:
@@ -103,6 +126,29 @@ def auffaelliger_finish_reason(message) -> str:
     if not isinstance(grund, str):
         grund = str(grund)
     return "" if grund in _NORMALE_FINISH_REASONS else grund
+
+
+def text_aus_content(content) -> str:
+    """Den Text aus ``content`` ziehen, egal ob String oder Blockliste.
+
+    LangChain typisiert ``AIMessage.content`` als ``str | list[str | dict]``;
+    Gemini liefert die Liste, sobald Thinking- oder Multimodal-Blöcke im Spiel
+    sind. Ohne diese Normalisierung gilt eine vollständig richtige Antwort als
+    leer, wird dreimal wiederholt und am Ende durch den Entschuldigungssatz
+    ersetzt — der Kunde bekäme ein Scheitern gemeldet, während die Antwort
+    danebenliegt.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        teile = []
+        for block in content:
+            if isinstance(block, str):
+                teile.append(block)
+            elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                teile.append(block["text"])
+        return "".join(teile)
+    return ""
 
 
 def call_stream(
@@ -191,17 +237,26 @@ def call_stream(
         # dann für unbeantwortet und beantwortet SIE statt der neuen, die
         # Antworten laufen also um eine Frage versetzt weiter.
         #
-        # Weitere Versuche sind hier billig, weil genau der Fehlerfall schnell
-        # ist: alle 26 leeren Antworten kamen in unter 3 s zurück (Median 0,74 s,
-        # ein einzelner Modellzug ohne Tool-Aufruf), während echte Antworten im
-        # Median 2,09 s und bis zu 18 s brauchen. Drei Versuche kosten im
-        # schlimmsten Fall rund 2 s und bleiben weit unter dem 30-Sekunden-
-        # Abbruch des Widgets. Eine gute Antwort kostet weiterhin genau einen
-        # Modelllauf — der Retry ist keine Steuer auf jede Nachricht.
-        reply = ""
-        for versuch in (1, 2, 3):
-            # Stream the agent execution
-            events = []
+        # Ein weiterer Versuch lohnt nur für GENAU die gemessene Signatur: ein
+        # schneller Einzelzug, der sauber mit STOP endet und trotzdem nichts
+        # sagt (Median 0,74 s). Zwei Wächter grenzen das ab, beide unten an der
+        # Schleife:
+        #   * auffälliger finish_reason → nicht wiederholen. SAFETY, RECITATION,
+        #     PROHIBITED_CONTENT und MAX_TOKENS kommen bei identischem Input
+        #     identisch zurück (temperature=0.1); ein zweiter Lauf kostet nur
+        #     Tokens und, weil der Graph komplett neu läuft, jeden Tool-Abruf
+        #     ein weiteres Mal.
+        #   * Zeitbudget → nicht wiederholen, wenn der Turn schon länger läuft.
+        #     Echte Antworten brauchen bis zu 18 s; drei solche Läufe rissen den
+        #     30-Sekunden-Abbruch des Widgets, und der Kunde sähe statt der
+        #     leeren Blase gar nichts mehr.
+        # Eine gute Antwort kostet weiterhin genau einen Modelllauf.
+        start = time.monotonic()
+        for versuch in range(1, _MAX_VERSUCHE + 1):
+            # Nur das LETZTE Event wird gebraucht (die Endantwort). Eine Liste
+            # aller Events hielte bei stream_mode="values" jeden Zwischenstand
+            # inklusive der vollen Tool-Ergebnisse bis zum Turn-Ende am Leben.
+            letztes_event = None
             # Ein kaputter Tool-Aufruf ist auch dann das Signal, das wir suchen,
             # wenn der Graph sich danach fängt: das Modell korrigiert sich im
             # nächsten Schritt, der Kunde bekommt eine gute Antwort — und im
@@ -215,7 +270,7 @@ def call_stream(
             for event in agent_executor.stream(
                 {"messages": chat_history}, stream_mode="values"
             ):
-                events.append(event)
+                letztes_event = event
 
                 # Check if there are new messages with tool calls
                 if "messages" in event:
@@ -224,19 +279,27 @@ def call_stream(
                         # Toolnamen, Zähler, Token-Verbrauch. Nie Nachrichten-
                         # text, nie Tool-Argumente, nie eine Kundennummer.
                         grund = auffaelliger_finish_reason(message)
-                        if grund:
+                        if grund and len(gemeldete_vorfaelle) < _MAX_VORFALL_ZEILEN:
                             schluessel = getattr(message, "id", None) or id(message)
                             if schluessel not in gemeldete_vorfaelle:
                                 gemeldete_vorfaelle.add(schluessel)
+                                # Der Toolname kommt roh aus der Modellantwort und
+                                # ist NICHT gegen die deklarierten Tools geprüft
+                                # (langchain_google_genai übernimmt ihn ungefiltert).
+                                # Also nur durchlassen, was der Server selbst
+                                # gebunden hat — sonst schreibt das Modell in
+                                # unser Log.
                                 namen = [
                                     tc.get("name", "")
+                                    if tc.get("name", "") in gebundene_tools
+                                    else "<unbekannt>"
                                     for tc in (
                                         getattr(message, "tool_calls", None) or []
                                     )
                                 ]
                                 print(
                                     f"[agent] auffälliger finish_reason={grund!r} "
-                                    f"versuch={versuch}/3 "
+                                    f"versuch={versuch}/{_MAX_VERSUCHE} "
                                     f"tool_calls={namen} "
                                     f"tools_gebunden={gebundene_tools} "
                                     f"nachrichten={len(event['messages'])} "
@@ -275,10 +338,14 @@ def call_stream(
                                     }
 
             # Get the final response and extract the reply
-            letzte = events[-1]["messages"][-1] if events else None
-            reply = getattr(letzte, "content", "") if letzte is not None else ""
+            letzte = (
+                letztes_event["messages"][-1]
+                if letztes_event and letztes_event.get("messages")
+                else None
+            )
+            reply = text_aus_content(getattr(letzte, "content", ""))
 
-            if isinstance(reply, str) and reply.strip():
+            if reply.strip():
                 break
 
             # WARUM die Antwort leer war, steht in den Metadaten der Nachricht —
@@ -289,21 +356,27 @@ def call_stream(
             # (Antwort verworfen, ohne Text) oder MAX_TOKENS (Denk-Tokens haben
             # das Budget aufgebraucht). Feuert nur im Fehlerfall, also ~26 Zeilen
             # auf 600 Gespräche.
+            grund_letzte = auffaelliger_finish_reason(letzte)
+            verstrichen = time.monotonic() - start
             print(
-                f"[agent] leere Modellantwort, Versuch {versuch}/3 "
+                f"[agent] leere Modellantwort, Versuch {versuch}/{_MAX_VERSUCHE} "
                 f"finish_reason={(getattr(letzte, 'response_metadata', None) or {}).get('finish_reason')!r} "
                 f"tool_calls={len(getattr(letzte, 'tool_calls', None) or [])} "
+                f"nach={verstrichen:.1f}s "
                 f"usage={getattr(letzte, 'usage_metadata', None)}"
             )
 
-        if not isinstance(reply, str) or not reply.strip():
+            # Die beiden Wächter aus dem Kommentar oben: ein deterministischer
+            # Abbruchgrund kommt identisch zurück, und ein langer Turn hat kein
+            # Budget mehr für einen weiteren Lauf.
+            if grund_letzte or verstrichen > _RETRY_ZEITBUDGET_S:
+                break
+
+        if not reply.strip():
             # Lieber ein ehrlicher Satz als eine leere Blase: der Kunde sieht,
             # dass etwas schiefging, und die Antwort landet nicht als leerer
             # Turn im Verlauf, der die nächste Frage verschieben würde.
-            reply = (
-                "Entschuldige, da ist mir gerade keine Antwort gelungen. "
-                "Stell mir die Frage gerne noch einmal."
-            )
+            reply = _LEERE_ANTWORT_FALLBACK
 
         # Extract recommendations
         recommendations.update(detect_recommendation_links(reply))
