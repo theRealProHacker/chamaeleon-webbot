@@ -266,7 +266,7 @@ def test_deterministischer_abbruchgrund_wird_nicht_wiederholt(monkeypatch):
         monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
         events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
         assert executor.runs == 1, f"{grund} darf keinen zweiten Versuch auslösen"
-        assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+        assert agent.EMPTY_ANSWER_FALLBACK in _reply(events)
 
 
 def test_normales_stop_wird_weiterhin_wiederholt(monkeypatch):
@@ -283,7 +283,7 @@ def test_zeitbudget_stoppt_weitere_versuche(monkeypatch):
     monkeypatch.setattr(agent.time, "monotonic", lambda: next(uhr))
     executor, events = _run(monkeypatch, ["", "", ""])
     assert executor.runs == 1, "nach Überschreiten des Budgets kein weiterer Lauf"
-    assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+    assert agent.EMPTY_ANSWER_FALLBACK in _reply(events)
 
 
 def test_leerer_stream_faellt_sauber_zurueck(monkeypatch):
@@ -292,7 +292,7 @@ def test_leerer_stream_faellt_sauber_zurueck(monkeypatch):
     monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
     events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
     assert [e.get("type") for e in events] == ["response"]
-    assert agent._LEERE_ANTWORT_FALLBACK in _reply(events)
+    assert agent.EMPTY_ANSWER_FALLBACK in _reply(events)
 
 
 def test_fremder_toolname_wird_nicht_ins_log_uebernommen(monkeypatch, capsys):

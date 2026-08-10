@@ -9,12 +9,15 @@ from langgraph.prebuilt import create_react_agent
 
 from agent_base import (
     GEMINI_API_KEY,
+    _vrrvorgang_from_url,
     chamaeleon_website_tool_base,
     country_faq_tool_base,
     country_faq_tool_description,
     detect_recommendation_links,
     format_system_prompt,
     laender_faqs,
+    reise_info_tools_description,
+    reiseinfo_tool_base,
     termine_tool_base,
     termine_tool_description,
     visa_tool_base,
@@ -59,6 +62,31 @@ def termine_tool(
     return termine_tool_base(url_path, jahr, monat, nur_freie)
 
 
+def make_reiseinfo_tool(
+    seiten_vorgang: str = "", kunden_id: str = "", agentur_id: str = ""
+):
+    """Build the per-request Reiseinfo tool, bound to this requester by closure.
+
+    Which booking is meant comes from the request, not from the model: the open
+    trip page (VRRVORGANG) or, failing that, the requester's next trip. The model
+    may still name another booking, but only one that belongs to this customer
+    or agency — the number is checked against their own bookings, never trusted.
+
+    It never has to look a number up either: that second call is exactly where it
+    used to narrate „ich schaue gleich nach“ and end the turn instead of
+    answering.
+    """
+
+    @tool(description=reise_info_tools_description)
+    def reiseinfo_tool(vorgangsnummer: str = "") -> str:
+        """LangChain tool wrapper for the Reiseinfo tool."""
+        return reiseinfo_tool_base(
+            vorgangsnummer, seiten_vorgang, kunden_id, agentur_id
+        )
+
+    return reiseinfo_tool
+
+
 def convert_messages_to_langchain(messages: list) -> list:
     """Convert generic message format to LangChain message objects."""
     chat_history = []
@@ -86,30 +114,15 @@ def escape_genderstern(text: str) -> str:
     return "".join(parts)
 
 
-# Ein sauber beendeter Modellzug meldet STOP — auch der, der ein Tool aufruft.
-# Alles andere ist ein Vorfall: MALFORMED_FUNCTION_CALL (Gemini wollte ein Tool
-# aufrufen und hat ungültiges JSON erzeugt), SAFETY/RECITATION/
-# PROHIBITED_CONTENT (Antwort verworfen) oder MAX_TOKENS (Budget aufgebraucht).
-# "stop"/"end_turn" stehen vorsorglich drin, falls hier je ein anderer Anbieter
-# gebunden wird; Gemini liefert ausschließlich Großschreibung.
 _NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn"}
 
 _MAX_VERSUCHE = 3
 
-# Deckel für die Vorfall-Zeilen eines Versuchs. Ein Modell, das in einer
-# MALFORMED_FUNCTION_CALL-Schleife hängt, erzeugt bis zum Rekursionslimit von
-# create_react_agent (25) ein gutes Dutzend auffälliger Nachrichten; ohne Deckel
-# wären das Dutzende Zeilen aus einer einzigen Anfrage.
 _MAX_VORFALL_ZEILEN = 5
 
-# Ein neuer Versuch startet nur, solange der Turn insgesamt darunter liegt. Das
-# Widget bricht nach 30 s ab und bekommt bis zum finalen response-Event kein
-# einziges Byte, die 30 s sind also eine harte Frist für den ganzen Turn. Der
-# gemessene Leer-Bug ist schnell (Median 0,74 s), ein langsamer Lauf ist ein
-# anderer Fehler — den zu wiederholen hieße, den Abbruch zu provozieren.
 _RETRY_ZEITBUDGET_S = 6.0
 
-_LEERE_ANTWORT_FALLBACK = (
+EMPTY_ANSWER_FALLBACK = (
     "Entschuldige, da ist mir gerade keine Antwort gelungen. "
     "Stell mir die Frage gerne noch einmal."
 )
@@ -207,9 +220,6 @@ def call_stream(
     # Initialize recommendation containers
     recommendations = set[str]()
 
-    # Create agent with tools. Ohne kunden_id bleibt die Tool-Liste identisch
-    # zu heute (Sicherheitsinvariante); das Flug-Tool existiert nur für den
-    # eingeloggten Kunden und ist per Closure an genau seine ID gebunden.
     tools = [
         visa_tool,
         chamaeleon_website_tool,
@@ -218,39 +228,24 @@ def call_stream(
     ]
     if kunden_id:
         tools.append(make_buchungen_tool(kunden_id))
-    # Analog für die Agentur: das Tool existiert nur bei verifizierter Bindung
-    # und ist per Closure an genau diese Agenturnummer gebunden. is_agentur
-    # allein reicht nicht — das ist nur ein Header-Spiegel.
     if agentur_id:
         tools.append(make_buchungen_agentur_tool(agentur_id))
+    # Die Reiseinfos hängen an einer Buchung. Ohne Kunden- oder Agenturbindung
+    # gibt es keine — und ein anonymer Besucher könnte damit nur raten, zu
+    # welchem Land eine fremde Buchungsnummer gehört.
+    if kunden_id or agentur_id:
+        tools.append(
+            make_reiseinfo_tool(
+                seiten_vorgang=_vrrvorgang_from_url(endpoint) if kunden_id else "",
+                kunden_id=kunden_id,
+                agentur_id=agentur_id,
+            )
+        )
     agent_executor = create_react_agent(model, tools=tools)
-    # Nur die NAMEN der gebundenen Tools — sie erklären den Verdacht (im
-    # Kunden-/Agentur-Modus ist ein Tool mehr gebunden), enthalten aber keine
-    # Kundendaten.
-    gebundene_tools = [getattr(t, "name", str(t)) for t in tools]
+    
+    tool_names = [getattr(t, "name", str(t)) for t in tools]
 
     try:
-        # Gemini liefert gelegentlich eine leere Antwort: gemessen 26 von 1343
-        # Assistant-Turns (1,9 %, 12 von 600 Gesprächen). Ungeprüft rendert das
-        # Widget daraus eine leere Blase, speichert sie als Verlauf und schickt
-        # sie beim nächsten Mal als History mit — das Modell hält die alte Frage
-        # dann für unbeantwortet und beantwortet SIE statt der neuen, die
-        # Antworten laufen also um eine Frage versetzt weiter.
-        #
-        # Ein weiterer Versuch lohnt nur für GENAU die gemessene Signatur: ein
-        # schneller Einzelzug, der sauber mit STOP endet und trotzdem nichts
-        # sagt (Median 0,74 s). Zwei Wächter grenzen das ab, beide unten an der
-        # Schleife:
-        #   * auffälliger finish_reason → nicht wiederholen. SAFETY, RECITATION,
-        #     PROHIBITED_CONTENT und MAX_TOKENS kommen bei identischem Input
-        #     identisch zurück (temperature=0.1); ein zweiter Lauf kostet nur
-        #     Tokens und, weil der Graph komplett neu läuft, jeden Tool-Abruf
-        #     ein weiteres Mal.
-        #   * Zeitbudget → nicht wiederholen, wenn der Turn schon länger läuft.
-        #     Echte Antworten brauchen bis zu 18 s; drei solche Läufe rissen den
-        #     30-Sekunden-Abbruch des Widgets, und der Kunde sähe statt der
-        #     leeren Blase gar nichts mehr.
-        # Eine gute Antwort kostet weiterhin genau einen Modelllauf.
         start = time.monotonic()
         for versuch in range(1, _MAX_VERSUCHE + 1):
             # Nur das LETZTE Event wird gebraucht (die Endantwort). Eine Liste
@@ -291,7 +286,7 @@ def call_stream(
                                 # unser Log.
                                 namen = [
                                     tc.get("name", "")
-                                    if tc.get("name", "") in gebundene_tools
+                                    if tc.get("name", "") in tool_names
                                     else "<unbekannt>"
                                     for tc in (
                                         getattr(message, "tool_calls", None) or []
@@ -301,7 +296,7 @@ def call_stream(
                                     f"[agent] auffälliger finish_reason={grund!r} "
                                     f"versuch={versuch}/{_MAX_VERSUCHE} "
                                     f"tool_calls={namen} "
-                                    f"tools_gebunden={gebundene_tools} "
+                                    f"tools_gebunden={tool_names} "
                                     f"nachrichten={len(event['messages'])} "
                                     f"usage={getattr(message, 'usage_metadata', None)}"
                                 )
@@ -348,14 +343,6 @@ def call_stream(
             if reply.strip():
                 break
 
-            # WARUM die Antwort leer war, steht in den Metadaten der Nachricht —
-            # und war bisher weg, sobald der Turn durch war. finish_reason trennt
-            # die Fälle sauber: MALFORMED_FUNCTION_CALL (Gemini wollte ein Tool
-            # aufrufen und hat ungültiges JSON erzeugt — passt zum Kunden-Modus,
-            # wo ein Tool mehr gebunden ist), SAFETY/RECITATION/PROHIBITED_CONTENT
-            # (Antwort verworfen, ohne Text) oder MAX_TOKENS (Denk-Tokens haben
-            # das Budget aufgebraucht). Feuert nur im Fehlerfall, also ~26 Zeilen
-            # auf 600 Gespräche.
             grund_letzte = auffaelliger_finish_reason(letzte)
             verstrichen = time.monotonic() - start
             print(
@@ -366,17 +353,12 @@ def call_stream(
                 f"usage={getattr(letzte, 'usage_metadata', None)}"
             )
 
-            # Die beiden Wächter aus dem Kommentar oben: ein deterministischer
-            # Abbruchgrund kommt identisch zurück, und ein langer Turn hat kein
-            # Budget mehr für einen weiteren Lauf.
             if grund_letzte or verstrichen > _RETRY_ZEITBUDGET_S:
                 break
 
-        if not reply.strip():
-            # Lieber ein ehrlicher Satz als eine leere Blase: der Kunde sieht,
-            # dass etwas schiefging, und die Antwort landet nicht als leerer
-            # Turn im Verlauf, der die nächste Frage verschieben würde.
-            reply = _LEERE_ANTWORT_FALLBACK
+        # TODO: move this to the frontend
+        if not reply.strip(): 
+            reply = EMPTY_ANSWER_FALLBACK
 
         # Extract recommendations
         recommendations.update(detect_recommendation_links(reply))
