@@ -539,6 +539,34 @@ def fetch_buchungen_text(
     return text
 
 
+def vorgangsnummern(agentur_id: str) -> list[str] | None:
+    """Die Vorgangsnummern DIESER Agentur. ``None`` heißt Ausfall, ``[]`` keine.
+
+    Geht durch dieselben Wächter wie ``fetch_buchungen_text`` — ``_agentur_get``
+    (G2) und ``_normalise_row`` (G3) —, ist also genau die Menge, über die die
+    Agentur schon heute Auskunft bekommt. Existiert, damit eine vom Modell
+    genannte Vorgangsnummer dagegen geprüft werden kann: ohne diese Prüfung
+    adressiert ``/get/buchung`` jede Buchung des ganzen Mandanten.
+    """
+    try:
+        page = _agentur_get(
+            "/get/buchungLeistungenListe", {"agenturNummer": agentur_id}
+        )
+    except Exception as e:
+        print(f"[agenturdaten] buchungLeistungenListe failed: {type(e).__name__}")
+        return None
+    roh = _rows(page)
+    if not roh:
+        return []
+    # str(), nicht roh: der JSON-Typ ist nirgends zugesichert und dieselbe
+    # Antwort mischt ihn (vorgangsNummer str, vorgangsId int, siehe G3 oben).
+    # Als int verglichen fiele jede genannte Nummer durch die Prüfung, und der
+    # int-Fallback flöge dann in der Regex-Prüfung des Aufrufers.
+    return [
+        str(n["vorgang"]) for n in (_normalise_row(r, agentur_id) for r in roh) if n
+    ]
+
+
 def make_buchungen_agentur_tool(agentur_id: str):
     """Baue das Buchungs-Tool, per Closure an genau diese Agentur gebunden.
 

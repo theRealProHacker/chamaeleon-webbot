@@ -430,6 +430,42 @@ def fetch_buchungen_text(
     return text
 
 
+def vorgangsnummern(kunden_id: str) -> list[str] | None:
+    """Die Vorgangsnummern des Kunden in der Reihenfolge von ``auswahl="alle"``.
+
+    Also: kommende Reisen zuerst (näheste voran), dahinter die vergangenen. Das
+    erste Element ist damit die Reise, die der Kunde meint, wenn er keine nennt.
+
+    ``None`` heißt AUSFALL, ``[]`` heißt „dieser Kunde hat keine Buchung“. Der
+    Unterschied entscheidet, was der Kunde zu lesen bekommt (Störungsmeldung vs.
+    Rückfrage) — ihn zu verschlucken war der Fehler, den das Review 2026-08-10
+    gefunden hat.
+
+    Existiert, damit das reiseinfo_tool im Kunden-Modus ohne Argument auskommt
+    (sonst bräuchte es einen zweiten Tool-Aufruf, und genau in dieser Lücke
+    kündigte Gemini dem Kunden an, es schaue „gleich nach“, und beendete den
+    Zug) — und damit eine vom Modell genannte Nummer dagegen geprüft werden
+    kann, statt ungeprüft in einen authentifizierten API-Aufruf zu gehen.
+    """
+    try:
+        adresse = _tourone_get(
+            "/get/adresse", {"kundennummer": kunden_id}, timeout=TIMEOUT
+        )
+    except Exception as e:
+        # Ohne die Exception-Nachricht: sie trägt die volle Request-URL und
+        # damit die Kundennummer ins Log.
+        print(f"[kundendaten] adresse lookup failed: {type(e).__name__}")
+        return None
+    if not isinstance(adresse, dict):
+        return []
+    alle = [
+        b
+        for b in adresse.get("buchungen") or []
+        if isinstance(b, dict) and b.get("vorgang")
+    ]
+    return [str(b["vorgang"]) for b in select(alle, "alle", 0, heute_berlin())]
+
+
 def make_buchungen_tool(kunden_id: str):
     """Build the per-request bookings tool bound to this customer by closure.
 
