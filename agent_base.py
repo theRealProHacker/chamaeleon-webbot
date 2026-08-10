@@ -4,6 +4,7 @@ import json
 import locale
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import markdownify
 import pytz
@@ -743,6 +744,16 @@ def format_system_prompt(
             "zuerst die grobe Liste (details=false) und fasse dann bei Bedarf mit "
             "details=true nach; grenze mit auswahl/anzahl ein (z. B. die nächste "
             "Reise: auswahl=kommende, anzahl=1).\n"
+            "- Fragen zur Vorbereitung der gebuchten Reise — Packliste, Gepäck "
+            "und Handgepäck, Trinkgeld, Bargeld und Bezahlen, Klima, Strom und "
+            "Adapter, Gesundheit, Abholung am Zielflughafen — beantwortest du "
+            "IMMER mit dem reiseinfo_tool, nicht aus den allgemeinen FAQs und "
+            "nicht mit einem Verweis auf die Reiseunterlagen.\n"
+            "- Ruf das reiseinfo_tool dafür OHNE Argument auf: es nimmt von "
+            "selbst die gerade geöffnete Reise, sonst die nächste des Kunden. "
+            "Du brauchst dafür kein buchungen_tool und keine Buchungsnummer — "
+            "frag den Kunden nie danach und frag auch nicht, welche Reise er "
+            "meint.\n"
             "- Abweichend von der allgemeinen Flüge-Regel darfst du die per Tool "
             "abgerufenen Buchungsdaten dieses Kunden — Flüge wie Zahlstand, "
             "vergangene wie kommende — nennen.\n"
@@ -896,3 +907,478 @@ def format_system_prompt(
         if kundenberater_telefon
         else "",
     )
+
+
+# --- „Wichtige Informationen": Reiseinfo-Textbausteine zu einer Buchung -------
+#
+# Rekonstruiert den Block „Wichtige Informationen" der MeinChamäleon-Reiseseite
+# (Reisehinweise, Checkliste, Inlands-/Regionalflüge, Allgemeine
+# Reiseinformationen) allein aus der TourOne-API — ohne die eingeloggte Seite zu
+# scrapen. Der Kunde nennt eine Buchung „Reise"; Einstieg ist deshalb die
+# Vorgangsnummer.
+#
+# Kette (alle GET, siehe https://api.tourone.de/api/doc):
+#   /get/buchung?vorgangsNummer=…   → reiseCode
+#   /get/reise?reisecode=…          → zusatzfelder (INFO-Codes) + land2 (ISO)
+#   /get/textbaustein?textcode=…    → je Baustein Titel + HTML-Text
+#
+# Zwei Quellen für die Codes, bewusst getrennt:
+#  1. AUTORITATIV, pro Reise gepflegt (reise.zusatzfelder): die INFO-Bausteine
+#     der „Allgemeinen Reiseinformationen". Ihre WERTE sind die Textcodes
+#     (INFOALLLAND→INFO-ALLE, INFOLAND→INFO-<land>, INFOREISE→INFO-<reise>, …).
+#     Nur Werte übernehmen, die wie ein Code aussehen — manche Felder tragen
+#     Müll (Leerzeichen, Fließtext).
+#  2. KONVENTION, aus dem Ziel-ISO (reise.land2.iso2Liste, bei Mehrländer-
+#     reisen kommagetrennt): HIN-<iso>, CHECK-<iso>, FLUG-<iso>-INL. Existiert
+#     kein solcher Baustein, hat das Land den Block schlicht nicht (kein Fehler).
+#
+# Bekannte Lücke: der internationale Block „Informationen Linienflug" (z.B.
+# FLUG-MY) wird vom MeinChamäleon-Backend editorial aus der Flugroute gesetzt
+# und liegt in KEINEM erreichbaren API-Feld — er fehlt daher bewusst.
+#
+# Verifiziert 2026-08-05 über 14 Länder (NP, UG, JO, MN, TZ, CA, PE, NA, VN, MA,
+# TH, ES, OM, EG) sowie gegen die IDKOM-Seite (6/7 Codes, nur FLUG-MY fehlt).
+
+# Ein zusatzfeld-Wert zählt nur als Textcode, wenn er dem Schema folgt (GROSS +
+# Bindestrich, z.B. INFO-IDKOM). Sonst wären Leerzeichen oder Fließfeld-Reste
+# ("PASSS-ES-Landinfo", " ") gültige Codes.
+_TEXTBAUSTEIN_CODE_RE = re.compile(r"^[A-Z][A-Z0-9]*-[A-Z0-9-]+$")
+
+# reise.zusatzfelder-Schlüssel, deren WERT ein INFO-Textcode ist (Block
+# „Allgemeine Reiseinformationen"). Reihenfolge = Anzeige-Reihenfolge.
+_REISEINFO_KEYS = (
+    "INFOALLLAND",
+    "INFOLAND",
+    "INFOLAND2",
+    "INFOLAND3",
+    "INFOLAND4",
+    "INFOREISE",
+    "INFOZUSATZ",
+    "INFOZUSATZ2",
+    "INFOZUSATZ3",
+    "INFOZUSATZ4",
+    "INFOZUSATZ5",
+    "INFOAIRLINE",
+    "INFOAIRLINE2",
+    "INFOAIRLINE3",
+)
+
+# Wie kundendaten.py: der 20s-Default von _tourone_get ist für Index-Builds; hier
+# muss die Wartezeit pro Request enger sein.
+#
+# Die Zahlen sind gegen die 30-Sekunden-Frist des Widgets gerechnet, nicht
+# geraten: Das Widget bekommt bis zum finalen response-Event kein Byte, der
+# ganze Turn (Modelllauf INKLUSIVE Tool-Aufrufe) muss also darunter bleiben.
+# Bei einer Mehrländerreise mit voll gepflegten Zusatzfeldern entstehen bis zu
+# 20 Baustein-Requests; mit PARALLEL=8 wären das drei Wellen, macht im
+# Timeout-Worst-Case 2*8s (Buchung, Reise) + 3*8s = 40s — allein das Tool reißt
+# die Frist. Deshalb: kürzeres Timeout je Request und genug Parallelität, dass
+# eine Welle reicht. Worst Case jetzt 5s + 5s + 5s = 15s.
+REISEINFO_TIMEOUT = 5
+REISEINFO_FETCH_PARALLEL = 20
+
+
+def _reise_code_for_vorgang(vorgangsnummer: str) -> str | None:
+    """reiseCode der Buchung, oder None wenn die Buchung fehlt/leer ist."""
+    import travel_index
+
+    buchung = travel_index._tourone_get(
+        "/get/buchung", {"vorgangsNummer": vorgangsnummer}, timeout=REISEINFO_TIMEOUT
+    )
+    if not isinstance(buchung, dict):
+        return None
+    code = buchung.get("reiseCode")
+    return code if isinstance(code, str) and code else None
+
+
+def _reiseinfo_zusatzfeld_wert(zusatzfelder: dict, key: str) -> str | None:
+    """``zusatzfelder[key].value`` — die Felder sind {label, value}-Dicts."""
+    feld = zusatzfelder.get(key)
+    if isinstance(feld, dict):
+        wert = feld.get("value")
+        return wert if isinstance(wert, str) else None
+    return None
+
+
+def _reiseinfo_ziel_isos(reise: dict) -> list[str]:
+    """Ziel-ISO(s) aus land2 — kommagetrennt bei Mehrländerreisen (CN,HK)."""
+    land2 = reise.get("land2") or {}
+    roh = land2.get("iso2Liste") or land2.get("code") or ""
+    isos = [t.strip().upper() for t in str(roh).split(",")]
+    # Nur echte ISO2 — der code kann auch ein Kürzel wie "CUH" sein.
+    return [iso for iso in isos if re.fullmatch(r"[A-Z]{2}", iso)]
+
+
+def _reiseinfo_kandidaten(reise: dict) -> dict[str, list[str]]:
+    """Kandidaten-Textcodes je Block. Existenz wird erst danach geprüft.
+
+    Reihenfolge und Blockschnitt spiegeln die MeinChamäleon-Reiseseite. Der
+    internationale „Informationen Linienflug"-Block fehlt bewusst (siehe oben):
+    sein Code steht in keinem API-Feld.
+    """
+    zf = reise.get("zusatzfelder") or {}
+    isos = _reiseinfo_ziel_isos(reise)
+
+    info: list[str] = []
+    for key in _REISEINFO_KEYS:
+        wert = _reiseinfo_zusatzfeld_wert(zf, key)
+        if wert and _TEXTBAUSTEIN_CODE_RE.match(wert.strip()):
+            info.append(wert.strip())
+
+    return {
+        "Reisehinweise": [f"HIN-{iso}" for iso in isos],
+        "Checkliste": [f"CHECK-{iso}" for iso in isos],
+        "Informationen Inlands- und Regionalflüge": [
+            f"FLUG-{iso}-INL" for iso in isos
+        ],
+        "Allgemeine Reiseinformationen": info,
+    }
+
+
+def _ist_nicht_gefunden(fehler: Exception) -> bool:
+    """Heißt dieser Fehler „gibt es nicht" — oder heißt er „gerade kaputt"?
+
+    Praktisch nur ein Sicherheitsnetz: gemessen 2026-08-11 antwortet
+    ``/get/textbaustein`` für einen FEHLENDEN Code mit HTTP 200 und einer leeren
+    Liste (geprüft mit FLUG-MN-INL und einem Fantasiecode), nicht mit einem
+    Fehler — den Fall fängt schon der ``isinstance``-Guard unten ab. Sollte
+    TourOne doch einmal 404 liefern, heißt auch das „gibt es nicht".
+    """
+    antwort = getattr(fehler, "response", None)
+    return getattr(antwort, "status_code", None) == 404
+
+
+def _lade_textbaustein(code: str) -> dict | None:
+    """Einen Textbaustein holen. None = gibt es nicht; wirft bei Ausfall.
+
+    Die beiden Fälle auseinanderzuhalten ist der ganze Zweck: „diesen Block hat
+    das Land nicht" kommt als 200 mit leerer Liste, ein Timeout oder eine 500
+    ist ein Ausfall. Beides als „gibt es nicht" zu lesen, machte aus einer
+    Störung die Aussage „zu dieser Reise ist nichts hinterlegt" — und der Kunde
+    schließt daraus, er müsse nichts vorbereiten. Genau diese Verwechslung fand
+    das Review 2026-08-10.
+    """
+    import travel_index
+
+    try:
+        baustein = travel_index._tourone_get(
+            "/get/textbaustein", {"textcode": code}, timeout=REISEINFO_TIMEOUT
+        )
+    except Exception as e:
+        if _ist_nicht_gefunden(e):
+            return None
+        raise
+    if not isinstance(baustein, dict):
+        return None
+    text = (baustein.get("text") or "").strip()
+    if not text:
+        return None
+    return {
+        "code": code,
+        "titel": baustein.get("bezeichnung") or code,
+        "html": text,
+    }
+
+
+# Dritter Ausgang neben „da" und „gibt es nicht": „gerade nicht abrufbar".
+_FEHLER = object()
+
+
+def _lade_textbaustein_sicher(code: str):
+    """``_lade_textbaustein``, aber ein Ausfall reißt die Nebenläufigkeit nicht.
+
+    Eine Exception aus ``pool.map`` würde beim Auslesen der Ergebnisse fliegen
+    und alle übrigen Bausteine mitnehmen — auch die längst geladenen.
+    """
+    try:
+        return _lade_textbaustein(code)
+    except Exception as e:
+        print(f"[agent_base] textbaustein {code} nicht abrufbar: {type(e).__name__}")
+        return _FEHLER
+
+def reiseinfo_tools(vorgangsnummer: str) -> dict:
+    """„Wichtige Informationen" zu einer Buchung (Vorgangsnummer).
+
+    Rückgabe::
+
+        {
+          "vorgang": "226177",
+          "reiseCode": "CNZHA_NEU",
+          "isos": ["CN", "HK"],
+          "bloecke": {
+            "Reisehinweise": [{code, titel, html}, ...],
+            "Checkliste": [...],
+            "Informationen Inlands- und Regionalflüge": [...],
+            "Allgemeine Reiseinformationen": [...],
+          },
+        }
+
+    Leere Blöcke werden weggelassen. Fehlt die Buchung oder ihre Reise, ist
+    ``bloecke`` leer (kein Wurf, außer der API-Aufruf selbst schlägt fehl).
+    """
+    import travel_index
+
+    reise_code = _reise_code_for_vorgang(vorgangsnummer)
+    if not reise_code:
+        return {"vorgang": vorgangsnummer, "reiseCode": None, "isos": [], "bloecke": {}}
+
+    reise = travel_index._tourone_get(
+        "/get/reise", {"reisecode": reise_code}, timeout=REISEINFO_TIMEOUT
+    )
+    if not isinstance(reise, dict):
+        return {
+            "vorgang": vorgangsnummer,
+            "reiseCode": reise_code,
+            "isos": [],
+            "bloecke": {},
+        }
+
+    kandidaten = _reiseinfo_kandidaten(reise)
+
+    # Alle Codes nebenläufig auflösen (ein Request je Kandidat); Reihenfolge je
+    # Block bleibt erhalten. Doppelte Codes nur einmal anfragen — dieselbe
+    # INFO-Nummer kann in mehreren zusatzfeldern stehen.
+    alle_codes = list(dict.fromkeys(c for codes in kandidaten.values() for c in codes))
+    with ThreadPoolExecutor(max_workers=REISEINFO_FETCH_PARALLEL) as pool:
+        aufgeloest = dict(zip(alle_codes, pool.map(_lade_textbaustein_sicher, alle_codes)))
+
+    # Ein Ausfall EINZELNER Bausteine darf die übrigen nicht kosten, aber er
+    # muss sichtbar bleiben: sonst liest sich eine lückenhafte Antwort wie eine
+    # vollständige. Gleiche Regel wie im Buchungs-Tool.
+    unvollstaendig = any(wert is _FEHLER for wert in aufgeloest.values())
+
+    bloecke: dict[str, list[dict]] = {}
+    for block, codes in kandidaten.items():
+        treffer = [
+            aufgeloest[c]
+            for c in codes
+            if aufgeloest.get(c) and aufgeloest[c] is not _FEHLER
+        ]
+        if treffer:
+            bloecke[block] = treffer
+
+    return {
+        "vorgang": vorgangsnummer,
+        "reiseCode": reise_code,
+        "isos": _reiseinfo_ziel_isos(reise),
+        "bloecke": bloecke,
+        "unvollstaendig": unvollstaendig,
+    }
+
+
+reise_info_tools_description = """
+Tool für die „Wichtigen Informationen“ zu EINER gebuchten Reise — genau die
+Textbausteine, die der Kunde in MeinChamäleon unter seiner Reise findet:
+
+- Reisehinweise: was mitmuss, welche Unterlagen es gibt, wer am Zielflughafen
+  abholt
+- Checkliste: die Packliste zum Reiseland (Dokumente, Kleidung, Apotheke)
+- Informationen Inlands- und Regionalflüge: Freigepäck, Handgepäck, was im
+  Reiseland nicht ins Flugzeug darf
+- Allgemeine Reiseinformationen: Land für Land Devisen und Zoll, Geld und
+  Bezahlen, Trinkgeld, Klima, Strom und Adapter, Gesundheit, Sicherheit,
+  Kommunikation, Verpflegung, Unterkünfte
+
+Nutze es bei JEDER Frage zur Vorbereitung einer gebuchten Reise, z.B. „Was muss
+ich einpacken?“, „Wie viel Gepäck darf ich mitnehmen?“, „Wie viel Trinkgeld ist
+üblich?“, „Brauche ich einen Adapter?“, „Wie viel Bargeld nehme ich mit?“, „Wer
+holt mich am Flughafen ab?“, „Wie ist das Klima im Reiseland?“.
+
+Diese Bausteine sind für die gebuchte Reise die verbindliche Quelle: Sie sind
+pro Reise und Zielland gepflegt und gehen allgemeinen FAQs vor. Nicht zuständig
+ist das Tool für Visum und Einreise (dafür visa_tool), für Termine und Preise
+(dafür termine_tool) und für die Daten der Buchung selbst — Flüge, Zahlstand,
+Reisende — die stehen in buchungen_tool bzw. buchungen_agentur_tool.
+
+Ruf es OHNE Argument auf — dann nimmt es von selbst die Reise, um die es geht
+(die aktuell geöffnete, sonst die nächste des Kunden). Du brauchst dafür weder
+eine Buchungsnummer noch einen vorherigen Aufruf von buchungen_tool, und du
+fragst den Kunden nie nach seiner Buchungsnummer. Nur wenn er ausdrücklich eine
+ANDERE als seine nächste Reise meint, gib deren Buchungsnummer mit — aber rate
+nie eine.
+
+Die Antwort enthält nur die Blöcke, die es zu dieser Reise wirklich gibt. Gib
+daraus wieder, was zur Frage passt — nicht den ganzen Text — und erfinde nichts
+dazu.
+
+Args:
+    vorgangsnummer (str, optional): nur für eine andere als die nächste Reise,
+        z.B. "226177". Leer lassen heißt: die Reise, um die es gerade geht.
+
+Returns:
+    str: Die vorhandenen Blöcke als Markdown, je Baustein mit Überschrift.
+""".strip()
+
+# Die Nummer kommt aus der Modellantwort und geht in einen authentifizierten
+# API-Aufruf; alles außer Ziffern/Buchstaben hat darin nichts zu suchen.
+_VORGANGSNUMMER_RE = re.compile(r"^[A-Za-z0-9-]{1,20}$")
+
+REISEINFO_UNBEKANNT_TEXT = (
+    "Zu dieser Buchungsnummer finde ich keine Reise. Bitte prüfe die Nummer."
+)
+REISEINFO_OHNE_BUCHUNG_TEXT = (
+    "Für welche Buchung? Nenne die Buchungsnummer der Reise."
+)
+REISEINFO_LEER_TEXT = (
+    "Zu dieser Reise sind aktuell keine „Wichtigen Informationen“ hinterlegt. "
+    "Dein Erlebnisberater hilft dir gern weiter."
+)
+REISEINFO_FEHLER_TEXT = (
+    "Die Reiseinformationen sind gerade nicht abrufbar. Bitte versuche es später "
+    "noch einmal."
+)
+
+# Deckel auf das, was ins Modell geht — wie PAGE_CONTENT_MAX_CHARS für die
+# gescrapte Seite. Gemessen sind 36.000 Zeichen (~10k Token) für eine
+# Mehrländerreise; MAX_TOKENS ist eine der gemessenen Ursachen leerer Antworten,
+# und der Retry-Pfad in agent.py läuft den Graphen samt Tool-Abrufen komplett
+# neu. Der Deckel liegt über allem, was bisher gemessen wurde, und greift nur,
+# wenn eine Reise aus dem Rahmen fällt.
+REISEINFO_MAX_CHARS = 60_000
+
+
+def _kuerzen(text: str) -> str:
+    """Bei Überlänge hart abschneiden — und das sagen, nicht stillschweigend."""
+    if len(text) <= REISEINFO_MAX_CHARS:
+        return text
+    print(f"[agent_base] reiseinfo gekürzt: {len(text)} > {REISEINFO_MAX_CHARS}")
+    return (
+        text[:REISEINFO_MAX_CHARS]
+        + "\n\n(Gekürzt — es gibt zu dieser Reise noch mehr Informationen.)"
+    )
+
+
+def _reiseinfo_markdown(baustein: dict) -> str:
+    """Ein Textbaustein als Markdown — die API liefert ihn als HTML.
+
+    Darf nie werfen: der Text ist redaktionell gepflegt, und kaputtes HTML in
+    EINEM Baustein darf die Antwort nicht kosten (gleiche Regel wie in
+    ``markdownify_page_html``).
+    """
+    try:
+        markdown_content = markdownify.markdownify(baustein["html"]).strip()
+    except Exception as e:
+        print(
+            f"[agent_base] textbaustein {baustein.get('code')} "
+            f"markdownify failed: {type(e).__name__}"
+        )
+        return ""
+    return re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+
+def _eigene_vorgangsnummern(kunden_id: str, agentur_id: str) -> list[str] | None:
+    """Die Buchungen, über die dieser Anfragende Auskunft bekommen darf.
+
+    ``None`` heißt Ausfall (nicht „keine Buchungen“). Ohne Bindung — also ohne
+    kunden_id und ohne agentur_id — gibt es nichts: das Tool ist dann gar nicht
+    erst gebunden.
+    """
+    if kunden_id:
+        import kundendaten
+
+        return kundendaten.vorgangsnummern(kunden_id)
+    if agentur_id:
+        import agenturdaten
+
+        return agenturdaten.vorgangsnummern(agentur_id)
+    return []
+
+
+def reiseinfo_vorgang(
+    vorgangsnummer: str,
+    seiten_vorgang: str = "",
+    kunden_id: str = "",
+    agentur_id: str = "",
+) -> tuple[str, str]:
+    """Welche Buchung ist gemeint? Rückgabe ``(nummer, fehler)``.
+
+    Reihenfolge: Modellangabe (nur wenn sie dem Anfragenden gehört) > die offene
+    Seite > die nächste eigene Reise. ``fehler`` ist "" oder einer der
+    REISEINFO_*_TEXT und hat dann Vorrang vor der Nummer.
+
+    Die Modellangabe wird geprüft, nicht geglaubt. Ungeprüft war sie ein
+    Enumerations-Orakel: durchnummerierte Buchungsnummern verrieten, ob eine
+    fremde Buchung existiert und zu welchem Land sie gehört, und die Antwort
+    rahmte sie als „deine Reise“. Die Prüfliste kostet nichts extra — die
+    Auflösung der nächsten Reise braucht sie ohnehin.
+
+    ``seiten_vorgang`` kommt aus der URL der aufgerufenen Seite und damit vom
+    Server, nicht aus der Modellantwort; er wird trotzdem mitgeprüft, weil die
+    Seite im Kunden-Modus zur Anmeldung passen muss.
+
+    Das Modell soll das Tool ohne Argument aufrufen können: die Nummer selbst
+    nachzuschlagen kostete einen zweiten Tool-Aufruf, und in der Lücke dazwischen
+    kündigte Gemini dem Kunden gemessen an, es schaue „gleich nach“, und beendete
+    den Zug (2026-08-10, 1 von 15 Läufen). Diese Auflösung passiert deshalb hier
+    und nicht im Modell.
+    """
+    eigene = _eigene_vorgangsnummern(kunden_id, agentur_id)
+    if eigene is None:
+        return "", REISEINFO_FEHLER_TEXT
+
+    for kandidat in (str(vorgangsnummer or "").strip(), str(seiten_vorgang or "")):
+        if kandidat and kandidat in eigene:
+            return kandidat, ""
+
+    # Die nächste eigene Reise. Die Liste ist wie ``auswahl="alle"`` sortiert,
+    # das erste Element ist also die kommende Reise (sonst die zuletzt gereiste).
+    if eigene:
+        return eigene[0], ""
+    return "", REISEINFO_OHNE_BUCHUNG_TEXT
+
+
+def reiseinfo_tool_base(
+    vorgangsnummer: str = "",
+    seiten_vorgang: str = "",
+    kunden_id: str = "",
+    agentur_id: str = "",
+) -> str:
+    """„Wichtige Informationen“ zu einer Buchung als Markdown. Wirft nie.
+
+    Ohne ``vorgangsnummer`` wird die gemeinte Buchung selbst aufgelöst (siehe
+    ``reiseinfo_vorgang``).
+
+    Trennt die Fälle, die für den Kunden verschieden sind: gar keine Buchung,
+    unbekannte Buchungsnummer, Reise ohne hinterlegte Bausteine und Ausfall der
+    API. Ein Ausfall darf nie als „dazu gibt es nichts“ beim Kunden ankommen —
+    er würde daraus schließen, dass er nichts vorbereiten muss.
+    """
+    nummer, fehler = reiseinfo_vorgang(
+        vorgangsnummer, seiten_vorgang, kunden_id, agentur_id
+    )
+    if fehler:
+        return fehler
+    if not _VORGANGSNUMMER_RE.match(nummer):
+        return REISEINFO_UNBEKANNT_TEXT
+
+    try:
+        daten = reiseinfo_tools(nummer)
+    except Exception as e:
+        # Nur der Fehlertyp: die requests-Exception trägt die volle Request-URL
+        # und damit die Vorgangsnummer. Sie identifiziert eine Buchung und
+        # gehört so wenig ins Log wie eine Kundennummer.
+        print(f"[agent_base] reiseinfo lookup failed: {type(e).__name__}")
+        return REISEINFO_FEHLER_TEXT
+
+    if not daten.get("reiseCode"):
+        return REISEINFO_UNBEKANNT_TEXT
+    bloecke = daten.get("bloecke") or {}
+    if not bloecke:
+        # Nichts da UND es hat gekracht: das ist ein Ausfall, keine Reise ohne
+        # Informationen. Der Unterschied entscheidet, ob der Kunde glaubt, er
+        # müsse nichts vorbereiten.
+        return REISEINFO_FEHLER_TEXT if daten.get("unvollstaendig") else REISEINFO_LEER_TEXT
+
+    teile = [f"Wichtige Informationen zu deiner Reise (Buchung {nummer}):"]
+    for block, bausteine in bloecke.items():
+        teile.append(f"# {block}")
+        for baustein in bausteine:
+            teile.append(f"## {baustein['titel']}\n\n{_reiseinfo_markdown(baustein)}")
+    if daten.get("unvollstaendig"):
+        # Teilerfolg ehrlich benennen, statt eine lückenhafte Antwort als
+        # vollständig auszugeben — gleiche Regel wie im Buchungs-Tool.
+        teile.append(
+            "(Einzelne Abschnitte konnte ich gerade nicht laden. Sie fehlen "
+            "hier, sie sind nicht leer.)"
+        )
+    return _kuerzen("\n\n".join(teile))
