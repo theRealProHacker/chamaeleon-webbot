@@ -1174,8 +1174,8 @@
         chats.forEach((chat) => {
           const primaryTimestamp =
             deriveChatTimestamp(chat) || chat.started_at || chat.ended_at;
-          const date = coerceToDate(primaryTimestamp);
-          if (date) counts[date.getHours()] += 1;
+          const parts = berlinParts(primaryTimestamp);
+          if (parts) counts[parts.hour] += 1;
         });
         return counts.map((count, hour) => ({
           hour,
@@ -1259,10 +1259,9 @@
         return base.filter((chat) => {
           const primaryTimestamp =
             deriveChatTimestamp(chat) || chat.started_at || chat.ended_at;
-          const date = coerceToDate(primaryTimestamp);
-          if (!date) return false;
-          const weekdayIndex = (date.getDay() + 6) % 7;
-          return weekdayIndex === state.selectedWeekdayIndex;
+          const parts = berlinParts(primaryTimestamp);
+          if (!parts || parts.weekday === null) return false;
+          return parts.weekday === state.selectedWeekdayIndex;
         });
       }
 
@@ -1615,10 +1614,49 @@
         return `${secs} Sek.`;
       }
 
+      // Every bucket in this dashboard is German local time, and the server
+      // now guarantees that. The browser must not undo it: getHours()/getDay()
+      // work in the viewer's zone, and toLocaleString("de-DE") only picks the
+      // format, not the zone. Both go through here instead.
+      const BERLIN_PARTS = new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin",
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const BERLIN_WEEKDAY_INDEX = {
+        Mo: 0,
+        Di: 1,
+        Mi: 2,
+        Do: 3,
+        Fr: 4,
+        Sa: 5,
+        So: 6,
+      };
+
+      function berlinParts(value) {
+        const date = coerceToDate(value);
+        if (!date) return null;
+        const parts = {};
+        for (const part of BERLIN_PARTS.formatToParts(date)) {
+          parts[part.type] = part.value;
+        }
+        const weekday = BERLIN_WEEKDAY_INDEX[(parts.weekday || "").slice(0, 2)];
+        return {
+          hour: Number(parts.hour),
+          weekday: typeof weekday === "number" ? weekday : null,
+        };
+      }
+
       function formatTimestamp(isoString) {
         const date = coerceToDate(isoString);
         if (!date) return isoString ?? "";
         return date.toLocaleString("de-DE", {
+          timeZone: "Europe/Berlin",
           month: "short",
           day: "numeric",
           hour: "2-digit",
