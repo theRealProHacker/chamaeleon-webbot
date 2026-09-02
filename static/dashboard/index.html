@@ -1310,7 +1310,8 @@
 
         const filename = `chamaeleon-chats_${filterPart}_${dateStr}.json`;
         const cleanedChats = state.currentView.filteredChats.map((chat) => {
-          const { duration_seconds, started_at, ended_at, ...cleanChat } = chat;
+          const { duration_seconds, started_at, ended_at, id, ...cleanChat } =
+            chat;
           return cleanChat;
         });
 
@@ -1342,7 +1343,7 @@
         if (!state.currentView.filteredChats?.length) return;
         const lines = state.currentView.filteredChats.flatMap((chat) => {
           const ts = deriveChatTimestamp(chat);
-          const header = `## Chat ${chat.id?.slice(0, 8) ?? "?"} — ${ts ? formatTimestamp(ts) : ""}`;
+          const header = `## Chat — ${ts ? formatTimestamp(ts) : "ohne Zeitstempel"}`;
           const msgs = (chat.messages ?? [])
             .filter(isDisplayableMessage)
             .map(
@@ -1376,14 +1377,18 @@
         }
 
         const orderedChats = Array.isArray(chats) ? [...chats] : [];
-        orderedChats.forEach((chat) => {
+        orderedChats.forEach((chat, chatIndex) => {
           const container = document.createElement("article");
           container.className = "chat-thread";
 
           const header = document.createElement("div");
           header.className = "chat-header";
           const title = document.createElement("strong");
-          title.textContent = chat.id ? `Chat ${chat.id.slice(8)}` : "Chat";
+          // Numbered within the current view, not identified by chat.id: that id
+          // used to be the Kunden-Modus auth token. The actual time is right
+          // below in the "Erfasst" chip, so repeating it here would say the same
+          // thing twice.
+          title.textContent = `Chat ${chatIndex + 1}`;
           header.appendChild(title);
 
           const meta = document.createElement("div");

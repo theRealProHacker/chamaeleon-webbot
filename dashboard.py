@@ -17,13 +17,16 @@ import travel_index
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from zoneinfo import ZoneInfo
-from types import NoneType
 from dateutil.parser import isoparse
 from typing import Any, Literal, NotRequired, Optional, TypedDict
 
 from flask import request, jsonify, send_from_directory
 
 from db_logging import ChatHistory, Message, _message_bounds, supabase, DEBUG
+
+# Columns the dashboard reads. `session_id` is excluded on purpose — see the
+# authentication note further down: it is the Kunden-Modus bearer token.
+CHAT_COLUMNS = "id, messages, timestamp"
 
 DAY_NAME = [
     "Montag",
@@ -66,18 +69,19 @@ type AnyMessage = OldMessage | Message
 # ──────────────────────────────────────────
 
 
+# Old and new rows are told apart by the messages themselves: only new ones
+# carry a per-message `timestamp`. That used to be done via `session_id is
+# None`, which meant selecting the auth token just to branch on it.
 class OldChatRow(TypedDict):
     id: str  # uuid primary key
     messages: list[OldMessage]
     timestamp: str  # ISO-8601 string from Postgres
-    session_id: NoneType
 
 
 class ChatRow(TypedDict):
     id: str  # uuid primary key
     messages: ChatHistory
     timestamp: str  # ISO-8601 string from Postgres
-    session_id: str
 
 
 type AnyChatRow = OldChatRow | ChatRow
@@ -230,7 +234,12 @@ class MonthCache:
     def load_all(self):
         # fetch everything
         # TODO: long term: stream this if it gets too big, or do it in batches by month
-        rows: list[AnyChatRow] = supabase.table("chats").select("*").execute().data  # type: ignore
+        # Deliberately not `select("*")`: that pulls `session_id`, which is the
+        # Kunden-Modus bearer token. The dashboard never needs it, so it must not
+        # be in this process's memory to begin with.
+        rows: list[AnyChatRow] = (
+            supabase.table("chats").select(CHAT_COLUMNS).execute().data  # type: ignore
+        )
 
         if DEBUG:
             print(
@@ -413,7 +422,7 @@ def fetch_month_chats(month_key: MonthKey) -> list[AnyChatRow]:
     next_month_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
     rows: list[AnyChatRow] = (
         supabase.table("chats")
-        .select("*")
+        .select(CHAT_COLUMNS)
         .gte("timestamp", month_start.isoformat())
         .lt("timestamp", next_month_start.isoformat())
         .order("timestamp", desc=True)
@@ -432,7 +441,6 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
         if not messages:
             continue
         timestamp = row["timestamp"]
-        session_id = row["session_id"]
         # number of user messages
         user_message_count = sum(1 for m in messages if is_user(m))
         detail: ChatDetail = {
@@ -443,12 +451,15 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
             # "html": False,
         }
         details.append(detail)
-        if session_id is None:
+        # Old rows have no per-message timestamps, so they have no bounds. The
+        # last message always carries one on new rows (it is a bot or
+        # recommendation_previews message), which makes this exactly the
+        # condition `_message_bounds` needs below.
+        if "timestamp" not in messages[-1]:
             continue
         # Only new chats after here
         _row: ChatRow = row  # type: ignore
         messages = _row["messages"]
-        detail["id"] = session_id
         # detail["html"] = True
         start_ts, end_ts = _message_bounds(messages)
         detail["started_at"] = datetime.fromtimestamp(start_ts).isoformat()
@@ -464,21 +475,27 @@ month_cache = MonthCache()
 #
 # DASHBOARD_PASSWORD has NO default and startup fails without it. There used to
 # be a `"change-me"` fallback, which was survivable while the dashboard only
-# exposed chat statistics. It is not survivable now: the dashboard serves
-# `session_id` values (see _session_details), and since Kunden-Modus auth
-# (kunden_auth) `session_id` IS the bearer token for a customer's Buchungen and
-# Zahlstand. A forgotten env var would have meant anyone on the internet could
-# read live session_ids and replay them against /chat/stream. Failing loudly at
-# boot beats failing open in production.
+# exposed chat statistics.
+#
+# It used to be far worse than that: the dashboard handed out `session_id`
+# values, and since Kunden-Modus auth (kunden_auth) `session_id` IS the bearer
+# token for a customer's Buchungen and Zahlstand — a forgotten env var meant
+# anyone on the internet could read live tokens and replay them against
+# /chat/stream. That is fixed: the token is no longer selected, stored or
+# served (see CHAT_COLUMNS).
+#
+# The password stays mandatory anyway, because what remains is still the full
+# text of customer conversations. Failing loudly at boot beats failing open in
+# production.
 API_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
 API_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 
 if not API_PASSWORD:
     raise RuntimeError(
-        "DASHBOARD_PASSWORD is not set. The dashboard exposes chat session_ids, "
-        "which are the Kunden-Modus auth token — refusing to start without a "
-        "password. Set DASHBOARD_PASSWORD in the environment (.env locally, "
-        "service variables on Railway)."
+        "DASHBOARD_PASSWORD is not set. The dashboard exposes full customer "
+        "chat transcripts — refusing to start without a password. Set "
+        "DASHBOARD_PASSWORD in the environment (.env locally, service variables "
+        "on Railway)."
     )
 
 
