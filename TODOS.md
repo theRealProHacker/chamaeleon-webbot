@@ -114,3 +114,48 @@
       without Reiseziele URLs). Everything fails open until the table exists —
       **one manual step left: run the DDL from sitemap_store.py's docstring in
       the Supabase SQL editor** (the API key cannot create tables).
+
+## Dashboard-Neubau (vertagt aus dem /autoplan-Review, 2026-09-01)
+Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`.
+- [ ] **Trend-Sparkline** pro Ursache über die letzten N Monate. Vertagt,
+      weil sie an der Cluster-Kontinuität (A4) hängt, deren Nutzen selbst noch
+      unbewiesen ist. Sinnvoll frühestens nach dem zweiten echten Monatslauf.
+- [ ] **CSV-Export der Ursachenliste.** Ungefragt, aber plausibel: der Anfragende
+      arbeitet vermutlich mit Excel. Erst bauen, wenn er danach fragt.
+- [ ] **Aufbewahrungsregel für `month_stats` selbst** (P3b im Design). Die
+      Tabelle ist als unbefristet gedacht; das ist nur zulässig, solange der
+      Payload anonym ist. Fällt PII hinein, fällt die Begründung.
+- [ ] **DSGVO-Retention komplett — am Gate aus v1 gestrichen (2026-09-02, C1).**
+      Der zweistufige Cutoff ist kein Teil des Dashboard-Neubaus mehr. Er kommt
+      als eigenes, kleines Vorhaben zurück, und zwar **erst wenn drei Dinge
+      feststehen: Anlass, Frist, Verantwortlicher.** Das ist die Vorbedingung,
+      nicht ein Detail darin — ein Mechanismus, der Daten unsichtbar macht,
+      gehört nicht in ein Release, das die Frist nicht kennt, der er dient.
+      Stufe 1 (Nicht-Anzeigen im Dashboard) erfüllt die Aufbewahrungsfrist
+      ausdrücklich **nicht**; ohne Stufe 2 ist sie Compliance-Theater.
+      Gute Nachricht aus C1: `month_stats` wird trotzdem gebaut (als
+      Aggregat-Cache), der Cutoff kann also später allein nachgezogen werden.
+- [ ] **Fragen-Häufigkeitsliste** (die ursprüngliche Anforderung 4). Am Gate
+      2026-09-02 durch die Antwortqualitäts-Achse ersetzt (C2), nicht verworfen:
+      derselbe LLM-Lauf könnte beide Felder liefern. Sinnvoll, sobald die
+      Fragenliste nach außen soll — an Agenturen oder Berater. Dann ist
+      Häufigkeit das Produkt und das Gegenargument („daraus folgt keine Arbeit")
+      fällt weg.
+- [ ] **Auftragsverarbeitung muss die Massenverarbeitung der Nutzernachrichten
+      durch Gemini decken** (P3a im Design). Der Chatbetrieb schickt Nachrichten
+      ohnehin an Gemini; ein monatlicher Batch über alle Nachrichten ist eine
+      zusätzliche Verarbeitung und braucht dieselbe Grundlage.
+- [ ] **Toter „🤖 KI-Bericht (Gemini)"-Knopf** im Dashboard
+      (`static/dashboard/index.html:649`, Handler `exportToAIReport() {}` in
+      Zeile 1360 ist leer). Entweder auf den neuen Monatsreport verdrahten oder
+      löschen — nicht liegen lassen.
+- [ ] **`:focus`-Regeln fehlen komplett** in `static/dashboard/index.html`
+      (nachgezählt: 0 Treffer in 1.708 Zeilen), und die Monatsauswahl ist
+      ausschließlich ein Klick auf ein `<canvas>` — es gibt heute keinen
+      Tastaturpfad zu irgendeiner Auswertung.
+- [ ] **Diagrammfarben sind sechs hartkodierte Hexwerte** neben einem
+      existierenden Token-Set (`index.html`, Zeilen 991–1221). `#94a3b8`
+      erreicht nur 2.45:1 gegen `--bg` und verfehlt damit die 3:1-Schwelle für
+      Diagrammelemente (WCAG SC 1.4.11).
+- [ ] **Kartenschatten verstoßen gegen die globale Designregel** (einlagige
+      `box-shadow`, u. a. `index.html:126`), statt gestapelter `--shadow-s/m/l`.
