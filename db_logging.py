@@ -127,7 +127,10 @@ def _load_sessions_from_db() -> None:
             continue
 
         if not isinstance(db_id, str) or not isinstance(messages, list) or not messages:
-            print(f"Skipping invalid session row with id {session_id}: {row}")
+            # Neither the session_id (it is the Kunden-Modus bearer token) nor
+            # the row itself (it carries the full conversation) belongs in a
+            # log line. The DB id is enough to find the row again.
+            print(f"Skipping invalid session row, db id {db_id!r}")
             continue
 
         created_at, last_active = _message_bounds(messages)
