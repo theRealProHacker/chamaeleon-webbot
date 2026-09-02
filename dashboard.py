@@ -7,7 +7,10 @@ Only current month can expire, past months are static once loaded. When current 
 
 When current month changes, fetch old current month to finalize it, and start tracking new current month.
 
-All datetimes in local timezone, i.e. German local time.
+All datetimes in this module are German local time (Europe/Berlin). Row
+timestamps arrive from Postgres in UTC, so they are converted once at the parse
+boundary — see parse_row_timestamp. Do not call isoparse on a row timestamp
+directly; the hour and weekday buckets would then be UTC ones.
 """
 
 import hmac
@@ -170,6 +173,18 @@ class DashboardPayload(TypedDict):
 tz = ZoneInfo("Europe/Berlin")
 
 
+def parse_row_timestamp(raw: str) -> datetime:
+    """Parse a Postgres row timestamp into German local time.
+
+    Postgres hands these out in UTC. Every bucket in this module — month, day,
+    hour, weekday — is meant to be German local time, so the conversion belongs
+    here at the parse boundary and nowhere else. Without it a chat at 00:30
+    Berlin time in summer lands on the previous day, in the 22:00 bucket, and in
+    January it can even land in the previous month.
+    """
+    return isoparse(raw).astimezone(tz)
+
+
 def month_key(dt: datetime) -> MonthKey:
     return dt.strftime("%Y-%m")
 
@@ -254,7 +269,7 @@ class MonthCache:
 
         # group rows by month
         for row in rows:
-            timestamp = isoparse(row["timestamp"])
+            timestamp = parse_row_timestamp(row["timestamp"])
             _month_key = month_key(timestamp)
 
             month_rows.setdefault(_month_key, []).append(row)
@@ -290,7 +305,7 @@ class MonthCache:
         ) = (0, 0, {h: 0 for h in range(24)}, {}, {wd: 0 for wd in range(7)})
 
         for row in rows:
-            timestamp = isoparse(row["timestamp"])
+            timestamp = parse_row_timestamp(row["timestamp"])
             day, hour, weekday = timestamp.day, timestamp.hour, timestamp.weekday()
             total_count += 1
             try:
@@ -413,8 +428,11 @@ class MonthCache:
 
     @staticmethod
     def current_month_start() -> datetime:
-        now = datetime.now()
-        return datetime(now.year, now.month, 1)
+        # Aware, because "the current month" is a German-local question. On
+        # Railway the process clock is UTC, so a naive now() rolled the month
+        # over an hour or two early — twice a year on the wrong day entirely.
+        now = datetime.now(tz)
+        return datetime(now.year, now.month, 1, tzinfo=tz)
 
 
 def fetch_month_chats(month_key: MonthKey) -> list[AnyChatRow]:
@@ -462,8 +480,10 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
         messages = _row["messages"]
         # detail["html"] = True
         start_ts, end_ts = _message_bounds(messages)
-        detail["started_at"] = datetime.fromtimestamp(start_ts).isoformat()
-        detail["ended_at"] = datetime.fromtimestamp(end_ts).isoformat()
+        # Unix timestamps are absolute; fromtimestamp without a tz would render
+        # them in whatever the container's clock is, which is UTC on Railway.
+        detail["started_at"] = datetime.fromtimestamp(start_ts, tz).isoformat()
+        detail["ended_at"] = datetime.fromtimestamp(end_ts, tz).isoformat()
         detail["duration_seconds"] = end_ts - start_ts
 
     return details
