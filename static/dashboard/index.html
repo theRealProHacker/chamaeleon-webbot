@@ -56,7 +56,7 @@
 
         /* Heatmap ramp, single hue so intensity reads as one dimension. */
         --heat-0: #e2e8f0;
-        --heat-1: #c7ddf8;
+        --heat-1: #b9d5f7;
         --heat-2: #93c5fd;
         --heat-3: #5b9bf8;
         --heat-4: #2563eb;
@@ -87,7 +87,7 @@
       }
 
       header {
-        padding: 1.5rem clamp(1.5rem, 4vw, 3rem);
+        padding: 1.5rem clamp(1rem, 2vw, 2rem);
         border-bottom: 1px solid var(--border);
         background: var(--surface);
         display: flex;
@@ -213,6 +213,19 @@
       .heatmap-legend .scale {
         display: flex;
         gap: 2px;
+        align-items: flex-start;
+      }
+
+      .heatmap-legend .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.15rem;
+      }
+
+      .heatmap-legend .tick {
+        font-size: 0.7rem;
+        font-variant-numeric: tabular-nums;
       }
 
       .heatmap-legend .swatch {
@@ -234,7 +247,7 @@
         flex-wrap: wrap;
         gap: 0.6rem;
         align-items: center;
-        padding: 0.75rem clamp(1.5rem, 4vw, 3rem);
+        padding: 0.75rem clamp(1rem, 2vw, 2rem);
         background: var(--surface);
         border-bottom: 1px solid var(--border);
         box-shadow: var(--shadow-s);
@@ -313,10 +326,12 @@
         color: var(--text);
       }
 
-      .tagbar-hint {
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        margin-left: auto;
+      .tagbar-state {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text);
+        margin-right: 0.5rem;
+        white-space: nowrap;
       }
 
       /* Cause table — the answer to "where does the bot fall down". Top of the
@@ -347,6 +362,11 @@
 
       .cause-table td.num {
         width: 7rem;
+      }
+
+      .cause-table th.delta-col {
+        white-space: nowrap;
+        width: 8rem;
       }
 
       .cause-table td {
@@ -458,7 +478,7 @@
 
       .heatmap-legend {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 0.4rem;
         margin-top: 0.9rem;
         font-size: 0.8rem;
@@ -567,10 +587,15 @@
       .messages-list {
         max-height: clamp(20rem, 55vh, 30rem);
         overflow-y: auto;
+        overscroll-behavior: contain;
         display: flex;
         flex-direction: column;
         gap: 1rem;
-        padding-right: 0.5rem;
+        padding: 0 0.5rem 0.25rem 0;
+        border-bottom: 1px solid var(--border);
+        /* Fade the last few pixels so a half-cut line reads as "scroll for
+           more" instead of as a broken render. */
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
       }
 
       .chat-thread {
@@ -921,6 +946,7 @@
         aria-label="Bereich filtern"
       >
         <span class="tagbar-label">Bereich</span>
+        <span class="tagbar-state" id="tagbarHint">Alle</span>
         <button
           type="button"
           class="tag"
@@ -951,17 +977,13 @@
           Agentur
           <span class="tag-count" data-count="agentur">--</span>
         </button>
-        <span class="tagbar-hint" id="tagbarHint">Alle Bereiche</span>
       </div>
     <main>
       <div class="layout">
         <section class="panel left-panel">
           <article class="card">
             <h2>Chats pro Monat</h2>
-            <p class="card-subtitle">
-              Monat anklicken, um ihn auszuwerten. Noch einmal klicken zeigt
-              wieder alle Monate.
-            </p>
+            <p class="card-subtitle">Balken anklicken wählt den Monat.</p>
             <div
               id="monthlyChartWrapper"
               class="chart-wrapper loading-skeleton"
@@ -992,22 +1014,17 @@
               <div class="metric">
                 <span class="metric-label">Chats</span>
                 <span class="metric-value" id="totalChatsValue">--</span>
-                <span class="metric-caption" id="totalChatsCaption"></span>
+                <span class="metric-caption" id="totalChatsCaption">Gespräche</span>
               </div>
               <div class="metric">
                 <span class="metric-label">Ø Nachrichten</span>
                 <span class="metric-value" id="avgUserMessagesValue">--</span>
                 <span class="metric-caption">Pro Gespräch</span>
               </div>
-              <div class="metric" id="evadedMetric" hidden>
-                <span class="metric-label">Ausgewichen</span>
-                <span class="metric-value" id="qualityEvadedValue">--</span>
-                <span class="metric-caption" id="qualityEvadedCaption"></span>
-              </div>
-              <div class="metric" id="abortedMetric" hidden>
-                <span class="metric-label">Abgebrochen</span>
-                <span class="metric-value" id="qualityAbortedValue">--</span>
-                <span class="metric-caption" id="qualityAbortedCaption"></span>
+              <div class="metric" id="badMetric" hidden>
+                <span class="metric-label">Schlechte Antworten</span>
+                <span class="metric-value" id="qualityBadValue">--</span>
+                <span class="metric-caption" id="qualityBadCaption"></span>
               </div>
             </div>
             <p id="metricsError" class="error-message" hidden></p>
@@ -1021,7 +1038,7 @@
                 <tr>
                   <th scope="col">Ursache</th>
                   <th scope="col" class="num">Gespräche</th>
-                  <th scope="col" class="num">Vormonat</th>
+                  <th scope="col" class="num delta-col">Δ Vormonat</th>
                 </tr>
               </thead>
               <tbody id="causeTableBody"></tbody>
@@ -1031,8 +1048,7 @@
           <article id="heatmapCard" class="card">
             <h2 id="heatmapTitle">Wochentag und Uhrzeit</h2>
             <p class="card-subtitle">
-              Chats nach Startzeit, Berliner Zeit. Zelle anklicken filtert die
-              Gespräche unten.
+              Startzeit, Berliner Zeit. Zelle anklicken filtert die Gespräche.
             </p>
             <div id="heatmapState" class="card-state" hidden></div>
             <div
@@ -1077,9 +1093,6 @@
                   <button type="button" id="exportMdBtn">
                     📝 Als Markdown exportieren
                   </button>
-                  <button type="button" id="exportAiBtn" disabled>
-                    🤖 KI-Bericht (Gemini)
-                  </button>
                 </div>
               </div>
             </div>
@@ -1123,13 +1136,10 @@
         heatmapTitleEl: document.getElementById("heatmapTitle"),
         qualitySubtitle: document.getElementById("qualitySubtitle"),
         heatmapLegend: document.getElementById("heatmapLegend"),
-        evadedMetric: document.getElementById("evadedMetric"),
-        abortedMetric: document.getElementById("abortedMetric"),
+        badMetric: document.getElementById("badMetric"),
+        qualityBadValue: document.getElementById("qualityBadValue"),
+        qualityBadCaption: document.getElementById("qualityBadCaption"),
         qualityState: document.getElementById("qualityState"),
-        qualityEvadedValue: document.getElementById("qualityEvadedValue"),
-        qualityEvadedCaption: document.getElementById("qualityEvadedCaption"),
-        qualityAbortedValue: document.getElementById("qualityAbortedValue"),
-        qualityAbortedCaption: document.getElementById("qualityAbortedCaption"),
         causeTable: document.getElementById("causeTable"),
         causeTableBody: document.getElementById("causeTableBody"),
         causeFootnote: document.getElementById("causeFootnote"),
@@ -1138,7 +1148,6 @@
         exportButton: document.getElementById("exportButton"),
         exportJsonBtn: document.getElementById("exportJsonBtn"),
         exportMdBtn: document.getElementById("exportMdBtn"),
-        exportAiBtn: document.getElementById("exportAiBtn"),
         exportDropdown: document.getElementById("exportDropdown"),
         lastUpdatedEl: document.getElementById("lastUpdated"),
         monthlyChartWrapper: document.getElementById("monthlyChartWrapper"),
@@ -1259,7 +1268,7 @@
         });
         DOM.tagbarHint.textContent = state.selectedSegments.length
           ? state.selectedSegments.map((s) => SEGMENT_LABELS[s]).join(" + ")
-          : "Alle Bereiche";
+          : "Alle";
       }
 
       const api = {
@@ -1508,9 +1517,9 @@
 
       function renderHeatmap(matrix, label) {
         const rows = Array.isArray(matrix) && matrix.length === 7 ? matrix : null;
-        DOM.heatmapTitleEl.textContent = label
-          ? `Wochentag und Uhrzeit — ${label}`
-          : "Wochentag und Uhrzeit";
+        // No month in this title: the card above already names the period, and
+        // it appeared in five headings with three different separators.
+        DOM.heatmapTitleEl.textContent = "Wochentag und Uhrzeit";
 
         if (!rows) {
           DOM.heatmapEl.replaceChildren();
@@ -1589,24 +1598,29 @@
         label.textContent = "Chats pro Stunde:";
         DOM.heatmapLegend.appendChild(label);
 
+        // Numbers under the swatches. Six unlabelled squares and "0 bis 42" at
+        // the end cannot be mapped back to a cell.
         const scale = document.createElement("span");
         scale.className = "scale";
         for (let level = 0; level <= 5; level += 1) {
+          const step = document.createElement("span");
+          step.className = "step";
           const swatch = document.createElement("span");
           swatch.className = "swatch";
           swatch.style.background = `var(--heat-${level})`;
-          swatch.title =
-            level === 0
-              ? "0"
-              : level === 5
-                ? `${bounds[3]}+`
-                : `${level === 1 ? 1 : bounds[level - 2]}–${bounds[level - 1]}`;
-          scale.appendChild(swatch);
+          const tick = document.createElement("span");
+          tick.className = "tick";
+          tick.textContent =
+            level === 0 ? "0" : level === 1 ? "1" : String(bounds[level - 2]);
+          step.appendChild(swatch);
+          step.appendChild(tick);
+          scale.appendChild(step);
         }
         DOM.heatmapLegend.appendChild(scale);
 
         const range = document.createElement("span");
-        range.textContent = `0 bis ${formatNumber(max)}`;
+        range.className = "tick";
+        range.textContent = `max. ${formatNumber(max)}`;
         DOM.heatmapLegend.appendChild(range);
       }
 
@@ -1648,8 +1662,7 @@
         const status = quality?.status ?? "missing";
 
         if (status !== "ok" && status !== "partial") {
-          DOM.evadedMetric.hidden = true;
-          DOM.abortedMetric.hidden = true;
+          DOM.badMetric.hidden = true;
           DOM.causeTable.hidden = true;
           DOM.causeFootnote.hidden = true;
           DOM.qualitySubtitle.textContent = "";
@@ -1668,28 +1681,19 @@
         const wrong = quality.qualitaet?.falsch ?? 0;
         const bad = evaded + aborted + wrong;
 
-        // The card says which period it covers and what its rows count. The
-        // cause column sums to more than Ausgewichen + Abgebrochen because
-        // `falsch` also carries a cause — without saying so, anyone who adds
-        // the column up gets a number that matches nothing on the page and
-        // stops trusting it.
-        DOM.qualitySubtitle.textContent = periodLabel
-          ? `${periodLabel} · ${formatNumber(bad)} Gespräche mit einer schlechten Antwort` +
-            (quality.computed_at
-              ? `, Stand ${formatTimestamp(quality.computed_at)}`
-              : "")
-          : "";
+        // ONE total, and the cause column adds up to it. The tile used to show
+        // "Ausgewichen 665" beside a card headed "736 Gespräche mit einer
+        // schlechten Antwort": two authoritative counts of the same idea, 71
+        // apart, with nothing saying that `falsch` also carries a cause.
+        DOM.badMetric.hidden = false;
+        DOM.qualityBadValue.textContent = formatNumber(bad);
+        DOM.qualityBadCaption.textContent = `${formatNumber(evaded)} ausgewichen · ${formatNumber(aborted)} abgebrochen`;
 
-        DOM.evadedMetric.hidden = false;
-        DOM.abortedMetric.hidden = false;
-        DOM.qualityEvadedValue.textContent = formatNumber(evaded);
-        DOM.qualityEvadedCaption.textContent = totalChats
-          ? `${Math.round((evaded / totalChats) * 100)} % der Gespräche`
-          : "";
-        DOM.qualityAbortedValue.textContent = formatNumber(aborted);
-        DOM.qualityAbortedCaption.textContent = totalChats
-          ? `${Math.round((aborted / totalChats) * 100)} % der Gespräche`
-          : "";
+        // The card says what its rows are and that they can be opened. It does
+        // not repeat the month (the card above it already carries it) and it
+        // does not print a "Stand" — that is provenance, not product.
+        DOM.qualitySubtitle.textContent =
+          "Zeile anklicken zeigt die Gespräche dahinter.";
 
         renderCauseTable(quality);
       }
@@ -1709,7 +1713,6 @@
         const previousCounts = new Map(Object.entries(quality.vormonat ?? {}));
         const comparable = previousCounts.size > 0;
 
-        const topCount = Math.max(...causes.map((c) => c.count ?? 0), 1);
         const body = document.createDocumentFragment();
         causes.forEach((cause) => {
           const row = document.createElement("tr");
@@ -1726,12 +1729,11 @@
           // model, by way of user text, and is stored in the database.
           label.textContent = cause.label ?? cause.ursache_id;
           labelCell.appendChild(label);
-          if (cause.definition) {
-            const definition = document.createElement("span");
-            definition.className = "cause-definition";
-            definition.textContent = cause.definition;
-            labelCell.appendChild(definition);
-          }
+          // The one-sentence definition mostly restated the label ("Bot kennt
+          // Flugdetails nicht" / "Der Bot kann keine spezifischen Informationen
+          // zu Flügen geben"), three lines per row, nine rows. It is still
+          // there on hover, where it is read once.
+          if (cause.definition) label.title = cause.definition;
           if (cause.faq_gap) {
             // The marker that turns "here is a cause" into "here is the work":
             // no snippet exists for this one yet.
@@ -1748,15 +1750,6 @@
           // not be shown as one — a retired cause reading 0 looks like a fix.
           countCell.textContent =
             cause.count === null ? "—" : formatNumber(cause.count);
-          if (cause.count) {
-            const track = document.createElement("span");
-            track.className = "cause-bar-track";
-            const bar = document.createElement("span");
-            bar.className = "cause-bar";
-            bar.style.width = `${Math.max(3, (cause.count / topCount) * 100)}%`;
-            track.appendChild(bar);
-            countCell.appendChild(track);
-          }
           row.appendChild(countCell);
 
           const deltaCell = document.createElement("td");
@@ -1767,6 +1760,7 @@
           } else {
             const delta = cause.count - previous;
             deltaCell.textContent = delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`;
+            deltaCell.title = `Vormonat: ${formatNumber(previous)} Gespräche`;
             deltaCell.classList.add("cause-delta", delta > 0 ? "up" : "down");
           }
           row.appendChild(deltaCell);
@@ -1802,13 +1796,42 @@
         renderMessagesWithCurrentFilter();
       }
 
+      let runningMonthFill = null;
+
+      function runningMonthPattern() {
+        if (runningMonthFill) return runningMonthFill;
+        const tile = document.createElement("canvas");
+        tile.width = 6;
+        tile.height = 6;
+        const ctx = tile.getContext("2d");
+        ctx.strokeStyle = "#94a3b8";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 6);
+        ctx.lineTo(6, 0);
+        ctx.stroke();
+        runningMonthFill = DOM.monthlyChartCtx.createPattern(tile, "repeat");
+        return runningMonthFill;
+      }
+
       function renderMonthlyChart(summary) {
         const normalized = Array.isArray(summary) ? summary : [];
         const labels = normalized.map((item) => item.short_label ?? item.label);
-        const fullLabels = normalized.map((item) => item.label);
+        const fullLabels = normalized.map((item, index) =>
+          normalized[index].key === state.currentMonth
+            ? `${item.label} (läuft noch)`
+            : item.label,
+        );
         const counts = normalized.map((item) => item.count ?? 0);
+        // The running month is hatched, not filled: it holds a partial count,
+        // and drawn solid next to twelve finished months it reads as a collapse
+        // in traffic rather than as a month that is two days old.
         const colors = normalized.map((item) =>
-          item.key === state.selectedMonthKey ? "#2563eb" : "#94a3b8",
+          item.key === state.currentMonth
+            ? runningMonthPattern()
+            : item.key === state.selectedMonthKey
+              ? "#2563eb"
+              : "#94a3b8",
         );
 
         if (!state.charts.monthly) {
@@ -1854,6 +1877,10 @@
             fullLabels[items?.[0]?.dataIndex ?? 0] ?? "";
           state.charts.monthly.data.datasets[0].data = counts;
           state.charts.monthly.data.datasets[0].backgroundColor = colors;
+          state.charts.monthly.data.datasets[0].hoverBackgroundColor = colors.map(
+            (color, index) =>
+              normalized[index].key === state.currentMonth ? color : "#2563eb",
+          );
           state.charts.monthly.options.onClick = (_evt, elements) =>
             handleMonthSelection(elements);
           state.charts.monthly.resize();
@@ -1872,7 +1899,7 @@
         }
 
         DOM.dailyChartCard.hidden = false;
-        DOM.dailyChartTitleEl.textContent = `Chats pro Tag · ${label}`;
+        DOM.dailyChartTitleEl.textContent = "Chats pro Tag";
 
         const labels = dailyCounts.map((item) => item.short_label ?? item.label ?? item.date);
         const dailyFullLabels = dailyCounts.map((item) => item.label ?? item.date);
@@ -2065,14 +2092,14 @@
         );
       }
 
-      function exportToAIReport() {}
-
       function renderMessages(chats, label, { filterLabel = null } = {}) {
         const displayLabel = label || "Ausgewählter Monat";
-        DOM.messagesTitleEl.textContent = `Nachrichten · ${displayLabel}`;
+        DOM.messagesTitleEl.textContent = "Gespräche";
+        // The heading already says "Gespräche"; repeating the noun here made
+        // it "Gespräche 1.734 Gespräche".
         DOM.messagesSubtitleEl.textContent = filterLabel
-          ? `${formatNumber(chats.length)} Gespräche · ${filterLabel}`
-          : `${formatNumber(chats.length)} Gespräche`;
+          ? `${formatNumber(chats.length)} · ${filterLabel}`
+          : formatNumber(chats.length);
         DOM.messagesListEl.innerHTML = "";
 
         if (!chats.length) {
@@ -2109,7 +2136,13 @@
           const meta = document.createElement("div");
           meta.className = "chat-meta";
           const recordedAt = deriveChatTimestamp(chat) || chat.started_at;
-          if (recordedAt) meta.appendChild(createMetaChip(formatTimestamp(recordedAt)));
+          const cardStamp = recordedAt ? formatTimestamp(recordedAt) : "";
+          if (cardStamp) meta.appendChild(createMetaChip(cardStamp));
+          meta.appendChild(
+            createMetaChip(
+              `${formatNumber(chat.user_message_count ?? 0)} Nutzerfragen`,
+            ),
+          );
           if (chat.segment) {
             meta.appendChild(createMetaChip(SEGMENT_LABELS[chat.segment] ?? chat.segment));
           }
@@ -2142,9 +2175,12 @@
               : "Nachricht";
             titleEl.textContent = roleLabel;
             if (message.timestamp) {
-              const timeEl = document.createElement("span");
-              timeEl.textContent = ` · ${formatTimestamp(message.timestamp)}`;
-              titleEl.appendChild(timeEl);
+              const stamp = formatTimestamp(message.timestamp);
+              if (stamp !== cardStamp) {
+                const timeEl = document.createElement("span");
+                timeEl.textContent = ` · ${stamp}`;
+                titleEl.appendChild(timeEl);
+              }
             }
             messageEl.appendChild(titleEl);
 
@@ -2303,16 +2339,6 @@
         }).format(Number(value));
       }
 
-      function formatDuration(seconds) {
-        const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const secs = Math.floor(totalSeconds % 60);
-        if (hours > 0) return `${hours} Std. ${minutes} Min.`;
-        if (minutes > 0) return `${minutes} Min. ${secs} Sek.`;
-        return `${secs} Sek.`;
-      }
-
       // Every bucket in this dashboard is German local time, and the server
       // now guarantees that. The browser must not undo it: getHours()/getDay()
       // work in the viewer's zone, and toLocaleString("de-DE") only picks the
@@ -2451,7 +2477,6 @@
       });
       DOM.exportJsonBtn.addEventListener("click", exportMessagesToJSON);
       DOM.exportMdBtn.addEventListener("click", exportToMarkdown);
-      DOM.exportAiBtn.addEventListener("click", exportToAIReport);
       window.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") {
           handleRefresh();

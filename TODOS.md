@@ -172,10 +172,9 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       durch Gemini decken** (P3a im Design). Der Chatbetrieb schickt Nachrichten
       ohnehin an Gemini; ein monatlicher Batch über alle Nachrichten ist eine
       zusätzliche Verarbeitung und braucht dieselbe Grundlage.
-- [ ] **Toter „🤖 KI-Bericht (Gemini)"-Knopf** im Dashboard
-      (`static/dashboard/index.html:649`, Handler `exportToAIReport() {}` in
-      Zeile 1360 ist leer). Entweder auf den neuen Monatsreport verdrahten oder
-      löschen — nicht liegen lassen.
+- [x] **Toter „🤖 KI-Bericht (Gemini)"-Knopf gelöscht** (2026-09-02). Er hat den
+      Monatsreport versprochen, den es damals nicht gab; jetzt gibt es ihn, und
+      er steht auf der Seite statt hinter einem deaktivierten Knopf.
 - [ ] **`:focus`-Regeln fehlen komplett** in `static/dashboard/index.html`
       (nachgezählt: 0 Treffer in 1.708 Zeilen), und die Monatsauswahl ist
       ausschließlich ein Klick auf ein `<canvas>` — es gibt heute keinen
