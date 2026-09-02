@@ -88,7 +88,7 @@ Alles gemessen an der Produktionstabelle am 2026-09-01, keine Schätzungen.
 | Chats gesamt | 14.272 (2025-09 bis heute) | |
 | `url` vorhanden | erst ab Mitte Mai 2026 | 8.348 Zeilen (58 %) ohne Seitenkontext, nicht nachfüllbar |
 | `url`-Form | nur Pfad, nie Host (`/MeinChamaeleon/Reise`) | Segment über Pfad-Präfix; ein Host wie `agt.` steht nie im Wert |
-| `url`-Träger | **nur Assistant-Nachrichten** | Segment ist eine Eigenschaft des Chats, nie einer Nutzernachricht |
+| `url`-Träger | Assistant **und** `recommendation_previews` | Runde 2, gemessen seit 2026-05-22: 12.298 assistant + 2.080 previews (14,5 %). Wer A2/P7 als `role == "assistant"` implementiert, benutzt einen kleineren Nenner als die Messung, die P7 begründet hat |
 | Chat-`timestamp` | UTC (`…T12:59:29+00:00`) | Aggregate müssen konvertieren, siehe P8 |
 
 Segmentverteilung (Summe == Gesamtchats):
@@ -333,13 +333,19 @@ aber eigene Instanz — das Singleton dort steht auf `temperature=0.1`.
 **Laufzeit- und Kostenvertrag** (aus dem Eng-Re-Review, verbindlich, weil das
 Assignment sonst nicht operativ prüfbar ist):
 
-- Batchgröße **25 Chats pro Aufruf** → ~76 Aufrufe für einen Monat mit 1.900
-  Chats.
-- Geschätzt **6–19 Minuten Wandzeit pro Monat**, Backfill über 12 Monate
-  **1,2–3,8 Stunden**.
-- Kosten bei $0,30/M Input und $2,50/M Output: **$1,40–3,70 pro Monat**,
-  Backfill **$17–45**. Die Größenordnung ist unkritisch — die Laufzeit ist es
-  nicht (siehe A10).
+- **Batchgröße aus einem Token-Budget**, nicht aus einer Chatzahl: ≤ 60k
+  Input-Token pro Aufruf, mit einem Deckel für den p99-Chat (~6,5k Token). Die
+  erste Fassung sagte „25 Chats" — gemessen sind das nur ~5k Token, also 76
+  Round-Trips für etwas, das in ~15 passt. Ein großer Teil der Wandzeit war
+  Latenz einer zu kleinen Batchgröße, nicht Arbeit.
+- Kosten, korrigiert in Runde 2: die Eingabe ist der **volle Verlauf**, nicht
+  nur die Nutzernachrichten — 1.593.692 Zeichen ≈ 398k Token für einen Monat
+  (assistant 1.203.561 + user 219.440 + previews 170.691). Bei $0,30/M Input und
+  $2,50/M Output sind das **~$0,41 pro Monat**, Backfill **~$5**. Die erste
+  Schätzung ($1,40–3,70) lag in die falsche Richtung daneben.
+- Praktische Folge: **Kosten sind kein Argument mehr.** Einen Monat zweimal zu
+  rechnen kostet unter einem Dollar — das macht die Varianzmessung in A5 und das
+  Neurechnen nach einer Taxonomieänderung (A4) bezahlbar.
 - **Resume-Checkpoint pro Batch.** Ein abgebrochener Lauf darf nicht bei null
   anfangen; bezahlte Batches werden nicht zweimal bezahlt.
 - **Obergrenze Chats pro Lauf** und Retry-Budget explizit im Code, nicht im
@@ -363,7 +369,25 @@ Preise" ist nicht maschinell zuzuordnen. Regel:
   Vormonatsvergleich vergleicht IDs, nie Labels.
 - **Retire-Regel:** eine Ursache, die in drei aufeinanderfolgenden Monaten unter
   k liegt, wird stillgelegt — sie verschwindet aus dem Klassifikations-Prompt,
-  bleibt aber in den alten Aggregaten stehen.
+  bleibt aber in den alten Aggregaten stehen. **Ihre Zahl wird danach `null`,
+  nicht `0`** („nicht mehr gemessen", nicht „nicht mehr vorgekommen"), und eine
+  Ursache, zu der eine offene Maßnahme aus SC5 läuft, wird nie stillgelegt.
+  Sonst erzeugt die Retire-Regel genau das Signal, das SC6 als Erfolg liest.
+- **`taxonomy_version` pro Monat im Payload.** Die Taxonomie steckt im
+  Klassifikations-Prompt; jede Promotion und jedes Retirement ändert ihn. Zwei
+  Folgen, beide in Runde 2 gefunden:
+  - Der `prompt_hash`-Wächter (Decision 3) würde bei **jedem** Monatsvergleich
+    feuern — ein Wächter, der immer rot ist, ist aus. Er warnt deshalb auf
+    `taxonomy_version`, nicht auf dem rohen Hash.
+  - Ein Delta über eine Versionsgrenze hinweg vergleicht zwei verschiedene
+    Messgeräte und wird **gar nicht erst gerendert**. Stattdessen werden bei
+    jeder Taxonomieänderung die letzten zwei Monate neu gerechnet — das kostet
+    nach der Kostenkorrektur oben unter einem Dollar.
+- **Driftfall, den stabile IDs nicht abfangen:** `u04 = „weicht bei Preisfragen
+  aus"` wird definiert, als der Bot keine Preise hat. Nach `reiseinfo_tool`
+  (Commit `2c185d4`) nennt er Preise und weicht bei Verfügbarkeiten aus —
+  gleiches Label, gleiche ID, anderer Inhalt. Dagegen hilft nur das Neurechnen,
+  nicht die ID.
 
 Zusätzlich bekommt die Taxonomie hier eine Eigenschaft, die sie als Fragenliste
 nicht hätte: **eine behobene Ursache soll verschwinden.** Ein Cluster, der nach
@@ -382,17 +406,34 @@ Häufigkeitsliste wäre derselbe Rückgang mehrdeutig gewesen.
 Quelle ist das Gespräch, nicht der Pfad:
 
 - Der Konversations-Lauf aus A3 liefert pro Chat ein Feld `laender: [...]` mit
-  den tatsächlich besprochenen Ländern, kanonisiert gegen die Länderschlüssel
-  aus `faqs/laender.json` (die Liste geht als erlaubtes Vokabular in den
-  Prompt — freie Länderstrings wären sonst nicht aggregierbar).
-- **Die URL geht als Prior in den Prompt**, nicht als Zuordnung dahinter:
-  `travel_index._index` hält bereits eine autoritative `url → land`-Abbildung aus
-  `land2.bezeichnung` (`travel_index.py:647`), täglich um 03:00 neu gebaut. Für
-  einen Chat auf einer Reiseseite steht damit im Prompt „Der Nutzer war auf einer
-  Seite zu: Namibia". Das Modell darf davon abweichen, wenn im Gespräch etwas
-  anderes verhandelt wird.
-- **Fallback:** liefert das Modell kein Land, gilt das aus der URL abgeleitete.
-  Gibt es auch das nicht → `ohne Land`, ausgewiesen, nicht weggelassen.
+  den tatsächlich besprochenen Ländern, kanonisiert gegen ein geschlossenes
+  Vokabular (freie Länderstrings wären nicht aggregierbar).
+- **Das Vokabular ist `agent_base.laender_faqs`** (`agent_base.py:129-155`, aus
+  `faqs/FAQ_*.csv`): 73 Länder, in Produktion in Gebrauch.
+  **Nicht `faqs/laender.json`** — die Datei hat nur 31 Einträge, ist je
+  Kontinent alphabetisch abgeschnitten (Europa endet bei „Island", Afrika bei
+  „Mosambik"), enthält weder Namibia noch Tansania noch Südafrika, führt
+  Kombi-Strings wie „Argentinien/Chile" als Einzelland und wird von keinem
+  Python-Modul geladen. Ein geschlossenes Vokabular ohne Namibia hätte
+  Namibia-Chats still auf `ohne Land` oder auf `Botswana` fallen lassen.
+  Decision 11 hatte das in Phase 1 bereits gemessen; der Gate-Rewrite hat den
+  Defekt wieder eingebaut und der zweiten Außenstimme ist er wieder aufgefallen.
+- **Zwei Prioren gehen in den Prompt**, keiner davon als Zuordnung dahinter:
+  - Reisedetailseiten: `travel_index._index` hält `url → land` aus
+    `land2.bezeichnung` (`travel_index.py:647`). Deckt gemessen **28,6 %** der
+    Chats ab — nur Reisedetailseiten stehen im Index.
+  - Länder-Landingpages (`/<Kontinent>/<Land>`): **`agent_base.all_countries`**
+    (`agent_base.py:39`, aus `sitemap.txt`), 73 URL-Segmente → Landesname.
+    Das sind weitere gemessene **39,5 %**, die sonst weder Prior noch Fallback
+    gehabt hätten.
+- **Fallback:** liefert das Modell kein Land, gilt der Prior. Gibt es auch den
+  nicht → `ohne Land`, ausgewiesen, nicht weggelassen.
+- **Ebenfalls in den Prompt, als Recall-Boden:** `agent.py:197-201` erkennt
+  heute schon Länder aus dem Gesprächstext (Substring gegen `laender_faqs`) und
+  läuft seit Monaten in Produktion. Der Treffer wird dem Modell als „im Text
+  erwähnt: …" mitgegeben. Er ist kostenlos und deterministisch; das Modell
+  entscheidet über Widersprüche und Kontext, muss die Erwähnung aber nicht
+  selbst finden.
 - Ein Chat zählt **für jedes seiner Länder**. Folge, die im Report stehen muss:
   die Ländersumme ist größer als die Chatzahl, die Summen-Invariante gilt für
   Länder **nicht**.
@@ -416,7 +457,18 @@ Was das aufgibt, ausdrücklich: **die Länderachse ist nicht mehr deterministisc
 Zwei Läufe über denselben Monat können abweichen. Sie ist deshalb die einzige
 Achse in v1, die sich nur stichprobenartig von Hand nachzählen lässt — und im
 Frontend die einzige, die nicht als exakte Zahl auftritt, sondern als Rangfolge.
-Der Kalibrierungslauf (Assignment) prüft sie an 30 Chats von Hand.
+Der Kalibrierungslauf (Assignment) prüft sie an 30 Chats von Hand — **und misst
+die Varianz**, indem er denselben Monat zweimal rechnet. Das kostet nach der
+Kostenkorrektur in A3 unter einem Dollar und ist die einzige Zahl, aus der folgt,
+wie viele Ränge überhaupt gezeigt werden dürfen: im langen Schwanz ist ein Rang
+instabiler als eine absolute Zahl, bei 73 Ländern kippen die Plätze 8 und 9 an
+einer Handvoll Chats.
+
+Zwei Quellen des Nicht-Determinismus, die nicht das Modell sind: `temperature=0`
+ist bei Gemini keine Garantie, und **die Batchzusammensetzung ist Teil der
+Eingabe** — ein Resume nach Abbruch rebatcht anders, derselbe Chat bekommt andere
+Nachbarn. Deshalb werden Batches deterministisch geschnitten (sortierte
+`chat_db_id`) und der Batch-Index kommt ins Pro-Chat-Artefakt.
 
 ### A6 — Heatmap
 
@@ -550,6 +602,22 @@ falsche Modul-Docstring (T22) fährt in diesem Commit mit.
 1. **Assignment:** Juli und August 2026 durchrechnen, die rohe
    Ursachen-Liste und 30 handgeprüfte Länderzuordnungen vorlegen. **Vor** jeder
    UI-Arbeit — ist die Klassifikation nicht brauchbar, hat v1 keinen Inhalt.
+   Das Ergebnis wird **als Datei im Repo festgeschrieben**, nicht in
+   `month_stats` — die Tabelle existiert an dieser Stelle noch nicht, und die
+   von Hand vergebenen Labels sind das Gold-Set für Schritt 1.5.
+1.5 **Validierungs-Gate — mit Zahlen, nicht mit Augenmaß.** „Ist die
+   Klassifikation nicht brauchbar, dann abbrechen" ist kein Kriterium; niemand
+   bricht ab, nachdem er zwei Monate bezahlt hat. Deshalb hart:
+   - **120 Chats von Hand labeln**, geschichtet über die drei Segmente *und*
+     über die Zahl der Nutzernachrichten (1 / 2 / ≥ 3).
+   - **Cohens κ ≥ 0,6** auf `ausgewichen` + `abgebrochen` gegen den Menschen.
+     Darunter fällt die Achse.
+   - **Formkontrolle:** eine logistische Regression allein auf
+     (Assistant-Zeichenzahl, Zahl der Turns, Reiseempfehlung ja/nein). Sagt sie
+     das LLM-Label mit **AUC > 0,8** vorher, misst die Achse die Gesprächsform
+     und nicht die Qualität — dann fällt sie ebenfalls. Kostet ~20 Zeilen.
+   - 30 der 120 bleiben als **eingefrorenes Regressionsset** und laufen bei
+     jeder Prompt- oder Taxonomieänderung erneut.
 2. DDL von Hand im Supabase-SQL-Editor anlegen (`sql/month_stats.sql`, inkl. RLS).
 3. Backfill der Monate rechnen und gegen die Rohdaten prüfen — mindestens
    Chatzahlen und Heatmap eines Monats von Hand nachgezählt.
@@ -558,8 +626,9 @@ falsche Modul-Docstring (T22) fährt in diesem Commit mit.
 Der gleiche manuelle DDL-Schritt für `sitemap_versions` steht seit 2026-07-06
 offen (TODOS.md) — bei dieser Vorgeschichte ist Schritt 2 der wahrscheinlichste
 Stillstand. Deshalb gilt weiter **fail-open**: solange die Tabelle fehlt, wird
-das Aggregat on demand gerechnet und nicht geschrieben; alles außer der
-Qualitäts- und Länderachse funktioniert dann wie heute. Das war unter dem
+die deterministischen Achsen live gerechnet und **nichts** geschrieben, während
+die Qualitäts- und Länderachse als `status: missing` gemeldet werden. Ausdrücklich
+**kein** LLM-Lauf im Requestpfad — Decision 83 gilt hier genauso. Das war unter dem
 gestrichenen Cutoff nicht möglich — dort hätte ein fehlender Schritt 2 elf
 Monate aus der Ansicht genommen.
 
@@ -619,16 +688,22 @@ Monate aus der Ansicht genommen.
 - **Supabase-DDL von Hand.** `month_stats` muss im SQL-Editor angelegt werden;
   der API-Key kann keine Tabellen erzeugen. Gleiche Situation wie bei
   `sitemap_versions`, wo dieser Schritt seit 2026-07-06 offen ist (TODOS.md).
-  Bis dahin fail-open: on demand rechnen, nichts schreiben — mit C1 kostet ein
-  ausbleibender DDL-Schritt nur noch Geld und Latenz, keine Sichtbarkeit von
-  Monaten mehr.
+  Bis dahin fail-open: deterministische Achsen live, LLM-Achsen `status:
+  missing`, nichts geschrieben — mit C1 kostet ein ausbleibender DDL-Schritt
+  keine Sichtbarkeit von Monaten mehr.
 - **Gemini-Key** vorhanden über `agent.py`.
 - ~~**Länder-Zuordnungstabelle** muss initial kuratiert werden~~ — **entfällt
-  mit C4/Owner-Korrektur.** Es gibt keine Handtabelle mehr; `faqs/laender.json`
-  liefert nur noch das erlaubte Vokabular für den Prompt.
-- **`travel_index`** muss beim Aggregat-Lauf befüllt sein, sonst fehlt der
-  URL-Prior (A5). Fail-open: ohne Prior klassifiziert das Modell allein aus dem
-  Gespräch.
+  mit C4/Owner-Korrektur.** Es gibt keine Handtabelle mehr. Das erlaubte
+  Vokabular ist `agent_base.laender_faqs` (73 Länder aus `faqs/FAQ_*.csv`);
+  `faqs/laender.json` ist **untauglich** (31 Einträge, ohne die Top-3-Ziele) und
+  wird nirgends geladen — siehe C3 und Decision 89.
+- **`agent_base`** liefert Vokabular (`laender_faqs`), den Prior für
+  Länder-Landingpages (`all_countries`) und das Muster für den Recall-Boden
+  (`agent.py:197-201`). Alles drei existiert und läuft in Produktion; keine neue
+  Datenquelle nötig.
+- **`travel_index`** liefert den Prior für Reisedetailseiten (28,6 % Deckung).
+  Fail-open: ohne ihn bleiben die beiden anderen Signale, das Modell steht nie
+  ganz ohne Prior da.
 - **Cluster-Kalibrierung** vor dem ersten als endgültig behandelten Lauf.
 - **Auftragsverarbeitung** muss die Massenverarbeitung der Nutzernachrichten
   durch Gemini decken (P3a).
@@ -2249,6 +2324,102 @@ Länderachse wäre schlicht falsch gewesen (Decision 77). Was daraus folgt, ist
 kein Zurück, sondern das Pro-Chat-Artefakt: solange jeder Lauf reproduzierbar
 und diffbar ist, ist Modelldrift sichtbar statt still.
 
+## Phase 6 — Zweite Außenstimme (2026-09-02, nachgeholt)
+
+Die zweite Stimme der Eng-Runde war beim ersten Versuch an einem Session-Limit
+gescheitert und wurde nachgeholt. Sie bekam den Auftrag, der ersten **nicht**
+zuzustimmen, sondern zu suchen, was sie übersehen hat. Score 5,5/10. Alle
+Befunde unten sind von mir am Code nachgeprüft.
+
+Das Ergebnis rechtfertigt den Aufwand: die teuersten Defekte lagen nicht dort,
+wo die erste Stimme gesucht hat. Sie hat LLM- und Betriebsklempnerei geprüft;
+die zweite hat **die Methodik der beiden Achsen** und **die Buchführung meines
+eigenen Gate-Rewrites** geprüft — und dort mehr gefunden.
+
+### Was ich beim Umschreiben kaputt gemacht habe
+
+**Fünf angenommene Entscheidungen sind ohne Beschluss verschwunden.** Beim
+Ersetzen der Aufgabenliste sind die Cherry-Picks 1, 2, 4, 6 (Decisions 3, 4, 6,
+8) und Decision 12 (C5, der einzige XSS-Fix) nicht mitgewandert. Sie standen
+nicht unter „Gestrichen am Gate" — sie waren einfach weg. Zwei davon sind nicht
+kosmetisch: C5 ist unter C2 **größer** geworden (jetzt sind auch die
+Ein-Satz-Definitionen der Taxonomie LLM-erzeugter Text, der persistiert und
+gerendert wird), und der FAQ-Lücken-Marker war laut CEO-Phase der Baustein, der
+SC5 „von Hoffnung in Mechanik verwandelt". Wieder eingesetzt als T25, T26, T27.
+
+**Der `laender.json`-Defekt war schon einmal gefunden.** Decision 11 aus Phase 1
+sagt wörtlich „`laender.json` fehlen die Top-3-Ziele". Mein A5-Rewrite hat die
+Datei trotzdem als erlaubtes Vokabular eingesetzt. Nachgemessen: 31 Einträge,
+alphabetisch abgeschnitten, ohne Namibia, Tansania und Südafrika, von keinem
+Python-Modul geladen. Ein Review findet denselben Fehler zweimal, wenn die
+Korrektur nicht an der Stelle landet, an der später gearbeitet wird.
+
+**Mein „on demand rechnen" stand an vier Stellen, nachgezogen hatte ich eine.**
+Nach dem Nachziehen von A10 sah der Widerspruch wie ein Sonderfall aus statt wie
+ein Fehler — schlechter als vorher. Auch meine eigene Decision 80 hatte ihn
+festgeschrieben. Jetzt alle vier auf dieselbe Regel gebracht.
+
+**Meine Kostenschätzung lag in die falsche Richtung daneben.** Ich hatte die
+Zahlen der ersten Stimme übernommen, ohne zu prüfen, worauf sie sich beziehen:
+unter C2 ist die Eingabe der volle Gesprächsverlauf, nicht die
+Nutzernachrichten. Real ~$0,41 statt $1,40–3,70 pro Monat. Das ist keine
+akademische Korrektur — sie macht Varianzmessung und Neurechnen nach
+Taxonomieänderungen bezahlbar, also möglich.
+
+### Was an meinen beiden Commits fehlte
+
+**Die Zeitzonen-Korrektur war nur serverseitig.** Das Dashboard rechnet Stunden-
+und Wochentagsverteilung im Browser noch einmal selbst
+(`calculateHourlyCountsFromChats` → `getHours()`, `filterChatsByWeekday` →
+`getDay()`), und `formatTimestamp` übergab `"de-DE"` ohne `timeZone` — das
+Locale bestimmt das Format, nicht die Zone. Auf einem Rechner mit UTC hätte die
+Stundenkarte andere Zahlen gezeigt als das Server-Aggregat, während SC4
+serverseitig grün gewesen wäre. Behoben in `1656698`.
+
+**Der Token konnte weiterhin ins Log laufen.** `db_logging.py:130` schrieb beim
+Überspringen einer kaputten Zeile `session_id` **und die komplette Zeile mit
+allen Nachrichten** nach stdout, ohne DEBUG-Gate. Mein Kommentar in `1800e81`
+(„no longer selected, stored or served") war damit stärker als die Wirklichkeit:
+er galt für den Dashboard-Pfad, nicht für den Prozess. Behoben in `9ab0d14`.
+
+### Was sie bestätigt hat
+
+Der Alt/Neu-Unterscheider wurde gegen **alle 14.299 Zeilen** geprüft:
+`"timestamp" in messages[-1]` stimmt zu 100 % mit `session_id is None` überein
+(5.951 Neuformat-Zeilen alle mit Timestamp, 8.348 Altzeilen alle ohne, davon 47
+leere, die ohnehin übersprungen werden). Sauberer Formatwechsel am 2026-05-22
+gegen 16:00 UTC. Bei mir war das eine Begründung — jetzt ist es eine Messung.
+
+### Offener Widerspruch, den beide Runden nicht auflösen
+
+C4 aus Phase 1 sagt live gegengeprüft, `db-max-rows` sei für dieses Projekt
+**nicht gesetzt**; SC2 und T18 stehen auf der Owner-Angabe **20.000** und leiten
+daraus den Dezember 2026 ab. Beides kann nicht stimmen. T18 (Assertion
+`len(rows) == count`) lohnt sich unabhängig davon und bleibt; die Datumsangabe
+in SC2 steht auf der strittigen Hälfte und ist entsprechend markiert.
+
+### Was der Plan enthält und niemand bauen wird
+
+Die zweite Stimme benennt vier Dinge, die im Dokument stehen und realistisch
+nicht entstehen. Sie stehen hier, damit die Entscheidung bewusst fällt:
+
+- **Das Monatsritual aus A4** (Stichprobe, Benennung promoteter Ursachen,
+  Retirement-Prüfung) hat im ganzen Dokument **keine benannte Person**. Der
+  Präzedenzfall steht in `TODOS.md`: der manuelle DDL-Schritt für
+  `sitemap_versions` ist seit 2026-07-06 offen. Prognose: die Taxonomie friert
+  auf Monat 1 ein und driftet unter stabilen Labels weiter.
+- **Das Pro-Chat-Artefakt** (Decision 85) hat keinen Leser und kein getasktes
+  Diff-Werkzeug. Entweder das Diff mittasken — ein 30-Zeilen-Skript, das die
+  gekippten Chats ausgibt — oder das Artefakt auf `run_id` + `fallback_used`
+  eindampfen.
+- **`beleg` als Assistant-Nachrichtennummer** ist wertlos, solange die
+  Oberfläche den Chat nicht benennen kann (T28).
+- **Die Klasse `falsch`** wird laut Plan nicht als Zahl gezeigt und dient „als
+  Einstieg in Gespräche". Sie kostet Prompt-Fläche, Ausgabetoken und eine
+  Kalibrierungsdiskussion und liefert nichts, was `ausgewichen` nicht liefert.
+  Vorschlag der Stimme: in v1 streichen, in v2 wiederholen, wenn es einen Leser
+  gibt. **Offen — das ist eine Owner-Entscheidung, keine Auto-Entscheidung.**
+
 ## Decision Audit Trail
 
 | # | Phase | Entscheidung | Klasse | Prinzip | Begründung | Verworfen |
@@ -2334,7 +2505,7 @@ und diffbar ist, ist Modelldrift sichtbar statt still.
 | 77 | Owner-Korrektur | Das Land ist aus der URL nicht erschließbar — jede URL-basierte Zuordnung entfällt als Primärquelle | Taste (Owner) | P4 | „auf der Homepage kann genauso eine Namibia-Frage gestellt werden"; URL-Ableitung unterschätzt jedes Land unsichtbar | kuratierte Tabelle (Plan) / `travel_index`-Ableitung (Decision 60, damit überholt) |
 | 78 | Gate C4 | Länder aus dem Konversations-Lauf, URL als Prior im Prompt und als Fallback | Mechanical | P4 | das Feld fällt im LLM-Lauf aus C2 fast umsonst mit ab | Vereinigung beider Quellen / nur LLM ohne Prior / A5 streichen |
 | 79 | Gate C4 | Länderachse wird als Rangfolge dargestellt, nicht als exakte Zahl | Taste | P2 | sie ist als einzige Achse nicht deterministisch; eine exakte Zahl behauptete eine Genauigkeit, die sie nicht hat | wie die anderen Achsen mit Absolutzahlen |
-| 80 | Gate C1 | Fail-open bedeutet jetzt: on demand rechnen, nichts schreiben | Mechanical | P1 | ohne Cutoff kostet ein fehlender DDL-Schritt nur Geld und Latenz statt Sichtbarkeit | Aggregat-Pflicht wie unter dem Cutoff |
+| 80 | Gate C1 | Fail-open bedeutet: deterministische Achsen live, LLM-Achsen `status: missing`, nichts schreiben (korrigiert in Runde 2 — die Urfassung „on demand rechnen" widersprach Decision 83) | Mechanical | P1 | ohne Cutoff kostet ein fehlender DDL-Schritt nur Geld und Latenz statt Sichtbarkeit | Aggregat-Pflicht wie unter dem Cutoff |
 
 | 81 | Eng-Re-Review | `session_id` darf in `analyse_chats` gar nicht mehr gelesen werden; Unterscheider wird `"timestamp" in messages[-1]` | Mechanical | P1 | `session_id is None` (`:446`) trennt heute altes von neuem Zeilenformat — ein `select` ohne das Feld wirft sonst `KeyError` | nur `detail["id"]` entfernen (alter A9-Text) |
 | 82 | Eng-Re-Review | JSON- und Markdown-Export gehören in Commit 1, hochgestuft auf P0 | Mechanical | P1 | `index.html:1312` schreibt `chat.id` **ungekürzt** in eine Datei auf der Platte des Nutzers | als P2 nachziehen (Einstufung der Außenstimme) |
@@ -2344,9 +2515,31 @@ und diffbar ist, ist Modelldrift sichtbar statt still.
 | 86 | Eng-Re-Review | A11 Schritt 0.5: Import-Nebenwirkungen kappen, vor dem Assignment | Mechanical | P6 | `dashboard.py:638` + `db_logging.py:16/286` treffen beim Import die Live-DB — deshalb hat `tests/` null Dashboard-Tests | Testisolation später |
 | 87 | Eng-Re-Review | URL-Prior über nicht-blockierenden Peek, nicht `get_reisecodes()`/`ensure_built()` | Mechanical | P4 | `travel_index.py:861` → `:844` baut den Index sonst synchron mitten im LLM-Lauf | vorhandenen Getter nutzen |
 
+| 88 | Owner (Runde 2) | Länder bleiben LLM-primär, aber das Vokabular wird korrigiert | Taste (Owner) | P4 | die Owner-Korrektur zur URL gilt weiter; das freie Textsignal wird als Recall-Boden ergänzt, nicht als Ersatz | deterministisch zuerst / rein deterministisch / A5 streichen |
+| 89 | Runde 2 | Vokabular ist `agent_base.laender_faqs` (73), **nicht** `faqs/laender.json` (31, ohne Namibia/Tansania/Südafrika, von keinem Modul geladen) | Mechanical | P4 | Decision 11 hatte das bereits gemessen; der Gate-Rewrite hat den Defekt wieder eingebaut | `laender.json` wie im Gate-Rewrite |
+| 90 | Runde 2 | `agent_base.all_countries` als Prior für Länder-Landingpages | Mechanical | P4 | `travel_index` deckt nur 28,6 % ab; weitere 39,5 % hätten weder Prior noch Fallback | nur `travel_index` |
+| 91 | Runde 2 | `agent.py:197-201` (Substring-Treffer im Gesprächstext) als Recall-Boden in den Prompt | Mechanical | P4 | läuft seit Monaten in Produktion, deterministisch, kostenlos | das Modell die Erwähnung selbst finden lassen |
+| 92 | Runde 2 | Fail-open an allen vier Stellen auf dieselbe Regel gebracht; Decision 80 korrigiert | Mechanical | P1 | eine Regel, die dreimal im Dokument steht, ist nicht behoben, wenn eine Kopie geändert wird | nur A10 nachziehen (Runde 1) |
+| 93 | Runde 2 | Validierungs-Gate für die Qualitätsachse: κ ≥ 0,6, Formkontrolle AUC < 0,8, 120 gelabelte Chats, 30 eingefroren | Mechanical | P1 | die einzige Achse, auf der v1 steht, hatte kein Abbruchkriterium; drei Confounder sind gemessen | „Ursachenliste durchlesen" als Prüfung |
+| 94 | Runde 2 | Batchgröße aus Token-Budget (≤ 60k), nicht aus Chatzahl; Kosten ~$0,41/Monat statt $1,40–3,70 | Mechanical | P1 | 25 Chats sind ~5k Token — 76 Round-Trips für etwas, das in ~15 passt | 25 Chats fix (Runde 1) |
+| 95 | Runde 2 | `taxonomy_version` pro Monat; Deltas über Versionsgrenzen nicht rendern; bei Änderung zwei Monate neu rechnen | Mechanical | P1 | der Prompt-Hash-Wächter wäre sonst dauerhaft rot, und der Vergleich verglich zwei Messgeräte | roher `prompt_hash` als Wächter |
+| 96 | Runde 2 | Retirement setzt die Zahl auf `null`, nicht `0`; Ursachen mit offener SC5-Maßnahme werden nie stillgelegt | Mechanical | P1 | die Retire-Regel erzeugte sonst genau das Signal, das SC6 als Erfolg liest | Retirement wie im Gate-Rewrite |
+| 97 | Runde 2 | Batches deterministisch schneiden (sortierte `chat_db_id`), Batch-Index ins Artefakt | Mechanical | P4 | die Batchzusammensetzung ist Teil der Eingabe; ein Resume rebatcht sonst anders | Reihenfolge egal |
+| 98 | Runde 2 | Assignment misst die Varianz der Länderachse (Monat zweimal rechnen) | Mechanical | P1 | ein Rang ist im langen Schwanz instabiler als eine Zahl; kostet unter $1 | Rangfolge ohne Varianzmessung begründen |
+| 99 | Runde 2 | DB-`id` zurück in die Oberfläche (T28) | Mechanical | P2 | die laufende Nummer aus `1800e81` ändert sich bei jedem Filterwechsel; die DB-`id` war nie der Token | Nummerierung behalten |
+| 100 | Runde 2 | Fünf beim Gate-Rewrite verlorene Entscheidungen wieder eingesetzt (T25, T26, T27) | Mechanical | P1 | darunter der einzige XSS-Fix und der einzige Mechanismus hinter SC5 | stillschweigend gestrichen lassen |
+| 101 | Runde 2 | Constraints-Zeile korrigiert: `url` tragen Assistant **und** `recommendation_previews` (14,5 %) | Mechanical | P1 | `role == "assistant"` benutzt sonst einen kleineren Nenner als die Messung, die P7 begründet | „nur Assistant-Nachrichten" |
+| 102 | Runde 2 | T23 wird mit Testisolation begründet, nicht mit Startzeit (gemessen 3,0 s für 14.299 Zeilen / 17,0 MB) | Mechanical | P6 | die Testsuite zieht heute bei jedem Lauf die Produktionstabelle; die Startzeit taugt nicht als Vertagungsgrund | Startzeit als Hauptargument |
+
 ### Implementation Tasks (aggregiert über die Phasen)
 
-> **Stand nach dem Final Approval Gate (2026-09-02).** Die Liste ersetzt die
+> **Achtung, Zeilenangaben:** alle `datei:zeile`-Verweise in diesem Dokument
+> stammen aus der Zeit vor den Commits `1800e81`, `e481bc8`, `1656698` und
+> `9ab0d14`. Durch sie sind die Zeilen in `dashboard.py` und
+> `static/dashboard/index.html` verschoben. Wer hier sucht, sucht nach dem
+> Symbol, nicht nach der Zeilennummer.
+
+> **Stand nach dem Final Approval Gate (2026-09-02), erweitert um Runde 2.** Die Liste ersetzt die
 > Fassung aus Phase 3. Geändert durch C1 (Cutoff raus), C2 (Qualität statt
 > Häufigkeit), C3 (zwei Fixes vorgezogen) und die Owner-Korrektur zu den Ländern.
 > Gestrichene Aufgaben stehen durchgestrichen mit Grund da, damit nicht später
@@ -2354,42 +2547,59 @@ und diffbar ist, ist Modelldrift sichtbar statt still.
 
 #### P0 — heute, zwei getrennte Deploys (C3)
 
-- [ ] **T03 (P0, human: 2h / CC: 20m) — dashboard.py, static/dashboard/index.html** — Commit 1: A9 vollständig
+- [x] **T03 — erledigt in `1800e81` (P0, human: 2h / CC: 20m) — dashboard.py, static/dashboard/index.html** — Commit 1: A9 vollständig
   - `select("id, messages, timestamp")` in **beiden** Selects (`dashboard.py:233` und `:414`)
   - `session_id` nicht mehr lesen (`:435`); den Alt/Neu-Zweig (`:446`) auf `"timestamp" in messages[-1]` umstellen
   - `detail["id"] = session_id` entfernen (`:451`)
   - Frontend: Überschrift (`index.html:1386`), Markdown-Export (`:1345`) **und JSON-Export (`:1312`, schreibt `chat.id` ungekürzt in die Datei)**
   - Surfaced by: A9 + Eng-Subagent 3 + Design C-5, vorgezogen durch Gate C3, vervollständigt durch Eng-Re-Review (Decisions 81, 82)
   - Vor dem Push einzeln vorlegen (push = deploy)
-- [ ] **T01 (P0, human: 2h / CC: 20m) — dashboard.py** — Commit 2: Zeitzone an der Parse-Grenze konvertieren, `current_month_start` auf `datetime.now(tz)`; T22 (falscher Modul-Docstring, toter `_session_details`-Verweis) fährt mit
+- [x] **T01 — erledigt in `e481bc8` + `1656698` (P0, human: 2h / CC: 20m) — dashboard.py** — Commit 2: Zeitzone an der Parse-Grenze konvertieren, `current_month_start` auf `datetime.now(tz)`; T22 (falscher Modul-Docstring, toter `_session_details`-Verweis) fährt mit
   - Surfaced by: ceo-review — C2 + P8, vorgezogen durch Gate C3 — vier naive Stellen, nicht zwei; die neuen Deltas entstünden sonst auf schiefer Basis
   - Vor dem Push einzeln vorlegen (push = deploy)
 
 #### P1 — Substanz von v1
 
+- [ ] **T24 (P1, human: 1d / CC: 2h) — tests/, chat_quality.py** — Validierungs-Gate für die Qualitätsachse: 120 handgelabelte Chats (geschichtet nach Segment und Turnzahl), Cohens κ ≥ 0,6 auf `ausgewichen`+`abgebrochen`, Formkontroll-Regression mit AUC-Schwelle 0,8, 30 davon als eingefrorenes Regressionsset
+  - Surfaced by: Runde 2 — die einzige Achse, auf der v1 steht, hatte kein Validierungskriterium; SC5 und SC6 rechnen direkt aus den Klassenzahlen
+  - Gemessene Confounder, die das Gate abfangen muss: **54,7 % der Chats sind einzügig** (3.272 von 5.987 seit 2026-05-22 mit genau einer Nutzernachricht) → `abgebrochen` hat dort keine Evidenz; **5.944 von 5.951 Neuformat-Chats enden mit einer Bot-Nachricht**, weil der Systemprompt eine „animierende Frage" am Ende verlangt (`agent_base.py:524`) → strukturell sieht jeder Chat abgebrochen aus; **das lexikalische Merkmal einer Ausweichantwort ist wegprompted** (`agent_base.py:520` „Verneinungen vermeiden", `:521`/`:618` „vermeide ‚leider' unter allen Umständen", `:617` „höchstens 2–4 kurze Sätze")
+  - `abgebrochen` für einzügige Chats streichen oder positiv definieren („Nutzer fragt dasselbe erneut"), statt es aus dem Fehlen einer Fortsetzung zu schließen
+- [ ] **T25 (P1, human: 30m / CC: 10m) — static/dashboard/index.html, chat_quality.py** — LLM-erzeugte Labels **und Taxonomie-Definitionen** nur per `textContent` rendern, serverseitige `<`-Prüfung beim Schreiben
+  - Surfaced by: Decision 12 (C5), beim Gate-Rewrite verlorengegangen, in Runde 2 wiedergefunden — unter C2 ist die Kette größer als vorher: Nutzertext → Gemini → Label *und Ein-Satz-Definition* → persistiert in `month_stats` → gerendert in T13. `index.html:1460` rendert Assistant-Inhalte per `innerHTML` (dort korrekt, der Bot schreibt HTML, `agent_base.py:626`)
+- [ ] **T26 (P1, human: 2h / CC: 20m) — static/dashboard/index.html, chat_quality.py** — FAQ-Lücken-Marker, unter C2 neu definiert: markiert eine **Ursache**, zu der es in `faqs/` noch keinen Textbaustein gibt
+  - Surfaced by: Decision 4 (Cherry-Pick 2), beim Gate-Rewrite verlorengegangen — die CEO-Phase nannte ihn „der Baustein, der Success Criterion 5 von Hoffnung in Mechanik verwandelt". Ohne ihn steht SC5 wieder ohne Mechanik da
+
 - [ ] **T21 (P1, human: 1d / CC: 45m) — chat_quality.py** — **Assignment, vor jeder UI-Arbeit:** Juli UND August 2026 klassifizieren, die rohe Ursachenliste vorlegen, dazu 30 Länderzuordnungen von Hand geprüft
   - Surfaced by: The Assignment + Eng-Subagent 9, Achse geändert durch C2, Länderprüfung ergänzt durch C4 — zwei Monate testen die Kontinuität, ein Monat nicht
-  - Ist die Klassifikation nicht brauchbar, hat v1 keinen Inhalt — dann hier abbrechen
+  - Ergebnis als Datei im Repo festschreiben (Gold-Set), nicht in `month_stats`
+  - Denselben Monat zweimal rechnen und die Varianz der Länderachse messen (< $1)
+  - **Danach T24 (Validierungs-Gate). Fällt es, fällt die Achse — und damit v1.**
 - [ ] **T07 (P1, human: 4h / CC: 40m) — chat_quality.py** — LLM-Pipeline pro Konversation: `with_structured_output` über `{qualitaet, ursache_id, laender, beleg}`, eigene Instanz mit `temperature=0` und `thinking_budget=0`, `_execute_with_retries`, Teilbatch-Semantik, `status`/`unmapped`
   - Surfaced by: CEO S2 (fünf GAPs) + Eng-Subagent 13/15, umgewidmet durch C2 — `agent.py:31` ist ein Singleton mit `temperature=0.1`; `beleg` ist eine Nachrichtennummer, kein Text (SC3)
   - Verbindlich: Batchgröße 25, Resume-Checkpoint pro Batch, Obergrenze Chats/Lauf, Retry-Budget (Decision 84). Geschätzt 6–19 min und $1,40–3,70 pro Monat
   - Ersetzt: ~~question_clusters.py~~
 - [ ] **T16 (P1, human: 3h / CC: 30m) — chat_quality.py** — Ursachen-Taxonomie aus geschichteter Stichprobe der letzten 3-4 Monate, rückwärts backfillen, Retire-Regel (3 Monate unter k), Benennungsschritt für promotete `neu`-Ursachen
   - Surfaced by: H4 + Eng Codex 3 + Eng-Subagent 9, umgewidmet durch C2 — chronologischer Seed kennt MeinChamaeleon und Agentur nicht
-- [ ] **T15 (P1, human: 2h / CC: 20m) — chat_quality.py, travel_index.py** — Länder: `faqs/laender.json` als erlaubtes Vokabular in den Prompt, `travel_index._index` als URL-Prior im Prompt und als Fallback, URL-Normalizer davor, `ohne Land` als ausgewiesener Bucket
+- [ ] **T15 (P1, human: 2h / CC: 20m) — chat_quality.py, travel_index.py** — Länder, drei Signale in den Prompt:
+  - **Vokabular: `agent_base.laender_faqs` (73 Länder).** Ausdrücklich **nicht** `faqs/laender.json` — 31 Einträge, alphabetisch abgeschnitten, ohne Namibia/Tansania/Südafrika, von keinem Modul geladen (Decision 89). Die Datei gehört gelöscht oder als tot markiert
+  - **Prior Reiseseiten:** `travel_index._index[...]['land']` (28,6 % Deckung)
+  - **Prior Länderseiten:** `agent_base.all_countries` (weitere 39,5 %, Decision 90)
+  - **Recall-Boden:** Substring-Treffer aus dem Gesprächstext wie `agent.py:197-201` (Decision 91)
+  - URL-Normalizer davor, `ohne Land` als ausgewiesener Bucket
   - Surfaced by: Owner-Korrektur (Decision 77) — das Land ist aus der URL nicht erschließbar; **ersetzt vollständig** die frühere Aufgabe „Handtabelle kuratieren" und auch Decision 60 (`travel_index` als Zuordnung)
   - Prior über nicht-blockierenden Peek auf `_index`, **nicht** über `get_reisecodes()` → `ensure_built()` (Decision 87)
   - Pro-Chat-Artefakt mitschreiben: `chat_db_id`, `run_id`, `model`, `prompt_hash`, `url_prior`, `llm_laender`, `fallback_used` — gilt zusammen mit `qualitaet`/`ursache_id` als **ein** Artefakt (Decision 85)
   - Hochgestuft P2 → P1, weil die Länderachse jetzt am LLM-Lauf hängt und mit ihm zusammen gebaut wird
 - [ ] **T23 (P1, human: 2h / CC: 20m) — dashboard.py, db_logging.py** — Import-Nebenwirkungen kappen: `month_cache.load_all()` nicht auf Modulebene, Supabase-Client und Session-Load lazy
-  - Surfaced by: Eng-Re-Review (Decision 86) — `dashboard.py:638`, `db_logging.py:16`/`:286` treffen beim Import die Live-DB; ohne diesen Schritt ist T04 nicht schreibbar
+  - Surfaced by: Eng-Re-Review (Decision 86), präzisiert in Runde 2 — `tests/test_previews.py:13` macht `from app import …`, `app.py:17` importiert `dashboard`, `dashboard.py` ruft `load_all()`, `db_logging.py:286` lädt Sessions: **die heutige Testsuite zieht bei jedem Lauf die komplette Produktionstabelle**
+  - Der Grund ist ausschließlich Testisolation, nicht Startzeit: gemessen liefert der Select 14.299 Zeilen / 17,0 MB in **3,0 s**. Lazy machen verschiebt 3 s in den ersten Request, nicht 30 — das ist unter `GUNICORN_TIMEOUT=120` unkritisch und darf nicht als Risiko zur Vertagung benutzt werden
   - **A11 Schritt 0.5 — vor dem Assignment**
 - [ ] **T04 (P1, human: 4h / CC: 45m) — month_aggregate.py** — Aggregat-Logik als reine Funktionen in eigenen Modulen, ohne `import dashboard` testbar
   - Surfaced by: ceo-review — CEO S6 — SC1/SC3/SC4 sind unter P6 sonst nicht ausführbar; Muster: `tests/test_sitemap_store.py`
   - Files: month_aggregate.py, chat_segments.py, tests/test_month_aggregate.py
 - [ ] **T05 (P1, human: 3h / CC: 30m) — month_stats.py** — Persistenz nach dem Muster von `sitemap_store.py`, DDL als `sql/month_stats.sql` inkl. RLS, komponentenweise `computed_at`/`status`/`version` + `run_id`
   - Surfaced by: Eng Codex 1 und 8 — ein `computed_at` kann Counts und Klassifikation nicht getrennt datieren
-  - Begründung geändert durch C1: Aggregat-Cache für den bezahlten LLM-Lauf, nicht mehr Retention. Fail-open heißt jetzt: on demand rechnen, nichts schreiben (Decision 80)
+  - Begründung geändert durch C1: Aggregat-Cache für den bezahlten LLM-Lauf, nicht mehr Retention. Fail-open heißt: deterministische Achsen live, LLM-Achsen `status: missing`, nichts schreiben (Decision 80)
 - [ ] **T02 (P1, human: 30m / CC: 5m) — dashboard.py** — `compute_month`: `total_count` nicht vor dem `try` hochzählen, Zeit-Buckets auch bei kaputter `messages`-Zeile füllen
   - Surfaced by: Eng-Subagent 7 — `total_chats` und Bucket-Summen weichen heute schon ab, SC1 misst sonst gegen eine falsche Referenz
 - [ ] **T08 (P1, human: 1h / CC: 15m) — app.py, db_logging.py** — Serverseitiges `segment` mitloggen und `current_url` normalisieren, bevor es in die DB geht; Pfad-Parsing nur noch für den Backfill
@@ -2410,6 +2620,16 @@ und diffbar ist, ist Modelldrift sichtbar statt still.
   - Surfaced by: Design S-1/S-2/S-3/S-7 — kleiner geworden durch C1: der Zustand „nur Aggregat, keine Rohdaten" entsteht ohne Cutoff nicht mehr, S-1 entfällt damit
 
 #### P2 — danach
+
+- [ ] **T27 (P2, human: 30m / CC: 10m) — chat_quality.py, static/dashboard/index.html** — Wiedereingesetzt aus dem Gate-Rewrite: `taxonomy_version`-Warnung (Decision 3) und Monats-Diff-Textzeile (Decision 6)
+  - Surfaced by: Runde 2 — beide waren angenommen und ohne Beschluss aus der Aufgabenliste gefallen
+- [ ] **T28 (P2, human: 1h / CC: 15m) — dashboard.py, static/dashboard/index.html** — DB-`id` zurück in die Oberfläche: gekürzt in die Chat-Überschrift, vollständig in den JSON-Export
+  - Surfaced by: Runde 2 — Commit `1800e81` hat die Überschrift auf eine laufende Nummer gesetzt, die sich bei jedem Filterwechsel und Auto-Refresh ändert. Der Payload trägt weiterhin die DB-`id` (`dashboard.py`), ein gewöhnliches uuid — **das war nie der Token, das war `session_id`.** T13 verlangt Drill-down auf konkrete Gespräche, SC5 verlangt, dass jemand aus einem konkreten Chat eine Änderung ableitet, und A3s `beleg` ist eine Nachrichtennummer in einem Chat, den sonst niemand benennen kann
+- [ ] **T29 (P2, human: 30m / CC: 10m) — dashboard.py** — `analyse_chats` gegen Nicht-dict-Elemente härten: `isinstance(messages[-1], dict) and "timestamp" in messages[-1]`
+  - Surfaced by: Runde 2 — wäre das letzte Element ein String, ist der `in`-Test ein stiller Substring-Test; wäre es eine Zahl, ein `TypeError` → 500. Heute null Vorkommen (alle 14.299 Zeilen geprüft), aber `dashboard.py` fängt an anderer Stelle genau `(KeyError, TypeError)` für kaputte `messages` ab — die Zeilenklasse ist dem Code also bekannt
+  - Dazu ein Ein-Zeilen-Test auf `app.py:124` (`logging_messages[0]["timestamp"] = time.time()`): die Zeile steht drei Zeilen unter ihrer eigenen auskommentierten Vorgängerfassung. Wird sie je wieder auskommentiert, kippen Chats ohne Bot-Antwort still ins Altformat
+- [ ] **T30 (P2, human: 15m / CC: 5m) — rate_limit.py** — Falschen Kommentar korrigieren: `:171-179` behauptet „Globales 200/h für ALLE Routen", `:170` setzt `default_limits=[]`. Das Limit hängt an drei Dekoratoren; `/dashboard`, `/api/dashboard/*`, `/admin/reindex`, `/admin/sitemap` sind ungebremst
+  - Surfaced by: Runde 2 — T06 kannte die Codezeile, nicht den falschen Kommentar
 
 - [ ] **T14 (P2, human: 3h / CC: 30m) — static/dashboard/index.html** — Heatmap als CSS-Grid, ersetzt Wochentag- und Stundenkarte und übernimmt deren Filterrolle
   - Surfaced by: Design H-4/H-6 — sonst steht dieselbe Zahl dreimal auf der Seite
