@@ -40,6 +40,16 @@ from db_logging import log_messages, log_queue
 
 MESSAGE_LIMIT = "200 per hour"
 
+# Behind Basic-Auth, so this is not an anti-abuse limit — it is a brake on the
+# dashboard's own auto-refresh and on a stuck browser tab. Each request can
+# recompute a month from raw rows on the single worker that also proxies the
+# whole website.
+DASHBOARD_LIMIT = "300 per hour"
+
+# Admin actions kick off real work: a travel-index rebuild, a sitemap write, and
+# a PAID classification run. Tight on purpose.
+ADMIN_LIMIT = "30 per hour"
+
 # Flask endpoint names of the auth routes, mapped to the module that owns each
 # one's bindings. A 429 on either must still clear that binding — see
 # _on_rate_limit. Was a bare string compared with ==; Agentur-Modus added a
@@ -167,10 +177,16 @@ def init_app(app) -> Limiter:
     limiter = Limiter(
         key_func=get_remote_address,
         app=app,
+        # KEIN globales Limit. Die Zeile darunter behauptete jahrelang "Global
+        # 200/h für ALLE Routen" — falsch: `default_limits=[]` heißt, dass
+        # ungebremst ist, was keinen eigenen Dekorator hat. Das Limit hängt an
+        # genau drei Dekoratoren (chat_stream, kunde_auth, agentur_auth).
+        # /dashboard, /api/dashboard/* und /admin/* waren dadurch komplett
+        # ungebremst; sie tragen jetzt DASHBOARD_LIMIT bzw. ADMIN_LIMIT.
         default_limits=[],
         storage_uri="memory://",
-        # Global 200/h für ALLE Routen (Owner-Entscheidung 2026-08-02, hebt die
-        # Kunden-Routen mit an). Grund für die Anhebung von 100 auf 200: ein
+        # 200/h auf den dekorierten Routen (Owner-Entscheidung 2026-08-02, hebt
+        # die Kunden-Routen mit an). Grund für die Anhebung von 100 auf 200: ein
         # Agentur-Counter sitzt hinter EINER Büro-NAT — mehrere Reiseprofis
         # teilen sich dort eine IP, und der Limiter zählt pro IP. 100/h war für
         # einen einzelnen Kunden großzügig, für ein Vertriebsteam nicht.

@@ -14,7 +14,9 @@ from agent_base import markdownify_page_html
 from kundendaten import filter_new_tool_calls
 import agentur_auth
 import kunden_auth
+import chat_segments
 import dashboard
+import quality_job
 import rate_limit
 import sitemap_sync
 import travel_index
@@ -83,6 +85,11 @@ def chat_stream():
     endpoint = data.get("current_url", "/")
     if not isinstance(endpoint, str):
         endpoint = "/"
+    # Normalised BEFORE it reaches the model or the database: the widget has
+    # sent both absolute urls and bare paths, and the dashboard groups on this
+    # value. Normalising at the boundary means the path parsing downstream only
+    # ever has to handle one shape (and only for rows written before this).
+    endpoint = chat_segments.normalize_url(endpoint) or "/"
     kundenberater_name = data.get("kundenberater_name", "")
     kundenberater_telefon = data.get("kundenberater_telefon", "")
     # Must be read here: the request context is gone inside the generator.
@@ -113,6 +120,11 @@ def chat_stream():
     # Header-Spiegel und beweist gar nichts; er entscheidet nur über den
     # Prompt-Modus. Erst diese Bindung schaltet die Buchungsdaten frei.
     agentur_id = (agentur_auth.resolve(session_id) or "") if is_agentur else ""
+
+    # The segment the dashboard counts this chat under. Derived here, from the
+    # server-verified bindings, rather than in the dashboard from the
+    # client-sent url — see chat_segments.segment_from_context.
+    segment = chat_segments.segment_from_context(endpoint, kunden_id, agentur_id)
 
     messages = messages[:]
     logging_messages = messages[-1:]
@@ -163,6 +175,7 @@ def chat_stream():
                             "role": "assistant",
                             "content": event["data"]["reply"],
                             "url": endpoint,
+                            "segment": segment,
                             "timestamp": time.time(),
                         }
                     )
@@ -187,6 +200,7 @@ def chat_stream():
                                         "role": "recommendation_previews",
                                         "content": previews,
                                         "url": endpoint,
+                                        "segment": segment,
                                         "timestamp": time.time(),
                                     }
                                 )  # type: ignore
@@ -311,9 +325,17 @@ def agentur_auth_route():
 
 # --- Dashboard routes ---
 
-for route, view_func, *rest in dashboard.routes:
-    methods = rest[0] if rest else ["GET"]
-    app.add_url_rule(route, view_func=view_func, methods=methods)
+# Each dashboard route carries its own limit: `default_limits` is empty, so a
+# route registered without one is not rate limited at all.
+_limited_views: dict = {}
+for route, view_func, methods, limit in dashboard.routes:
+    # Wrap each view ONCE: the decorator returns a new object every call, and
+    # Flask refuses two different functions under one endpoint name — which is
+    # what /dashboard and /dashboard/ sharing a view would otherwise produce.
+    limited = _limited_views.setdefault(
+        view_func, limiter.limit(limit, exempt_when=rate_limit.is_loopback)(view_func)
+    )
+    app.add_url_rule(route, view_func=limited, methods=methods)
 
 # --- End Dashboard routes ---
 
@@ -386,6 +408,9 @@ if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     sitemap_sync.restore_from_db()
     sitemap_sync.start_scheduler()
     travel_index.start_scheduler()
+    # 04:00, after the sitemap sync (02:00) and the travel-index rebuild
+    # (03:00): the country prior reads that index.
+    quality_job.start_scheduler(lambda month: dashboard.fetch_month_chats(month)[0])
 
     # Boot warm-up in a background thread (boot itself must not block):
     # run the sitemap sync immediately — a fresh deploy should know today's

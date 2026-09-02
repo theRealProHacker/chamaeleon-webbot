@@ -1,61 +1,71 @@
-"""
-Following idea:
-- On startup, load all chats from the DB and analyze them, storing results in an in-memory cache grouped by month.
-- When the dashboard requests data for a month, serve from cache if available and not expired;
+"""Dashboard HTTP layer and the in-memory cache in front of it.
 
-Only current month can expire, past months are static once loaded. When current month expires, only re-fetch current month to update it, not everything.
+Shape of the thing:
 
-When current month changes, fetch old current month to finalize it, and start tracking new current month.
+- The DETERMINISTIC axes (chat counts, user messages, day/hour/weekday buckets,
+  the 7x24 heatmap, the segment split) are computed live from the raw chats by
+  ``month_aggregate``. They are cheap and repeatable, so they are recomputed on
+  the 5-minute refresh rather than stored.
+- The PAID axes (answer quality, causes, countries) come from one LLM run per
+  month and are read out of ``month_stats``. They are never computed in a
+  request — see ``quality_job`` for why that matters on a single worker.
+- If ``month_stats`` is not there yet (the DDL is a manual step), the dashboard
+  still works: deterministic axes live, paid axes reported as
+  ``status: missing``. Fail open, always.
 
-All datetimes in this module are German local time (Europe/Berlin). Row
-timestamps arrive from Postgres in UTC, so they are converted once at the parse
-boundary — see parse_row_timestamp. Do not call isoparse on a row timestamp
-directly; the hour and weekday buckets would then be UTC ones.
+Every aggregate is carried as a ``[allgemein, meinchamaeleon, agentur]`` vector,
+so any tag selection in the UI is a sum instead of a re-run.
+
+All datetimes here are German local time. Row timestamps arrive from Postgres in
+UTC and are converted once, at the parse boundary, in
+``month_aggregate.parse_row_timestamp``. Do not call ``isoparse`` on a row
+timestamp anywhere — the hour and weekday buckets would silently become UTC ones.
 """
 
 import hmac
 import os
+import re
 import time
-import travel_index
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import wraps
-from zoneinfo import ZoneInfo
-from dateutil.parser import isoparse
-from typing import Any, Literal, NotRequired, Optional, TypedDict
+from typing import Any, Iterable, NotRequired, Optional, TypedDict
 
 from flask import request, jsonify, send_from_directory
 
+import chat_quality
+import month_aggregate
+import month_stats
+import quality_job
+import rate_limit
+import travel_index
+from chat_segments import SEGMENTS, Segment
 from db_logging import ChatHistory, Message, _message_bounds, supabase, DEBUG
+from month_aggregate import (
+    DAY_NAME,
+    GERMAN_MONTHS,
+    MonthAggregate,
+    MonthKey,
+    QualityAggregate,
+    aggregate_month,
+    avg_user_messages,
+    current_month_start,
+    is_new_format,
+    is_user,
+    month_bounds,
+    month_key,
+    month_label,
+    parse_row_timestamp,
+    select,
+    tz,
+)
 
 # Columns the dashboard reads. `session_id` is excluded on purpose — see the
 # authentication note further down: it is the Kunden-Modus bearer token.
 CHAT_COLUMNS = "id, messages, timestamp"
 
-DAY_NAME = [
-    "Montag",
-    "Dienstag",
-    "Mittwoch",
-    "Donnerstag",
-    "Freitag",
-    "Samstag",
-    "Sonntag",
-]
-
-GERMAN_MONTHS: list[str] = [
-    "",
-    "Januar",
-    "Februar",
-    "März",
-    "April",
-    "Mai",
-    "Juni",
-    "Juli",
-    "August",
-    "September",
-    "Oktober",
-    "November",
-    "Dezember",
-]
+# A month parameter comes off the URL and is used to build date bounds and a
+# cache key. Validate its shape before either.
+MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 class OldMessage(TypedDict):
@@ -66,10 +76,6 @@ class OldMessage(TypedDict):
 
 
 type AnyMessage = OldMessage | Message
-
-# ──────────────────────────────────────────
-# Supabase DB row  (what .select("*") returns)
-# ──────────────────────────────────────────
 
 
 # Old and new rows are told apart by the messages themselves: only new ones
@@ -94,26 +100,11 @@ type AnyChatRow = OldChatRow | ChatRow
 # Dashboard API payload
 # ──────────────────────────────────────────
 
-MonthKey = str  # "2025-09"
-
-type Day = int  # 1–31
-# type Hour = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
-type Hour = int  # 0–23
-# type Weekday = Literal[0, 1, 2, 3, 4, 5, 6]
-type Weekday = int  # 0–6, where 0=Monday, 6=Sunday
-
-
-# class FrontendMessage(TypedDict):
-#     role: str
-#     content: str | list
-#     url: NotRequired[str]
-#     timestamp: NotRequired[str]
-
 
 class ChatDetail(TypedDict):
     id: str | None
     chat_timestamp: str | None
-    # ISO strings for JSON serialization
+    segment: str
     started_at: NotRequired[str]
     ended_at: NotRequired[str]
     duration_seconds: NotRequired[float]
@@ -122,26 +113,28 @@ class ChatDetail(TypedDict):
 
 
 class WeekdayCount(TypedDict):
-    weekday: str  # "Monday"
-    short_label: str  # "Mon"
+    weekday: str
+    short_label: str
     count: int
 
 
 class HourlyCount(TypedDict):
-    hour: int  # 0–23
-    label: str  # "09:00"
+    hour: int
+    label: str
     count: int
 
 
 class DailyCount(TypedDict):
-    date: str  # "2025-09-14"
-    label: str  # "14 Sep"
+    date: str
+    label: str  # "14 August" — tooltips
+    short_label: str  # "14" — axis ticks
     count: int
 
 
 class MonthlySummary(TypedDict):
     key: MonthKey
-    label: str
+    label: str  # "August 2026" — tooltips and titles
+    short_label: str  # "Aug 26" — axis ticks
     count: int
 
 
@@ -149,44 +142,42 @@ class MonthDetail(TypedDict):
     month: str
     label: str
     total_chats: int
+    segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
     daily_counts: list[DailyCount]
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
+    heatmap: list[list[int]]
+    quality: dict[str, Any]
     chats: Optional[list[ChatDetail]]
 
 
 class DashboardPayload(TypedDict):
-    # general
     total_chats: int
+    segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
+    heatmap: list[list[int]]
     monthly_summary: list[MonthlySummary]
     current_month: MonthKey
 
 
 # ──────────────────────────────────────────
-# In-memory cache
+# Reading the query string
 # ──────────────────────────────────────────
 
-tz = ZoneInfo("Europe/Berlin")
 
+def selected_segments() -> list[Segment] | None:
+    """Tag selection from ``?segment=…``. Empty or absent means all.
 
-def parse_row_timestamp(raw: str) -> datetime:
-    """Parse a Postgres row timestamp into German local time.
-
-    Postgres hands these out in UTC. Every bucket in this module — month, day,
-    hour, weekday — is meant to be German local time, so the conversion belongs
-    here at the parse boundary and nowhere else. Without it a chat at 00:30
-    Berlin time in summer lands on the previous day, in the 22:00 bucket, and in
-    January it can even land in the previous month.
+    An empty selection deliberately means "all", not "none": that is the tag
+    bar's resting state, and rendering zeros there would read as "no data"
+    rather than "no filter".
     """
-    return isoparse(raw).astimezone(tz)
-
-
-def month_key(dt: datetime) -> MonthKey:
-    return dt.strftime("%Y-%m")
+    raw = request.args.getlist("segment") if request else []
+    chosen = [s for s in raw if s in SEGMENTS]
+    return chosen or None
 
 
 def build_hourly_count(hour: int, count: int) -> HourlyCount:
@@ -201,287 +192,201 @@ def build_weekday_count(weekday: int, count: int) -> WeekdayCount:
     }
 
 
-def build_daily_count(day: int, month_key: MonthKey, count: int) -> DailyCount:
-    month = int(month_key[5:7])
+def build_daily_count(day: int, key: MonthKey, count: int) -> DailyCount:
+    month = int(key[5:7])
     return {
-        "date": f"{month_key}-{day:02d}",
-        "label": f"{day} {GERMAN_MONTHS[month]}",
+        "date": f"{key}-{day:02d}",
+        "label": f"{day}. {GERMAN_MONTHS[month]}",
+        "short_label": str(day),
         "count": count,
     }
 
 
-def is_user(message: AnyMessage) -> bool:
-    return "role" in message and message["role"] == "user"
+def short_month_label(key: MonthKey) -> str:
+    return f"{GERMAN_MONTHS[int(key[5:7])][:3]} {key[2:4]}"
 
 
-class MonthCache:
-    START_MONTH = datetime(2025, 9, 1)
-    EXPIRY_SECONDS = 5 * 60  # 5 minutes
-    _cache: dict[MonthKey, MonthDetail]
-    current_month: MonthKey
-    last_fetched_current_month: float
-
-    total_chats: int
-    total_user_messages: int
-    hourly_counts: list[int]
-    weekday_counts: list[int]
-
-    def __init__(self):
-        self._cache = {}
-        self.current_month = month_key(self.current_month_start())
-        self.last_fetched_current_month = 0.0
-        self.total_chats = 0
-        self.total_user_messages = 0
-        self.hourly_counts = [0] * 24
-        self.weekday_counts = [0] * 7
-
-    @property
-    def avg_user_messages_per_chat(self) -> float:
-        return (
-            self.total_user_messages / self.total_chats if self.total_chats > 0 else 0.0
-        )
-
-    @property
-    def expired(self) -> bool:
-        now = time.time()
-        return now - self.last_fetched_current_month > self.EXPIRY_SECONDS
-
-    def load_all(self):
-        # fetch everything
-        # TODO: long term: stream this if it gets too big, or do it in batches by month
-        # Deliberately not `select("*")`: that pulls `session_id`, which is the
-        # Kunden-Modus bearer token. The dashboard never needs it, so it must not
-        # be in this process's memory to begin with.
-        rows: list[AnyChatRow] = (
-            supabase.table("chats").select(CHAT_COLUMNS).execute().data  # type: ignore
-        )
-
-        if DEBUG:
-            print(
-                f"Fetched {len(rows)} chat rows from Supabase for cache initialization"
-            )
-
-        # setup month grouping
-        month_rows: dict[
-            MonthKey,
-            list[AnyChatRow],
-        ] = {}
-
-        # group rows by month
-        for row in rows:
-            timestamp = parse_row_timestamp(row["timestamp"])
-            _month_key = month_key(timestamp)
-
-            month_rows.setdefault(_month_key, []).append(row)
-
-        # setup counting
-        self.total_chats = 0
-        self.total_user_messages = 0
-        # count together mounths
-        for _month_key, _rows in month_rows.items():
-            _total_count, _user_message_count, hourly_counts, _, weekday_counts = (
-                self.compute_month(_rows, _month_key)
-            )
-
-            # update counts
-            self.total_chats += _total_count
-            self.total_user_messages += _user_message_count
-            for hour, count in hourly_counts.items():
-                self.hourly_counts[hour] += count
-            for weekday, count in weekday_counts.items():
-                self.weekday_counts[weekday] += count
-
-        self.last_fetched_current_month = time.time()
-
-    def compute_month(
-        self, rows: list[AnyChatRow], _month_key: MonthKey
-    ) -> tuple[int, int, dict[Hour, int], dict[Day, int], dict[Weekday, int]]:
-        (
-            total_count,
-            user_message_count,
-            hourly_count,
-            daily_count,
-            weekday_count,
-        ) = (0, 0, {h: 0 for h in range(24)}, {}, {wd: 0 for wd in range(7)})
-
-        for row in rows:
-            timestamp = parse_row_timestamp(row["timestamp"])
-            day, hour, weekday = timestamp.day, timestamp.hour, timestamp.weekday()
-            total_count += 1
-            try:
-                user_message_count += sum(1 for m in row["messages"] if is_user(m))
-            except (KeyError, TypeError):
-                print(row["messages"])
-                continue
-            hourly_count[hour] += 1
-            daily_count[day] = daily_count.get(day, 0) + 1
-            weekday_count[weekday] += 1
-
-        for day in range(1, max(daily_count.keys(), default=0) + 1):
-            daily_count.setdefault(day, 0)
-
-        self._cache[_month_key] = {
-            "month": _month_key,
-            "label": f"{GERMAN_MONTHS[int(_month_key[5:7])]} {_month_key[:4]}",
-            "total_chats": total_count,
-            "avg_user_messages_per_chat": (
-                user_message_count / total_count if total_count > 0 else 0.0
-            ),
-            "daily_counts": [
-                build_daily_count(day, _month_key, count)
-                for day, count in sorted(daily_count.items())
-            ],
-            "hourly_counts": [
-                build_hourly_count(hour, count)
-                for hour, count in sorted(hourly_count.items())
-            ],
-            "weekday_counts": [
-                build_weekday_count(weekday, count)
-                for weekday, count in sorted(weekday_count.items())
-            ],
-            "chats": None,
-        }
-
-        return (
-            total_count,
-            user_message_count,
-            hourly_count,
-            daily_count,
-            weekday_count,
-        )
-
-    def update_current_month(
-        self, include_chats: bool = False
-    ) -> None | list[ChatDetail]:
-        """
-        If you call this, first check if it is actually expired.
-        """
-        if self.current_month not in self._cache:
-            return self.add_month(self.current_month)
-        cache_entry = self._cache[self.current_month]
-        now = time.time()
-        # subtract old current month counts from totals before re-fetching
-        self.total_chats -= cache_entry["total_chats"]
-        self.total_user_messages -= round(
-            cache_entry["avg_user_messages_per_chat"] * cache_entry["total_chats"]
-        )
-        for hourly, count in enumerate(cache_entry["hourly_counts"]):
-            self.hourly_counts[hourly] -= count["count"]
-        for weekday, count in enumerate(cache_entry["weekday_counts"]):
-            self.weekday_counts[weekday] -= count["count"]
-
-        # re-fetch current month data from DB
-        rows = fetch_month_chats(self.current_month)
-        # analyze and update cache for current month
-        (
-            total_count,
-            user_message_count,
-            hourly_count,
-            _,
-            weekday_count,
-        ) = self.compute_month(rows, self.current_month)
-        if include_chats:
-            chats = self._cache[self.current_month]["chats"] = analyse_chats(rows)
-
-        # update total counts and averages
-        self.total_chats += total_count
-        self.total_user_messages += user_message_count
-        for hour, count in sorted(hourly_count.items()):
-            self.hourly_counts[hour] += count
-        for weekday, count in sorted(weekday_count.items()):
-            self.weekday_counts[weekday] += count
-
-        self.last_fetched_current_month = now
-
-        if include_chats:
-            return chats
-
-    def current_month_rollover(self):
-        """
-        Checks if current month has changed, and if so, finalizes old month and starts tracking new month.
-        """
-        new_current_month = month_key(self.current_month_start())
-        if new_current_month == self.current_month:
-            return
-
-        # finalize old month
-        self.update_current_month(include_chats=False)
-        # start tracking new month
-        self.add_month(new_current_month)
-
-    def add_month(self, new_current_month: MonthKey):
-        self.current_month = new_current_month
-        self._cache.setdefault(
-            self.current_month,
-            {
-                "month": self.current_month,
-                "label": f"{GERMAN_MONTHS[int(self.current_month[5:7])]} {self.current_month[:4]}",
-                "total_chats": 0,
-                "avg_user_messages_per_chat": 0.0,
-                "daily_counts": [],
-                "hourly_counts": [],
-                "weekday_counts": [],
-                "chats": None,
-            },
-        )
-        return self.update_current_month(include_chats=False)
-
-    @staticmethod
-    def current_month_start() -> datetime:
-        # Aware, because "the current month" is a German-local question. On
-        # Railway the process clock is UTC, so a naive now() rolled the month
-        # over an hour or two early — twice a year on the wrong day entirely.
-        now = datetime.now(tz)
-        return datetime(now.year, now.month, 1, tzinfo=tz)
+def segment_counts(vector: list[int]) -> dict[str, int]:
+    return {segment: vector[i] for i, segment in enumerate(SEGMENTS)}
 
 
-def fetch_month_chats(month_key: MonthKey) -> list[AnyChatRow]:
-    month_start = datetime.strptime(month_key + "-01", "%Y-%m-%d").replace(tzinfo=tz)
-    next_month_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
-    rows: list[AnyChatRow] = (
+# ──────────────────────────────────────────
+# Fetching
+# ──────────────────────────────────────────
+
+
+def fetch_month_chats(key: MonthKey) -> tuple[list[AnyChatRow], int | None]:
+    """One month of raw chats, plus the server-side row count.
+
+    The count comes back from the same request (``count="exact"``) and exists so
+    a silently truncated read cannot be written into ``month_stats`` as a
+    month's aggregate — see ``month_stats.assert_complete``.
+    """
+    month_start, next_month_start = month_bounds(key)
+    response = (
         supabase.table("chats")
-        .select(CHAT_COLUMNS)
+        .select(CHAT_COLUMNS, count="exact")
         .gte("timestamp", month_start.isoformat())
         .lt("timestamp", next_month_start.isoformat())
         .order("timestamp", desc=True)
         .execute()
-        .data  # type: ignore
     )
-    return rows
+    return response.data, getattr(response, "count", None)  # type: ignore
 
 
-def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
+def fetch_all_chats() -> tuple[list[AnyChatRow], int | None]:
+    response = supabase.table("chats").select(CHAT_COLUMNS, count="exact").execute()
+    return response.data, getattr(response, "count", None)  # type: ignore
+
+
+# ──────────────────────────────────────────
+# In-memory cache
+# ──────────────────────────────────────────
+
+
+# The cache is a plain dict plus module functions, not a class: nothing ever
+# reassigns its sub-dicts, only mutates them, so an alias cannot silently detach
+# from the live state the way `self._aggregates = {}` would.
+#
+# Past months are static once computed; only the current one expires. Nothing in
+# here is authoritative — it is all recomputable from `chats` — so a process
+# restart costs time, never correctness.
+
+EXPIRY_SECONDS = 5 * 60
+
+# Transcripts are heavy (17 MB for the full table) and only a handful of months
+# are ever open at once. Bounded so a long-lived worker cannot grow without limit.
+MAX_CACHED_TRANSCRIPT_MONTHS = 3
+
+
+def new_month_cache() -> dict:
+    return {
+        "aggregates": {},
+        "chats": {},
+        "row_counts": {},
+        "current_month": month_key(current_month_start()),
+        "last_fetched": 0.0,
+    }
+
+
+def cache_expired(cache: dict) -> bool:
+    return time.time() - cache["last_fetched"] > EXPIRY_SECONDS
+
+
+def cache_months(cache: dict) -> list[MonthKey]:
+    return sorted(cache["aggregates"])
+
+
+def load_all(cache: dict) -> None:
+    """Compute every month from the full table. Called on demand, not at import."""
+    rows, _count = fetch_all_chats()
+    if DEBUG:
+        print(f"Fetched {len(rows)} chat rows from Supabase for cache initialization")
+
+    by_month: dict[MonthKey, list[AnyChatRow]] = {}
+    for row in rows:
+        by_month.setdefault(month_key(parse_row_timestamp(row["timestamp"])), []).append(row)
+
+    cache["aggregates"] = {
+        key: aggregate_month(month_rows, key) for key, month_rows in by_month.items()
+    }
+    cache["row_counts"] = {key: len(month_rows) for key, month_rows in by_month.items()}
+    cache["aggregates"].setdefault(
+        cache["current_month"], month_aggregate.empty_aggregate(cache["current_month"])
+    )
+    cache["last_fetched"] = time.time()
+
+
+def ensure_loaded(cache: dict) -> None:
+    if not cache["aggregates"]:
+        load_all(cache)
+
+
+def refresh_current_month(cache: dict, include_chats: bool = False) -> None:
+    key = cache["current_month"]
+    rows, _count = fetch_month_chats(key)
+    cache["aggregates"][key] = aggregate_month(rows, key)
+    cache["row_counts"][key] = len(rows)
+    if include_chats:
+        store_chats(cache, key, analyse_chats(rows))
+    cache["last_fetched"] = time.time()
+
+
+def rollover(cache: dict) -> None:
+    """Finalize the old current month and start tracking the new one."""
+    new_month = month_key(current_month_start())
+    if new_month == cache["current_month"]:
+        return
+    ensure_loaded(cache)
+    refresh_current_month(cache)
+    cache["current_month"] = new_month
+    cache["aggregates"].setdefault(new_month, month_aggregate.empty_aggregate(new_month))
+    refresh_current_month(cache)
+
+
+def cached_aggregate(cache: dict, key: MonthKey) -> MonthAggregate | None:
+    ensure_loaded(cache)
+    if key == cache["current_month"] and cache_expired(cache):
+        refresh_current_month(cache)
+    return cache["aggregates"].get(key)
+
+
+def all_time_aggregate(cache: dict) -> MonthAggregate:
+    ensure_loaded(cache)
+    if cache_expired(cache):
+        refresh_current_month(cache)
+    return month_aggregate.combine(cache["aggregates"].values())
+
+
+def cached_chats(cache: dict, key: MonthKey) -> list[ChatDetail]:
+    cached = cache["chats"].get(key)
+    if cached is not None and not (key == cache["current_month"] and cache_expired(cache)):
+        return cached
+    rows, _count = fetch_month_chats(key)
+    details = analyse_chats(rows)
+    store_chats(cache, key, details)
+    if key == cache["current_month"]:
+        cache["aggregates"][key] = aggregate_month(rows, key)
+        cache["row_counts"][key] = len(rows)
+        cache["last_fetched"] = time.time()
+    return details
+
+
+def store_chats(cache: dict, key: MonthKey, details: list[ChatDetail]) -> None:
+    chats = cache["chats"]
+    chats[key] = details
+    while len(chats) > MAX_CACHED_TRANSCRIPT_MONTHS:
+        for oldest in sorted(chats):
+            if oldest != key and oldest != cache["current_month"]:
+                del chats[oldest]
+                break
+        else:
+            break
+
+
+def analyse_chats(rows: Iterable[AnyChatRow]) -> list[ChatDetail]:
+    """Transcripts for the drill-down view."""
+    from chat_segments import segment_of_chat
+
     details: list[ChatDetail] = []
     for row in rows:
-        # read values from row
-        db_id = row["id"]
         messages = row["messages"]
         if not messages:
             continue
-        timestamp = row["timestamp"]
-        # number of user messages
-        user_message_count = sum(1 for m in messages if is_user(m))
         detail: ChatDetail = {
-            "id": db_id,
-            "chat_timestamp": timestamp,
-            "user_message_count": user_message_count,
+            "id": row["id"],
+            "chat_timestamp": row["timestamp"],
+            "segment": segment_of_chat(messages if isinstance(messages, list) else []),
+            "user_message_count": sum(1 for m in messages if is_user(m)) if isinstance(messages, list) else 0,
             "messages": messages,  # type: ignore
-            # "html": False,
         }
         details.append(detail)
-        # Old rows have no per-message timestamps, so they have no bounds. The
-        # last message always carries one on new rows (it is a bot or
-        # recommendation_previews message), which makes this exactly the
-        # condition `_message_bounds` needs below.
-        if "timestamp" not in messages[-1]:
+        # Old rows have no per-message timestamps and therefore no bounds.
+        if not is_new_format(messages):
             continue
-        # Only new chats after here
-        _row: ChatRow = row  # type: ignore
-        messages = _row["messages"]
-        # detail["html"] = True
-        start_ts, end_ts = _message_bounds(messages)
+        start_ts, end_ts = _message_bounds(messages)  # type: ignore
         # Unix timestamps are absolute; fromtimestamp without a tz would render
-        # them in whatever the container's clock is, which is UTC on Railway.
+        # them in whatever the container clock is, which is UTC on Railway.
         detail["started_at"] = datetime.fromtimestamp(start_ts, tz).isoformat()
         detail["ended_at"] = datetime.fromtimestamp(end_ts, tz).isoformat()
         detail["duration_seconds"] = end_ts - start_ts
@@ -489,9 +394,125 @@ def analyse_chats(rows: list[AnyChatRow]) -> list[ChatDetail]:
     return details
 
 
-month_cache = MonthCache()
+month_cache = new_month_cache()
 
-# Authentication for dashboard routes.
+
+# ──────────────────────────────────────────
+# Quality (read side only — runs happen in quality_job)
+# ──────────────────────────────────────────
+
+
+def previous_month(key: MonthKey) -> MonthKey:
+    start, _ = month_bounds(key)
+    return month_key(start - timedelta(days=1))
+
+
+def previous_cause_counts(
+    key: MonthKey, taxonomy_version: int, segments: Iterable[Segment] | None
+) -> dict[str, int]:
+    """Last month's count per cause, for the delta column.
+
+    Read on the server, not assembled in the browser out of whatever months the
+    user happened to click on — that made the delta column show a dash almost
+    always, which quietly removed the one thing SC6 is measured on.
+
+    Returns nothing across a taxonomy change: two versions are two different
+    measuring devices, and a delta between them is a number with no meaning.
+    """
+    row = month_stats.load_month(previous_month(key))
+    stored = (row or {}).get("quality")
+    if not stored or stored.get("taxonomy_version") != taxonomy_version:
+        return {}
+    return {
+        cause_id: select(vector, segments)
+        for cause_id, vector in (stored.get("ursachen") or {}).items()
+    }
+
+
+def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, Any]:
+    """The paid half of a month, shaped for the frontend. Never triggers a run."""
+    if quality_job.is_running(key):
+        return {
+            "status": "running",
+            "ursachen": [],
+            "laender": [],
+            "qualitaet": {},
+            "chat_ids_by_cause": {},
+        }
+
+    row = month_stats.load_month(key)
+    stored: QualityAggregate | None = (row or {}).get("quality")
+    if not stored:
+        return {
+            "status": "missing",
+            "ursachen": [],
+            "laender": [],
+            "qualitaet": {},
+            "chat_ids_by_cause": {},
+        }
+
+    # The FAQ gap marker is computed on READ, not stored: `faqs/` changes
+    # independently of the classification run, and a cause that got a snippet
+    # last week should stop being marked without repaying for the month.
+    taxonomy = chat_quality.mark_faq_gaps((row or {}).get("taxonomy") or [])
+    return {
+        "status": stored.get("status", "ok"),
+        "computed_at": (row or {}).get("quality_computed_at"),
+        "taxonomy_version": stored.get("taxonomy_version", 0),
+        "classified_chats": select(stored.get("classified_chats", [0, 0, 0]), segments),
+        "unmapped_chats": stored.get("unmapped_chats", 0),
+        "qualitaet": {
+            quality: select(vector, segments)
+            for quality, vector in (stored.get("qualitaet") or {}).items()
+        },
+        "ursachen": month_aggregate.top_causes(stored, taxonomy, segments),
+        "vormonat": previous_cause_counts(
+            key, stored.get("taxonomy_version", 0), segments
+        ),
+        "chat_ids_by_cause": stored.get("chat_ids_by_cause") or {},
+        "neu": select((stored.get("ursachen") or {}).get("neu", [0, 0, 0]), segments),
+        "laender": month_aggregate.top_countries(stored, segments),
+    }
+
+
+def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | None:
+    agg = cached_aggregate(month_cache, key)
+    if agg is None:
+        return None
+    segments = selected_segments()
+    chats = cached_chats(month_cache, key) if include_chats else None
+    if chats is not None and segments:
+        chats = [c for c in chats if c["segment"] in segments]
+    return {
+        "month": key,
+        "label": agg["label"],
+        "total_chats": select(agg["total_chats"], segments),
+        "segment_counts": segment_counts(agg["total_chats"]),
+        "avg_user_messages_per_chat": avg_user_messages(agg, segments),
+        "daily_counts": [
+            build_daily_count(int(day), key, select(vector, segments))
+            for day, vector in sorted(agg["daily"].items(), key=lambda kv: int(kv[0]))
+        ],
+        "hourly_counts": [
+            build_hourly_count(hour, select(vector, segments))
+            for hour, vector in enumerate(agg["hourly"])
+        ],
+        "weekday_counts": [
+            build_weekday_count(weekday, select(vector, segments))
+            for weekday, vector in enumerate(agg["weekday"])
+        ],
+        "heatmap": [
+            [select(agg["heatmap"][weekday][hour], segments) for hour in range(24)]
+            for weekday in range(7)
+        ],
+        "quality": quality_for(key, segments),
+        "chats": chats,
+    }
+
+
+# ──────────────────────────────────────────
+# Auth
+# ──────────────────────────────────────────
 #
 # DASHBOARD_PASSWORD has NO default and startup fails without it. There used to
 # be a `"change-me"` fallback, which was survivable while the dashboard only
@@ -558,68 +579,79 @@ def auth_required(view):
     return wrapped
 
 
+# ──────────────────────────────────────────
 # Routes
+# ──────────────────────────────────────────
+
+
 @auth_required
 def DASHBOARD_data():
-    """
-    General dashboard data endpoint. Returns aggregated stats for all months
-    """
-
-    month_cache.current_month_rollover()
-
-    if month_cache.expired:
-        month_cache.update_current_month(include_chats=True)
+    """Aggregated stats across all months."""
+    rollover(month_cache)
+    all_time = all_time_aggregate(month_cache)
+    segments = selected_segments()
 
     payload: DashboardPayload = {
-        "total_chats": month_cache.total_chats,
-        "avg_user_messages_per_chat": month_cache.avg_user_messages_per_chat,
+        "total_chats": select(all_time["total_chats"], segments),
+        "segment_counts": segment_counts(all_time["total_chats"]),
+        "avg_user_messages_per_chat": avg_user_messages(all_time, segments),
         "hourly_counts": [
-            build_hourly_count(hour, count)
-            for hour, count in enumerate(month_cache.hourly_counts)
+            build_hourly_count(hour, select(vector, segments))
+            for hour, vector in enumerate(all_time["hourly"])
         ],
         "weekday_counts": [
-            {
-                "weekday": DAY_NAME[weekday],
-                "short_label": DAY_NAME[weekday][:3],
-                "count": count,
-            }
-            for weekday, count in enumerate(month_cache.weekday_counts)
+            build_weekday_count(weekday, select(vector, segments))
+            for weekday, vector in enumerate(all_time["weekday"])
+        ],
+        "heatmap": [
+            [select(all_time["heatmap"][weekday][hour], segments) for hour in range(24)]
+            for weekday in range(7)
         ],
         "monthly_summary": [
             {
-                "key": month,
-                "label": cache_entry["label"],
-                "count": cache_entry["total_chats"],
+                "key": key,
+                "label": month_label(key),
+                "short_label": short_month_label(key),
+                "count": select(month_cache["aggregates"][key]["total_chats"], segments),
             }
-            for month, cache_entry in sorted(month_cache._cache.items())
+            for key in cache_months(month_cache)
         ],
-        "current_month": month_cache.current_month,
+        "current_month": month_cache["current_month"],
     }
 
     return jsonify(payload)
 
 
-def _DASHBOARD_month(_month_key: MonthKey) -> MonthDetail:
-    """
-    Endpoint for fetching detailed data for a specific month, including individual chats.
-    """
-    if _month_key == month_cache.current_month and month_cache.expired:
-        month_cache.update_current_month(include_chats=True)
-    elif not month_cache._cache[_month_key]["chats"]:
-        rows = fetch_month_chats(_month_key)
-        month_cache._cache[_month_key]["chats"] = analyse_chats(rows)
-    return month_cache._cache[_month_key]
+@auth_required
+def DASHBOARD_month(month: MonthKey):
+    rollover(month_cache)
+    if not month or not MONTH_RE.match(month):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    detail = month_detail(month)
+    if detail is None:
+        return jsonify({"error": f"Month '{month}' not found"}), 404
+    return jsonify(detail)
 
 
 @auth_required
-def DASHBOARD_month(month: MonthKey):
-    month_cache.current_month_rollover()  # check if we need to rollover to new month
-    if not month:
-        return jsonify({"error": "Missing 'month' query parameter"}), 400
-    elif month not in month_cache._cache:
-        return jsonify({"error": f"Month '{month}' not found in cache"}), 404
+def DASHBOARD_quality_run(month: MonthKey):
+    """Enqueue a classification run. Returns immediately, always.
 
-    return jsonify(_DASHBOARD_month(month))
+    This never computes anything in the request: one worker proxies the whole
+    site, and a run takes minutes and costs money. A month already running
+    collapses onto the run in flight instead of starting a second one.
+    """
+    if not MONTH_RE.match(month or ""):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    result = quality_job.enqueue(month, lambda: fetch_month_chats(month)[0])
+    return jsonify(result)
+
+
+@auth_required
+def DASHBOARD_quality_status(month: MonthKey):
+    if not MONTH_RE.match(month or ""):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    return jsonify(quality_job.status(month))
 
 
 @auth_required
@@ -671,18 +703,20 @@ def reindex_travels():
     return jsonify({"status": "started", "last": travel_index.last_summary()})
 
 
-# Load cache on startup
-month_cache.load_all()
-
-# Define dashboard routes
+# (path, view, methods, limit). The limit is applied in app.py, where the
+# Limiter lives. Every route here was previously unthrottled: `default_limits`
+# is empty, so a route without its own decorator has no limit at all — see the
+# note in rate_limit.init_app.
 routes = [
-    ("/api/dashboard", DASHBOARD_data),
-    ("/api/dashboard/<string:month>", DASHBOARD_month),
-    ("/dashboard", DASHBOARD_index),
-    ("/dashboard/", DASHBOARD_index),
-    ("/admin", admin_index),
-    ("/admin/", admin_index),
-    ("/admin/reindex", reindex_travels, ["POST"]),
-    ("/admin/sitemap", admin_sitemap_get),
-    ("/admin/sitemap", admin_sitemap_post, ["POST"]),
+    ("/api/dashboard", DASHBOARD_data, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/api/dashboard/<string:month>", DASHBOARD_month, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_status, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_run, ["POST"], rate_limit.ADMIN_LIMIT),
+    ("/dashboard", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/dashboard/", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin", admin_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin/", admin_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin/reindex", reindex_travels, ["POST"], rate_limit.ADMIN_LIMIT),
+    ("/admin/sitemap", admin_sitemap_get, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin/sitemap", admin_sitemap_post, ["POST"], rate_limit.ADMIN_LIMIT),
 ]
