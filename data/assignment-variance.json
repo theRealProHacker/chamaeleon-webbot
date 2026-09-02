@@ -1,0 +1,15 @@
+{
+  "compared_chats": 1962,
+  "quality_agreement": 0.9776,
+  "cause_agreement": 0.9587,
+  "country_agreement": 0.9995,
+  "disagreeing_countries": [
+    {
+      "chat_db_id": "b5a069d0-b573-49e2-84a6-7639ffdff849",
+      "run_a": [
+        "Indonesien"
+      ],
+      "run_b": []
+    }
+  ]
+}

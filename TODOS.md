@@ -117,6 +117,33 @@
 
 ## Dashboard-Neubau (vertagt aus dem /autoplan-Review, 2026-09-01)
 Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`.
+
+- [x] **v1 gebaut 2026-09-02.** Segmentachse, Heatmap, Qualitäts-/Ursachenachse
+      und die Oberfläche stehen; `chat_segments`, `month_aggregate`,
+      `chat_quality`, `quality_job`, `month_stats`, `pii_scan` sind neu, die
+      Aggregation liegt als reine Funktionen neben dem Requestpfad. Der erste
+      bezahlte Lauf über Juli und August ist gerechnet und liegt als Gold-Set in
+      `data/` (`assignment-report.md`).
+      **Ein manueller Schritt offen: die DDL aus `sql/month_stats.sql` im
+      Supabase-SQL-Editor ausführen** — der API-Key kann keine Tabellen anlegen.
+      Bis dahin läuft alles fail-open: die deterministischen Achsen werden live
+      gerechnet, die Qualitäts- und Länderachse melden `status: missing`, und es
+      wird nichts geschrieben. Gleiche Lage wie bei `sitemap_versions` oben.
+- [ ] **Validierungs-Gate für die Qualitätsachse (T24) — nicht gebaut.**
+      Der Plan verlangte 120 handgelabelte Chats, Cohens κ ≥ 0,6 und eine
+      Formkontroll-Regression, bevor die Achse als tragfähig gilt. Auf
+      Owner-Ansage („keine Tests") ausgelassen. Was stattdessen gemessen
+      vorliegt, steht in `data/assignment-report.md`: derselbe Monat zweimal
+      gerechnet stimmt zu 97,8 % (Qualität), 95,9 % (Ursache) und 99,95 %
+      (Länder) mit sich selbst überein. **Das ist Reproduzierbarkeit, nicht
+      Richtigkeit** — es sagt, dass das Modell sich nicht widerspricht, nicht,
+      dass es mit einem Menschen übereinstimmt. Die Achse trägt v1 allein;
+      wer ihr Zahlen glauben will, braucht das Gate.
+- [ ] **Import-Nebenwirkungen kappen (T23) — nicht gebaut.** Begründung war
+      ausschließlich Testisolation, und die ist mit „keine Tests" entfallen.
+      `dashboard.py` lädt beim Import nichts mehr (der Cache füllt sich beim
+      ersten Request), aber `db_logging.py` legt weiterhin beim Import den
+      Supabase-Client an und lädt Sessions. Wer je Tests hinzufügt, fängt hier an.
 - [ ] **Trend-Sparkline** pro Ursache über die letzten N Monate. Vertagt,
       weil sie an der Cluster-Kontinuität (A4) hängt, deren Nutzen selbst noch
       unbewiesen ist. Sinnvoll frühestens nach dem zweiten echten Monatslauf.
@@ -153,9 +180,12 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       (nachgezählt: 0 Treffer in 1.708 Zeilen), und die Monatsauswahl ist
       ausschließlich ein Klick auf ein `<canvas>` — es gibt heute keinen
       Tastaturpfad zu irgendeiner Auswertung.
-- [ ] **Diagrammfarben sind sechs hartkodierte Hexwerte** neben einem
-      existierenden Token-Set (`index.html`, Zeilen 991–1221). `#94a3b8`
-      erreicht nur 2.45:1 gegen `--bg` und verfehlt damit die 3:1-Schwelle für
+- [ ] **Diagrammfarben teilweise migriert.** Beide Balkendiagramme sprechen
+      jetzt dieselbe Sprache (grau + Akzent für die Auswahl), und Segment- sowie
+      Heatmap-Tokens stehen in `:root`. Offen bleibt der Kontrast: `#94a3b8`
+      erreicht 2.45:1 gegen `--bg` und verfehlt die 3:1-Schwelle für
       Diagrammelemente (WCAG SC 1.4.11).
-- [ ] **Kartenschatten verstoßen gegen die globale Designregel** (einlagige
+- [x] **Kartenschatten auf die Token umgestellt** (2026-09-02): `--shadow-s/m/l`
+      stehen in `:root`, Karten und Knöpfe benutzen sie.
+- [ ] ~~**Kartenschatten verstoßen gegen die globale Designregel**~~ (einlagige
       `box-shadow`, u. a. `index.html:126`), statt gestapelter `--shadow-s/m/l`.

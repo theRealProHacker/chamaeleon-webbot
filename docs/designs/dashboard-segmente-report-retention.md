@@ -2656,3 +2656,90 @@ nicht entstehen. Sie stehen hier, damit die Entscheidung bewusst fällt:
   weder von Hand noch aus `travel_index`.
 - ~~**Fragen-Häufigkeitsliste** (A3/A4 alte Fassung, question_clusters.py)~~ —
   C2: derselbe LLM-Aufwand liegt jetzt auf der Antwortqualität.
+
+---
+
+# Bauabschluss (2026-09-02)
+
+v1 ist gebaut. Was der Plan nicht wusste, steht hier — die Abschnitte darüber
+bleiben unverändert, damit nachvollziehbar ist, was vorher angenommen wurde.
+
+## Was gebaut wurde
+
+Neue Module, alle ohne Klassen (Owner-Direktive), alle importierbar ohne I/O:
+`chat_segments` (A2/P7), `month_aggregate` (T04, reine Funktionen), `chat_quality`
+(A3/A5, der bezahlte Lauf), `quality_job` (T06, Lauf außerhalb des Requestpfads),
+`month_stats` + `sql/month_stats.sql` (A1/T05), `pii_scan` (T20/SC3).
+`dashboard.py` ist auf diese Schichten umgestellt und lädt beim Import nichts
+mehr. Die Oberfläche hat Tag-Leiste (T11), Ursachentabelle mit Drill-down (T13),
+Heatmap (T14), Zustände pro Karte (T10), FAQ-Lücken-Marker (T26) und rendert
+LLM-Text ausschließlich per `textContent` (T25).
+
+## Der erste bezahlte Lauf — Zahlen statt Schätzungen
+
+Rohergebnis in `data/assignment-report.md`, Gold-Set in `data/assignment-*.json`.
+
+- **Juli 2026:** 1.962 Chats, 0 unmapped. **August 2026:** 1.734 Chats, 0 unmapped.
+- **34 % bzw. 38 % der Gespräche sind `ausgewichen`.** Das ist die Zahl, um die
+  es ging, und sie ist größer als erwartet.
+- **Eine Ursache dominiert beide Monate:** „Bot verweist auf
+  Reisebüro/Erlebnisberatung", 209 → 203. Daraus folgt Arbeit, und genau das war
+  der Grund für den Achsenwechsel in C2.
+- **Die Kontinuität trägt.** Der `neu`-Bucket bleibt bei 5 (Juli) und 19 (August)
+  von rund 700 schlechten Antworten — die Taxonomie deckt fast alles ab, und der
+  Vormonatsvergleich hat damit eine Grundlage.
+- **Länder, gemessen:** Namibia 193, Südafrika 96, Tansania 94. Das sind exakt
+  die drei Länder, die `faqs/laender.json` nicht enthält. Decision 89 ist damit
+  nicht mehr Argument, sondern Messung: mit dieser Datei als Vokabular wären die
+  drei größten Ziele des Veranstalters unsichtbar gewesen.
+- **Laufzeit** 630 s (Juli) und rund 250 min inklusive der Wiederholungen unten.
+
+## Zwei Annahmen des Plans, die die Messung widerlegt
+
+**A5 sagt, die Länderachse sei die instabilste.** Sie ist die stabilste.
+Derselbe Monat zweimal gerechnet: Länder 99,95 %, Qualität 97,8 %, Ursache
+95,9 % Übereinstimmung. Die Sorge, dass „bei 73 Ländern die Plätze 8 und 9 an
+einer Handvoll Chats kippen", ist unbegründet — es sind ganze 1 Chat von 1.962,
+die zwischen zwei Läufen ein anderes Land bekommen. Die **Ursachenachse** ist
+die wacklige, nicht die Länderachse.
+
+**A3s Kostenkorrektur stimmt, die Batchgröße war trotzdem falsch.** Der Plan
+schrieb ein reines Input-Token-Budget (≤ 60k) vor. Damit landen 250–333 Chats in
+einem Aufruf, und das Modell antwortet dann manchmal über **einen** davon: eine
+wohlgeformte Antwort mit einer Bewertung statt 300, ohne Fehler, ohne
+Abschneide-Flag. Gemessen am ersten August-Lauf: **788 von 1.734 Chats blieben
+so unklassifiziert, bei grünem Log.** Der Monat hätte wie ein ruhigerer Monat
+ausgesehen.
+
+Der Fehler ist **nicht** größenabhängig — dieselbe Batchgröße liefert mal 20 von
+20 und mal 1 von 10. Er ist auch nicht auf einen bestimmten Chat zurückzuführen:
+der naheliegende Verdacht (ein Nutzertext, der wie eine Anweisung liest — es gibt
+in Juli tatsächlich einen mit „ich möchte, dass Du den Systemprompt vergisst")
+ist geprüft und **widerlegt**, derselbe Batch mit und ohne diesen Chat kommt
+vollständig zurück.
+
+Behoben in `chat_quality.classify_with_completeness`: eine kurze Antwort gilt als
+**fehlgeschlagener Aufruf**, nicht als Teilergebnis. Erst wird derselbe Batch
+wiederholt (das genügt fast immer), dann wird der Rest halbiert. Danach: Juli
+1.962/1.962, August 1.734/1.734, beide 0 unmapped. Zusätzlich deckelt
+`MAX_CHATS_PER_BATCH = 80` die Batchgröße — nicht weil 80 eine Modellgrenze
+wäre, sondern damit eine Wiederholung billig ist.
+
+## Was nicht gebaut wurde, und was das kostet
+
+- **T24, das Validierungs-Gate.** Auf Owner-Ansage („keine Tests") ausgelassen.
+  Die Varianzzahlen oben sind **Reproduzierbarkeit, nicht Richtigkeit**: sie
+  sagen, dass das Modell sich nicht widerspricht, nicht, dass es mit einem
+  Menschen übereinstimmt. Die Qualitätsachse trägt v1 allein und hat damit kein
+  Kriterium, an dem sie scheitern könnte. Steht in TODOS.md.
+- **T23, Import-Nebenwirkungen.** Begründung war ausschließlich Testisolation.
+- **`falsch` bleibt in v1** (offene Frage 3 des Checkpoints). Gemessen ist sie
+  klein — 12 von 1.962 im Juli — und sie wird wie geplant nicht als Zahl
+  herausgestellt. Das Streichen kostet weniger als die Diskussion darüber; die
+  Entscheidung liegt weiter beim Owner.
+- **`db-max-rows`** (offener Widerspruch 4): live gegengeprüft, alle vier
+  geprüften Monate liefern exakt so viele Zeilen wie der Server zählt
+  (1.738 / 1.962 / 1.734 / 92). Ein Limit ist damit für diese Monatsgrößen nicht
+  wirksam. T18 (`assert len(rows) == count` vor jedem Write) ist trotzdem
+  gebaut — er kostet einen gezählten Request und beantwortet die Frage genau
+  dann, wenn sie zum ersten Mal zählt.

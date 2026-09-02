@@ -1,0 +1,60 @@
+{
+  "taxonomy": [
+    {
+      "ursache_id": "u01",
+      "label": "Bot verweist auf Reisebüro/Erlebnisberatung",
+      "definition": "Der Bot beantwortet die Frage nicht direkt, sondern fordert den Nutzer auf, sich an das Reisebüro oder die Erlebnisberatung zu wenden."
+    },
+    {
+      "ursache_id": "u02",
+      "label": "Bot kennt Flugdetails nicht",
+      "definition": "Der Bot kann keine spezifischen Informationen zu Flügen (Airline, Flugzeiten, Gepäck, Sitzplätze, Check-in, Preise) geben."
+    },
+    {
+      "ursache_id": "u03",
+      "label": "Bot kennt Visabestimmungen nicht vollständig",
+      "definition": "Der Bot gibt unvollständige oder ungenaue Informationen zu Visabestimmungen oder zum Visumantragsprozess."
+    },
+    {
+      "ursache_id": "u04",
+      "label": "Bot hat keinen Zugriff auf persönliche Buchungsdaten",
+      "definition": "Der Bot kann keine Informationen zu spezifischen Buchungen, Kundendaten oder Reisehistorien abrufen."
+    },
+    {
+      "ursache_id": "u05",
+      "label": "Bot kennt Preise/Verfügbarkeiten nicht",
+      "definition": "Der Bot kann keine genauen Preise oder Verfügbarkeiten für Reisen, Termine oder Zusatzleistungen nennen."
+    },
+    {
+      "ursache_id": "u06",
+      "label": "Bot kennt Reiseunterlagen-Details nicht",
+      "definition": "Der Bot kann keine genauen Angaben zu Inhalten oder dem genauen Zeitpunkt des Erhalts von Reiseunterlagen machen."
+    },
+    {
+      "ursache_id": "u07",
+      "label": "Bot kann technische Probleme nicht lösen",
+      "definition": "Der Bot kann bei Login-Problemen, Problemen mit der Datenanzeige oder dem Hochladen von Dokumenten nicht direkt helfen."
+    },
+    {
+      "ursache_id": "u08",
+      "label": "Bot kann keine Änderungen an Buchungen vornehmen",
+      "definition": "Der Bot kann keine Änderungen an bestehenden Buchungen (z.B. Stornierungen, Zahlungsarten, Sitzplatzwünsche) durchführen."
+    },
+    {
+      "ursache_id": "u09",
+      "label": "Bot kennt spezifische Reisedetails nicht",
+      "definition": "Der Bot kann keine detaillierten Informationen zu spezifischen Aspekten einer Reise (z.B. WLAN in Hotels, Ausflugsdetails, Zimmerkategorien) geben."
+    },
+    {
+      "ursache_id": "u10",
+      "label": "Bot gibt falsche Kontaktinformationen",
+      "definition": "Der Bot nennt eine falsche Telefonnummer oder E-Mail-Adresse."
+    },
+    {
+      "ursache_id": "u11",
+      "label": "Bot versteht Kontext nicht",
+      "definition": "Der Bot versteht die Frage des Nutzers nicht oder antwortet nicht im richtigen Kontext."
+    }
+  ],
+  "prompt_hash": "6fd435e75542134b"
+}
