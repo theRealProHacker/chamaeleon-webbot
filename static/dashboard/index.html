@@ -420,6 +420,14 @@
         background: var(--accent-soft);
       }
 
+      .cause-table.is-static tbody tr {
+        cursor: default;
+      }
+
+      .cause-table.is-static tbody tr:hover {
+        background: transparent;
+      }
+
       .cause-label {
         font-weight: 600;
       }
@@ -1099,6 +1107,21 @@
             </table>
             <p class="cause-footnote" id="causeFootnote" hidden></p>
           </article>
+          <article id="countryCard" class="card">
+            <h2>Reiseziele</h2>
+            <p class="card-subtitle">Die zehn häufigsten Länder.</p>
+            <div id="countryState" class="card-state" hidden></div>
+            <table class="cause-table is-static" id="countryTable" hidden>
+              <thead>
+                <tr>
+                  <th scope="col">Land</th>
+                  <th scope="col" class="num">Gespräche</th>
+                </tr>
+              </thead>
+              <tbody id="countryTableBody"></tbody>
+            </table>
+            <p class="cause-footnote" id="countryFootnote" hidden></p>
+          </article>
           <article id="heatmapCard" class="card">
             <h2 id="heatmapTitle">Wochentag und Uhrzeit</h2>
             <p class="card-subtitle">
@@ -1214,6 +1237,11 @@
         monthlyChartWrapper: document.getElementById("monthlyChartWrapper"),
         dailyChartCard: document.getElementById("dailyChartCard"),
         dailyChartWrapper: document.getElementById("dailyChartWrapper"),
+        countryCard: document.getElementById("countryCard"),
+        countryState: document.getElementById("countryState"),
+        countryTable: document.getElementById("countryTable"),
+        countryTableBody: document.getElementById("countryTableBody"),
+        countryFootnote: document.getElementById("countryFootnote"),
         weekdayChartCard: document.getElementById("weekdayChartCard"),
         weekdayChartTitleEl: document.getElementById("weekdayChartTitle"),
         weekdayChartHintEl: document.getElementById("weekdayChartHint"),
@@ -1895,6 +1923,7 @@
         DOM.hourlyChartCard.hidden = report;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.qualityCard.hidden = !report;
+        DOM.countryCard.hidden = !report;
       }
 
       // ── Heatmap ───────────────────────────────────────────────────────
@@ -2163,6 +2192,69 @@
           "Zeile anklicken zeigt die Gespräche dahinter.";
 
         renderCauseTable(quality);
+        renderCountryTable(quality, totalChats);
+      }
+
+      function renderCountryTable(quality, totalChats) {
+        const countries = Array.isArray(quality?.laender) ? quality.laender : [];
+        const status = quality?.status ?? "missing";
+
+        if (status !== "ok" && status !== "partial") {
+          DOM.countryTable.hidden = true;
+          DOM.countryFootnote.hidden = true;
+          setCardState(
+            DOM.countryState,
+            QUALITY_STATE_TEXT[status] ?? QUALITY_STATE_TEXT.missing,
+          );
+          return;
+        }
+        clearCardState(DOM.countryState);
+
+        if (!countries.length) {
+          DOM.countryTable.hidden = true;
+          DOM.countryFootnote.hidden = true;
+          setCardState(
+            DOM.countryState,
+            "In diesem Monat wurde kein Reiseziel erkannt.",
+          );
+          return;
+        }
+
+        const body = document.createDocumentFragment();
+        countries.forEach((entry) => {
+          const row = document.createElement("tr");
+
+          const labelCell = document.createElement("td");
+          const label = document.createElement("span");
+          label.className = "cause-label";
+          // textContent: der Name kommt aus einem Sprachmodell ueber Nutzertext.
+          label.textContent = entry.land;
+          labelCell.appendChild(label);
+          row.appendChild(labelCell);
+
+          const countCell = document.createElement("td");
+          countCell.className = "num";
+          countCell.textContent = formatNumber(entry.count);
+          row.appendChild(countCell);
+
+          body.appendChild(row);
+        });
+
+        DOM.countryTableBody.replaceChildren(body);
+        DOM.countryTable.hidden = false;
+
+        // Die Summen-Invariante gilt fuer Laender NICHT (A5): eine Kombireise
+        // zaehlt fuer jedes ihrer Laender. Ohne diesen Satz rechnet jemand die
+        // Spalte zusammen, kommt ueber die Chatzahl und meldet einen Fehler,
+        // der keiner ist.
+        const sum = countries.reduce((total, entry) => total + entry.count, 0);
+        if (totalChats && sum > totalChats) {
+          DOM.countryFootnote.hidden = false;
+          DOM.countryFootnote.textContent =
+            "Ein Gespräch über mehrere Länder zählt für jedes davon — die Spalte summiert sich deshalb über die Zahl der Gespräche hinaus.";
+        } else {
+          DOM.countryFootnote.hidden = true;
+        }
       }
 
       function renderCauseTable(quality) {
