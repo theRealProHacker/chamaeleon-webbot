@@ -23,8 +23,9 @@ unconditionally and only its user-message count is skipped, which is the one
 number a broken column actually makes unknowable.
 """
 
+import calendar
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Sequence, TypedDict
 from zoneinfo import ZoneInfo
 
@@ -152,6 +153,62 @@ def month_state(key: MonthKey, now: datetime | None = None) -> MonthState:
     if start <= now - timedelta(days=RETENTION_DAYS):
         return "alt"
     return "abgeschlossen"
+
+
+def weekday_occurrences(key: MonthKey, now: datetime | None = None) -> list[int]:
+    """How often each weekday (Mon=0) actually occurs in this month.
+
+    A month holds four or five of each weekday, so a raw weekday bar is up to
+    25% taller for no reason but the calendar. Dividing by this turns the bars
+    into "chats on an average Monday", which is the number the reader thinks
+    they are already looking at.
+
+    The RUNNING month counts only COMPLETED days — up to yesterday. Two
+    separate distortions are removed by that one cut:
+
+    - Weekdays that have not happened yet would otherwise be divided by an
+      occurrence that never came. They return 0 here, and the callers render
+      that as "no data" rather than as zero chats.
+    - TODAY is a part-day. Plotted as a full occurrence it makes the current
+      weekday look dead every morning: at 09:00 a third of a Thursday would
+      sit next to four whole Wednesdays under the same word, "average".
+
+    The matching cut on the chat counts is `weekday_vectors`; the two must
+    always be used together or the average divides today's chats by yesterday.
+    """
+    now = now or datetime.now(tz)
+    year, month = int(key[:4]), int(key[5:7])
+    last = calendar.monthrange(year, month)[1]
+    if key == month_key(current_month_start(now)):
+        last = min(last, now.day - 1)
+    counts = [0] * 7
+    for day in range(1, last + 1):
+        counts[date(year, month, day).weekday()] += 1
+    return counts
+
+
+def weekday_vectors(
+    agg: "MonthAggregate", key: MonthKey, now: datetime | None = None
+) -> list[list[int]]:
+    """The weekday buckets of `agg`, counting only completed days.
+
+    The counterpart to `weekday_occurrences`. For the running month today's
+    chats are taken back out of today's weekday, so numerator and denominator
+    describe the same set of days.
+
+    Done by subtracting the daily bucket rather than by re-reading the rows:
+    `daily` already holds exactly today's chats per segment, so this is exact
+    and costs no second fetch.
+    """
+    now = now or datetime.now(tz)
+    vectors = [list(vector) for vector in agg["weekday"]]
+    if key != month_key(current_month_start(now)):
+        return vectors
+    today = agg["daily"].get(str(now.day))
+    if today:
+        for index, value in enumerate(today):
+            vectors[now.weekday()][index] -= value
+    return vectors
 
 
 def chats_visible(key: MonthKey, now: datetime | None = None) -> bool:

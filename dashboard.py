@@ -60,6 +60,8 @@ from month_aggregate import (
     month_key,
     month_label,
     parse_row_timestamp,
+    weekday_occurrences,
+    weekday_vectors,
     select,
     tz,
 )
@@ -121,6 +123,11 @@ class WeekdayCount(TypedDict):
     weekday: str
     short_label: str
     count: int
+    # How often this weekday occurred in the period, and count/occurrences.
+    # `average` is None when the weekday has not happened yet (the running
+    # month, early on) — that is "no data", and must not be drawn as a zero.
+    occurrences: int
+    average: Optional[float]
 
 
 class HourlyCount(TypedDict):
@@ -192,11 +199,13 @@ def build_hourly_count(hour: int, count: int) -> HourlyCount:
     return {"hour": hour, "label": f"{hour:02d}:00", "count": count}
 
 
-def build_weekday_count(weekday: int, count: int) -> WeekdayCount:
+def build_weekday_count(weekday: int, count: int, occurrences: int) -> WeekdayCount:
     return {
         "weekday": DAY_NAME[weekday],
-        "short_label": DAY_NAME[weekday][:3],
+        "short_label": DAY_NAME[weekday][:2],
         "count": count,
+        "occurrences": occurrences,
+        "average": count / occurrences if occurrences else None,
     }
 
 
@@ -541,6 +550,8 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
     comparison = (
         previous_period_comparison(key, segments) if state == "laufend" else None
     )
+    occurrences = weekday_occurrences(key)
+    weekdays = weekday_vectors(agg, key)
 
     return {
         "month": key,
@@ -562,8 +573,8 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
             for hour, vector in enumerate(agg["hourly"])
         ],
         "weekday_counts": [
-            build_weekday_count(weekday, select(vector, segments))
-            for weekday, vector in enumerate(agg["weekday"])
+            build_weekday_count(weekday, select(vector, segments), occurrences[weekday])
+            for weekday, vector in enumerate(weekdays)
         ],
         "heatmap": [
             [select(agg["heatmap"][weekday][hour], segments) for hour in range(24)]
@@ -655,6 +666,26 @@ def DASHBOARD_data():
     all_time = all_time_aggregate(month_cache)
     segments = selected_segments()
 
+    # Occurrences add across months exactly the way the chat counts do, so the
+    # all-months average stays the honest "chats on an average Monday" and does
+    # not need the individual months to be equally long.
+    all_time_occurrences = [0] * 7
+    for cached_key in cache_months(month_cache):
+        for weekday, occurrence in enumerate(weekday_occurrences(cached_key)):
+            all_time_occurrences[weekday] += occurrence
+
+    # Der laufende Monat steuert nur abgeschlossene Tage bei — sonst teilte der
+    # Gesamtschnitt heutige Chats durch einen Tag, den er nicht mitgezaehlt hat.
+    all_time_weekdays = [list(vector) for vector in all_time["weekday"]]
+    running = month_cache["current_month"]
+    running_agg = month_cache["aggregates"].get(running)
+    if running_agg:
+        for weekday, vector in enumerate(weekday_vectors(running_agg, running)):
+            for index, value in enumerate(vector):
+                all_time_weekdays[weekday][index] -= (
+                    running_agg["weekday"][weekday][index] - value
+                )
+
     payload: DashboardPayload = {
         "total_chats": select(all_time["total_chats"], segments),
         "segment_counts": segment_counts(all_time["total_chats"]),
@@ -664,8 +695,10 @@ def DASHBOARD_data():
             for hour, vector in enumerate(all_time["hourly"])
         ],
         "weekday_counts": [
-            build_weekday_count(weekday, select(vector, segments))
-            for weekday, vector in enumerate(all_time["weekday"])
+            build_weekday_count(
+                weekday, select(vector, segments), all_time_occurrences[weekday]
+            )
+            for weekday, vector in enumerate(all_time_weekdays)
         ],
         "heatmap": [
             [select(all_time["heatmap"][weekday][hour], segments) for hour in range(24)]

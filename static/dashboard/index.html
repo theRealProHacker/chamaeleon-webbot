@@ -550,6 +550,9 @@
         margin: 0 0 1rem;
         font-size: 1.15rem;
         letter-spacing: -0.01em;
+        /* Gleicht die Wortluecken aus, die das negative letter-spacing sonst
+           mit zusammenzieht. */
+        word-spacing: 0.08em;
       }
 
       .chart-hint {
@@ -1022,15 +1025,16 @@
           </article>
 
           <article id="weekdayChartCard" class="card">
-            <h2>Chats nach Wochentag</h2>
+            <h2 id="weekdayChartTitle">Chats pro Wochentag im Schnitt</h2>
             <div
               id="weekdayChartWrapper"
               class="chart-wrapper loading-skeleton"
               role="img"
-              aria-label="Chat-Verteilung nach Wochentag"
+              aria-label="Durchschnittliche Chats je Wochentag"
             >
               <canvas id="weekdayChart" aria-hidden="true"></canvas>
             </div>
+            <p id="weekdayChartHint" class="chart-hint" hidden></p>
           </article>
           <article id="dailyChartCard" class="card" hidden>
             <h2 id="dailyChartTitle">Chats pro Tag</h2>
@@ -1211,6 +1215,8 @@
         dailyChartCard: document.getElementById("dailyChartCard"),
         dailyChartWrapper: document.getElementById("dailyChartWrapper"),
         weekdayChartCard: document.getElementById("weekdayChartCard"),
+        weekdayChartTitleEl: document.getElementById("weekdayChartTitle"),
+        weekdayChartHintEl: document.getElementById("weekdayChartHint"),
         weekdayChartWrapper: document.getElementById("weekdayChartWrapper"),
         hourlyChartCard: document.getElementById("hourlyChartCard"),
         hourlyChartWrapper: document.getElementById("hourlyChartWrapper"),
@@ -1433,8 +1439,10 @@
             // genau die von vor dem Umbau, nur mit Bereichsleiste.
             state.currentView.hasReport = false;
             state.currentView.heatmap = state.summary.heatmap;
+            state.currentView.hourlyCounts = state.summary.hourly;
             applyView({ report: false, monthSelected: false });
-            renderWeekdayChart(state.summary.weekday);
+            renderWeekdayChart(state.summary.weekday, "Alle Chats");
+            renderHourlyChart(state.summary.hourly, "Alle Chats");
             renderComparison(null);
           }
 
@@ -1558,6 +1566,9 @@
         state.currentView.chats = Array.isArray(monthData?.chats)
           ? monthData.chats
           : [];
+        state.currentView.hourlyCounts = Array.isArray(monthData?.hourly_counts)
+          ? monthData.hourly_counts
+          : [];
         state.currentView.label = monthData?.label || "Ausgewählter Monat";
         state.summary.segmentCounts = monthData?.segment_counts ?? state.summary.segmentCounts;
         renderTagbar();
@@ -1586,7 +1597,12 @@
             state.currentView.label,
           );
         } else {
-          renderWeekdayChart(monthData?.weekday_counts || []);
+          renderWeekdayChart(
+            monthData?.weekday_counts || [],
+            state.currentView.label,
+            monthData?.state === "laufend",
+          );
+          renderHourlyChart(state.currentView.hourlyCounts, state.currentView.label);
         }
 
         renderComparison(monthData?.comparison);
@@ -1597,17 +1613,97 @@
         }
       }
 
-      function renderWeekdayChart(weekdayData) {
+      // Chart.js kennt keine Wertelabels; das ist das ganze Plugin dafuer.
+      const barValueLabels = {
+        id: "barValueLabels",
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const meta = chart.getDatasetMeta(0);
+          ctx.save();
+          ctx.font =
+            "600 11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+          ctx.fillStyle = "#475569";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          meta.data.forEach((bar, index) => {
+            const value = chart.data.datasets[0].data[index];
+            if (value === null || value === undefined) return;
+            const text = value.toLocaleString("de-DE", {
+              maximumFractionDigits: value < 10 ? 1 : 0,
+            });
+            ctx.fillText(text, bar.x, bar.y - 4);
+          });
+          ctx.restore();
+        },
+      };
+
+      function weekdayTooltip(index) {
+        const item = state.currentWeekdayData?.[index];
+        if (!item) return "";
+        if (item.average === null || item.average === undefined) {
+          return "im Zeitraum noch nicht vorgekommen";
+        }
+        const average = item.average.toLocaleString("de-DE", {
+          maximumFractionDigits: 1,
+        });
+        const times = item.occurrences === 1 ? "1 Tag" : `${item.occurrences} Tage`;
+        return `${average} Chats im Schnitt (${item.count} an ${times})`;
+      }
+
+      function renderWeekdayChart(weekdayData, label, running = false) {
         const normalized = Array.isArray(weekdayData) ? weekdayData : [];
         const labels = normalized.map(
           (item) => item.short_label || item.weekday || "",
         );
-        const counts = normalized.map((item) => item.count ?? 0);
+        // Der Balken zeigt den DURCHSCHNITT je Wochentag, nicht die Summe:
+        // ein Monat hat vier oder fuenf Montage, und die Rohsumme laesst den
+        // fuenften Montag wie mehr Nachfrage aussehen. `average: null` heisst
+        // "diesen Wochentag gab es noch nicht" (laufender Monat) — Chart.js
+        // laesst null als Luecke weg, und genau das ist hier richtig: eine
+        // Null waere die Aussage "niemand hat geschrieben".
+        const counts = normalized.map((item) =>
+          item.average === null || item.average === undefined
+            ? null
+            : item.average,
+        );
         const titleLabels = normalized.map(
           (item) => item.weekday || item.short_label || "",
         );
 
         state.currentWeekdayData = normalized;
+
+        DOM.weekdayChartTitleEl.textContent = label
+          ? `Chats pro Wochentag im Schnitt · ${label}`
+          : "Chats pro Wochentag im Schnitt";
+
+        // Ein Wochentag ohne Vorkommen ist eine Luecke, kein Nullwert. Die
+        // Luecke allein ist aber nicht lesbar — ohne diesen Satz liest sich
+        // der leere Platz als "montags schreibt niemand".
+        const missing = normalized
+          .filter((item) => !item.occurrences)
+          .map((item) => item.short_label);
+        const completed = normalized.reduce(
+          (sum, item) => sum + (item.occurrences || 0),
+          0,
+        );
+        const notes = [];
+        if (running) {
+          // Sagt, worueber gemittelt wird. Ohne diesen Satz behauptet das Wort
+          // "Schnitt" am 3. eine Basis von Wochen, wo eine von zwei Tagen ist.
+          notes.push(
+            completed === 1
+              ? "Erst ein abgeschlossener Tag — der heutige zählt noch nicht mit."
+              : `Über ${completed} abgeschlossene Tage — der heutige zählt noch nicht mit.`,
+          );
+        }
+        if (missing.length === 7) {
+          notes.length = 0;
+          notes.push("Noch kein abgeschlossener Tag in diesem Monat.");
+        } else if (missing.length) {
+          notes.push(`${missing.join(", ")} gab es im Zeitraum noch nicht.`);
+        }
+        DOM.weekdayChartHintEl.hidden = notes.length === 0;
+        DOM.weekdayChartHintEl.textContent = notes.join(" ");
         const colors = normalized.map((_, idx) =>
           idx === state.selectedWeekdayIndex ? "#2563eb" : "#94a3b8",
         );
@@ -1626,10 +1722,14 @@
                   data: counts,
                   backgroundColor: colors,
                   hoverBackgroundColor: hoverColors,
-                  borderRadius: 8,
+                  // Klein halten: bei 8px auf einem 6px hohen Balken ist die
+                  // Rundung hoeher als der Wert, und die Oberkante sitzt nicht
+                  // mehr dort, wo die Zahl steht.
+                  borderRadius: 3,
                 },
               ],
             },
+            plugins: [barValueLabels],
             options: {
               responsive: true,
               maintainAspectRatio: false,
@@ -1639,13 +1739,18 @@
                   callbacks: {
                     title: (items) =>
                       titleLabels?.[items?.[0]?.dataIndex ?? 0] ?? "",
-                    label: (item) => `${item.formattedValue} Chats`,
+                    label: (item) => weekdayTooltip(item.dataIndex),
                   },
                 },
               },
+              layout: { padding: { top: 16 } },
               scales: {
                 x: { grid: { display: false } },
-                y: { beginAtZero: true, ticks: { precision: 0 } },
+                y: {
+                  beginAtZero: true,
+                  grace: "12%",
+                  title: { display: true, text: "Ø Chats pro Tag" },
+                },
               },
               onClick: (_evt, elements) => handleWeekdaySelection(elements),
             },
@@ -1656,6 +1761,8 @@
           state.charts.weekday.options.plugins.tooltip.callbacks.title = (
             items,
           ) => titleLabels?.[items?.[0]?.dataIndex ?? 0] ?? "";
+          state.charts.weekday.options.plugins.tooltip.callbacks.label = (item) =>
+            weekdayTooltip(item.dataIndex);
           state.charts.weekday.options.onClick = (_evt, elements) =>
             handleWeekdaySelection(elements);
           updateWeekdayChartColors();
@@ -1785,7 +1892,7 @@
         // übernimmt deren Filterrolle.
         DOM.heatmapCard.hidden = !report;
         DOM.weekdayChartCard.hidden = report;
-        DOM.hourlyChartCard.hidden = report || !monthSelected;
+        DOM.hourlyChartCard.hidden = report;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.qualityCard.hidden = !report;
       }
