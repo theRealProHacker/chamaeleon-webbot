@@ -179,15 +179,13 @@ RUN_HOUR = 4
 
 
 def start_scheduler(fetch_rows_for) -> None:
-    """Daily: finish last month if it is still missing, refresh the current one.
+    """Daily check: report the previous month once, as soon as it is closed.
 
     ``fetch_rows_for`` is ``month -> rows``. Injected rather than imported so
     this module keeps knowing nothing about the dashboard's cache.
 
     A closed month is computed ONCE — its chats cannot change, so a second run
-    would pay again for the same answer. The current month is refreshed daily,
-    which is why the frontend labels it with a "Stand: …" rather than presenting
-    it as final.
+    would pay again for the same answer.
     """
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -204,16 +202,25 @@ def start_scheduler(fetch_rows_for) -> None:
 
 
 def run_due_months(fetch_rows_for) -> None:
+    """Report a month as soon as it is CLOSED, not when it hits the cutoff.
+
+    The retention rule hides a month's raw chats 90 days after its first day.
+    Computing the report at that moment would put the run and the disappearance
+    of its source data on the same day: one failed run and the month has neither
+    chats nor report, and nobody finds out until they look. Running at month
+    close leaves roughly three months of slack to notice and retry.
+
+    The running month is never reported — its numbers still change, and a
+    partial report invites being read as final.
+    """
     import month_aggregate
 
     now = month_aggregate.current_month_start()
-    current = now.strftime("%Y-%m")
     previous = (now - timedelta(days=1)).strftime("%Y-%m")
 
-    for month, always in ((previous, False), (current, True)):
-        if is_running(month):
-            continue
-        if not always and status(month).get("status") in ("ok", "partial"):
-            continue
-        print(f"[quality-job] scheduled run for {month}")
-        enqueue(month, lambda m=month: fetch_rows_for(m))
+    if is_running(previous):
+        return
+    if status(previous).get("status") in ("ok", "partial"):
+        return
+    print(f"[quality-job] {previous} ist abgeschlossen und hat keinen Report — starte Lauf")
+    enqueue(previous, lambda m=previous: fetch_rows_for(m))

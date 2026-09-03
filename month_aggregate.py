@@ -23,6 +23,7 @@ unconditionally and only its user-message count is skipped, which is the one
 number a broken column actually makes unknowable.
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Any, Iterable, Sequence, TypedDict
 from zoneinfo import ZoneInfo
@@ -41,6 +42,27 @@ from chat_segments import (
 SCHEMA_VERSION = 1
 
 tz = ZoneInfo("Europe/Berlin")
+
+# Aufbewahrungsfrist. Ein Monat gilt als `alt`, sobald sein ERSTER Tag so lange
+# zurückliegt — nicht sein letzter. Für September heißt das: der Monat kippt am
+# 90. Tag nach dem 1. September, unabhängig davon, wie lange er selbst lief.
+RETENTION_DAYS = 90
+
+# Upper bounds in seconds for the duration histogram; the last bucket is open.
+# Fine at the bottom because that is where the mass is — the median sits around
+# four seconds, so a first bucket of 0-5 s would put half the month in one bar
+# and leave the median to interpolation.
+DURATION_EDGES = [2, 3, 5, 8, 15, 30, 60, 120, 300, 600, 1800, 3600, None]
+
+# Stufe 1 der Löschung: Rohtranskripte eines alten Monats werden im Dashboard
+# NICHT MEHR ANGEZEIGT. Gelöscht wird dabei nichts — die Frist ist damit
+# ausdrücklich noch nicht erfüllt, das bleibt Stufe 2 (echtes Löschen in der DB).
+#
+# Standardmäßig AUS, und das ist keine Vorsicht, sondern die vereinbarte
+# Reihenfolge: erst die Reports der alten Monate rechnen und prüfen, dann
+# verbergen. Andernfalls verlieren zehn Monate ihre Chats, ohne dass an ihrer
+# Stelle etwas steht. Einschalten über CUTOFF_ENABLED=true.
+CUTOFF_ENABLED = os.environ.get("CUTOFF_ENABLED", "false").lower() == "true"
 
 type MonthKey = str  # "2026-07"
 
@@ -109,6 +131,36 @@ def current_month_start(now: datetime | None = None) -> datetime:
     return datetime(now.year, now.month, 1, tzinfo=tz)
 
 
+type MonthState = Literal["laufend", "abgeschlossen", "alt"]
+
+
+def month_state(key: MonthKey, now: datetime | None = None) -> MonthState:
+    """Where a month stands: still filling, finished, or past the retention line.
+
+    - ``laufend``: the running month. Its numbers still change.
+    - ``abgeschlossen``: finished, and its raw chats are still shown.
+    - ``alt``: the first day is at least RETENTION_DAYS ago. Raw chats are no
+      longer shown (once the cutoff is switched on); what remains is the report.
+
+    Deliberately keyed on the FIRST day, as specified: a month becomes old as a
+    whole, not day by day, so a month never sits half visible.
+    """
+    now = now or datetime.now(tz)
+    if key == month_key(current_month_start(now)):
+        return "laufend"
+    start, _ = month_bounds(key)
+    if start <= now - timedelta(days=RETENTION_DAYS):
+        return "alt"
+    return "abgeschlossen"
+
+
+def chats_visible(key: MonthKey, now: datetime | None = None) -> bool:
+    """Whether the raw transcripts of a month may still be served."""
+    if not CUTOFF_ENABLED:
+        return True
+    return month_state(key, now) != "alt"
+
+
 def is_user(message: Any) -> bool:
     return isinstance(message, dict) and message.get("role") == "user"
 
@@ -147,6 +199,17 @@ class MonthAggregate(TypedDict):
     weekday: list[list[int]]
     # heatmap[weekday][hour] -> vector
     heatmap: list[list[list[int]]]
+    # all messages, not just the user's — "Länge eines Gesprächs"
+    messages: list[int]
+    # Duration as a HISTOGRAM, not a sum. Measured over August 2026: median 4 s,
+    # mean 1.054 s, longest 98 hours — a handful of chats left open for days
+    # make the mean say "half an hour" about conversations that typically last
+    # seconds. A histogram gives a median instead, and unlike a median it is
+    # additive, so a tag selection is still a sum (the same reason every other
+    # aggregate here is a count vector).
+    # duration_buckets[i] is a segment vector for the range DURATION_EDGES[i].
+    duration_buckets: list[list[int]]
+    duration_samples: list[int]
     # rows whose `messages` column could not be read; their time buckets still count
     unreadable_rows: int
 
@@ -162,16 +225,52 @@ def empty_aggregate(key: MonthKey) -> MonthAggregate:
         "hourly": [empty_vector() for _ in range(24)],
         "weekday": [empty_vector() for _ in range(7)],
         "heatmap": [[empty_vector() for _ in range(24)] for _ in range(7)],
+        "messages": empty_vector(),
+        "duration_buckets": [empty_vector() for _ in DURATION_EDGES],
+        "duration_samples": empty_vector(),
         "unreadable_rows": 0,
     }
 
 
-def aggregate_month(rows: Iterable[Any], key: MonthKey) -> MonthAggregate:
-    """Aggregate raw chat rows of one month. Pure: same rows, same result."""
+def chat_duration(messages: list) -> float | None:
+    """Seconds from the first to the last timestamped message, or None.
+
+    Old rows (before 2026-05-22) carry no per-message timestamps and therefore
+    have no duration at all — None, not 0. Counting them as zero-length would
+    drag the average down by exactly the share of old data in the month.
+    """
+    stamps = [
+        m["timestamp"]
+        for m in messages
+        if isinstance(m, dict) and isinstance(m.get("timestamp"), (int, float))
+    ]
+    if len(stamps) < 2:
+        return None
+    return max(stamps) - min(stamps)
+
+
+def duration_bucket(seconds: float) -> int:
+    for index, edge in enumerate(DURATION_EDGES):
+        if edge is None or seconds < edge:
+            return index
+    return len(DURATION_EDGES) - 1
+
+
+def aggregate_month(
+    rows: Iterable[Any], key: MonthKey, max_day: int | None = None
+) -> MonthAggregate:
+    """Aggregate raw chat rows of one month. Pure: same rows, same result.
+
+    ``max_day`` cuts the month off after that day of the month. It exists for
+    the running month's comparison: 1.-3. September against 1.-3. August is the
+    only comparison that means anything while a month is still filling up.
+    """
     agg = empty_aggregate(key)
 
     for row in rows:
         timestamp = parse_row_timestamp(row["timestamp"])
+        if max_day is not None and timestamp.day > max_day:
+            continue
         messages = row.get("messages")
         segment: Segment = segment_of_chat(messages if isinstance(messages, list) else [])
 
@@ -193,6 +292,11 @@ def aggregate_month(rows: Iterable[Any], key: MonthKey) -> MonthAggregate:
             agg["unreadable_rows"] += 1
             continue
         add(agg["user_messages"], segment, sum(1 for m in messages if is_user(m)))
+        add(agg["messages"], segment, len(messages))
+        duration = chat_duration(messages)
+        if duration is not None:
+            add(agg["duration_buckets"][duration_bucket(duration)], segment)
+            add(agg["duration_samples"], segment)
 
     # Fill the gaps so the frontend gets a continuous month, not a sparse dict.
     highest = max((int(d) for d in agg["daily"]), default=0)
@@ -237,6 +341,51 @@ def avg_user_messages(agg: MonthAggregate, segments: Iterable[Segment] | None = 
     return select(agg["user_messages"], segments) / chats
 
 
+def avg_messages(agg: MonthAggregate, segments: Iterable[Segment] | None = None) -> float:
+    """Messages per chat, both sides — the "length" of a conversation."""
+    chats = select(agg["total_chats"], segments)
+    if not chats:
+        return 0.0
+    return select(agg["messages"], segments) / chats
+
+
+def median_duration(
+    agg: MonthAggregate, segments: Iterable[Segment] | None = None
+) -> float | None:
+    """Median chat duration in seconds, interpolated inside its bucket.
+
+    A median, not a mean, and the reason is in the data rather than in taste:
+    over August the median is 4 seconds while the mean is 1.054, because a few
+    conversations stayed open for days. The mean describes those few; the median
+    describes the month.
+
+    Counted over the chats that HAVE a duration. Rows from before 2026-05-22
+    carry no per-message timestamps, so they have none — treating them as zero
+    would make the figure a function of how much old data a month holds.
+    """
+    counts = [select(bucket, segments) for bucket in agg["duration_buckets"]]
+    total = sum(counts)
+    if not total:
+        return None
+
+    target = total / 2
+    seen = 0
+    for index, count in enumerate(counts):
+        if seen + count < target:
+            seen += count
+            continue
+        low = 0 if index == 0 else DURATION_EDGES[index - 1]
+        high = DURATION_EDGES[index]
+        if high is None:
+            # Open-ended top bucket: report its lower edge rather than invent a
+            # number for it.
+            return float(low)
+        if not count:
+            return float(low)
+        return low + (high - low) * ((target - seen) / count)
+    return None
+
+
 def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
     """Fold several months into one all-time aggregate (daily buckets dropped).
 
@@ -250,6 +399,10 @@ def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
         for i in range(len(SEGMENTS)):
             combined["total_chats"][i] += agg["total_chats"][i]
             combined["user_messages"][i] += agg["user_messages"][i]
+            combined["messages"][i] += agg["messages"][i]
+            combined["duration_samples"][i] += agg["duration_samples"][i]
+            for bucket in range(len(DURATION_EDGES)):
+                combined["duration_buckets"][bucket][i] += agg["duration_buckets"][bucket][i]
             for hour in range(24):
                 combined["hourly"][hour][i] += agg["hourly"][hour][i]
             for weekday in range(7):

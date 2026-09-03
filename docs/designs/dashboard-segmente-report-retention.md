@@ -2743,3 +2743,72 @@ wäre, sondern damit eine Wiederholung billig ist.
   wirksam. T18 (`assert len(rows) == count` vor jedem Write) ist trotzdem
   gebaut — er kostet einen gezählten Request und beantwortet die Frage genau
   dann, wenn sie zum ersten Mal zählt.
+
+---
+
+# Nachtrag 2026-09-03: Retention kommt zurück, Ansicht wird dreigeteilt
+
+Gate-Entscheidung C1 hat den Cutoff aus v1 gestrichen, mit einer benannten
+Vorbedingung: er kommt zurück, sobald **Anlass, Frist und Verantwortlicher**
+feststehen. Der Owner hat Anlass und Frist geliefert — 90 Tage Löschfrist. Der
+Verantwortliche fehlt weiterhin und steht als offener Punkt in TODOS.md.
+
+## Was jetzt gilt
+
+Ein Monat hat einen Zustand (`month_aggregate.month_state`):
+
+- **laufend** — der aktuelle Monat.
+- **abgeschlossen** — fertig, erster Tag jünger als 90 Tage.
+- **alt** — erster Tag mindestens 90 Tage her.
+
+Daran hängen **zwei unabhängige Schalter**, und das ist die wichtigste
+Änderung gegenüber der ursprünglichen Fassung:
+
+- **Report vorhanden** → Ursachentabelle und Heatmap treten an die Stelle der
+  Wochentag- und Stundenkarte.
+- **Älter als 90 Tage** → die Rohtranskripte werden nicht mehr ausgeliefert.
+
+Sie sind bewusst nicht aneinander gekoppelt. Dadurch gibt es eine Phase, in der
+ein Monat **beides** hat: Report und Rohdaten. Das ist genau die Zeit, in der
+jemand dem Report noch misstrauen und nachsehen kann — die einzige Gelegenheit,
+eine kaputte Klassifikation zu bemerken, bevor die Quelle verschwindet.
+
+Ansonsten sieht die Seite aus wie vor dem Umbau: ohne Monat und im laufenden
+Monat stehen Wochentag- und Stundenkarte wieder da, die Gesprächskarten tragen
+wieder laufende Nummer und die vollen Zeitangaben. Die Bereichsleiste gilt
+überall.
+
+## Der Report läuft beim Monatsabschluss, nicht am Cutoff
+
+Wörtlich verlangt war: „immer wenn ein Monat abgeschlossen ist, Report für den
+Monat dessen erster Tag jetzt 90 Tage alt ist". Gebaut ist stattdessen: Report
+sobald der Monat abgeschlossen ist, Cutoff getrennt davon bei 90 Tagen.
+Sichtbar ist das Ergebnis dasselbe; der Unterschied liegt im Fehlerfall. Fallen
+Lauf und Cutoff auf denselben Tag, hat ein Monat nach einem fehlgeschlagenen
+Lauf **weder Chats noch Report**, und es fällt erst auf, wenn jemand hinschaut.
+So liegen rund drei Monate dazwischen.
+
+## Der Schalter steht auf aus, und warum das nicht Vorsicht ist
+
+`CUTOFF_ENABLED` ist `false`. Gemessen am 2026-09-03: zehn Monate
+(Sep 2025 – Jun 2026) sind älter als 90 Tage, und **keiner von ihnen hat einen
+Report** — Juli und August, die einzigen mit Report, sind noch keine alten
+Monate. Scharf geschaltet würde die Seite sofort zehn Monate Rohdaten verbergen
+und nichts an ihre Stelle setzen. Reihenfolge daher wie in A11: Report bauen →
+verifizieren → verbergen.
+
+## Zwei Zahlen, die beim Bauen gemessen wurden
+
+**Gesprächsdauer ist ein Median, kein Mittel.** Über August: Median 4 s,
+Mittel 1.054 s, längstes Gespräch 98 Stunden. Das Mittel beschreibt eine
+Handvoll Gespräche, die tagelang offen blieben; der Median beschreibt den Monat.
+Weil ein Median sich nicht über Segmente addieren lässt, die Tag-Auswahl aber
+eine Summe bleiben muss (EUREKA-Prämisse), liegt die Dauer als **Histogramm**
+im Aggregat und der Median wird daraus interpoliert. Gegengeprüft: 4,8 s gegen
+echte 4,7 s (Juli), 4,3 gegen 3,8 (August), 5,8 gegen 5,2 (September).
+
+**Der Vormonatsvergleich im laufenden Monat vergleicht denselben Ausschnitt.**
+Am 3. September stehen 1.–3. September gegen 1.–3. August, nicht gegen den
+ganzen August: 107 gegen 157 statt 107 gegen 1.734. Was das nicht behebt und
+was hiermit gesagt ist — die beiden Zeiträume liegen auf verschiedenen
+Wochentagen, und diese Achse ist wochentagsempfindlich.

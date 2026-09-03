@@ -152,7 +152,24 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
 - [ ] **Aufbewahrungsregel für `month_stats` selbst** (P3b im Design). Die
       Tabelle ist als unbefristet gedacht; das ist nur zulässig, solange der
       Payload anonym ist. Fällt PII hinein, fällt die Begründung.
-- [ ] **DSGVO-Retention komplett — am Gate aus v1 gestrichen (2026-09-02, C1).**
+- [ ] **Stufe 1 der Löschung ist gebaut, aber AUS (2026-09-03).** Owner-Ansage:
+      90 Tage Löschfrist. Ein Monat gilt als „alt", sobald sein **erster Tag**
+      90 Tage zurückliegt; dann werden seine Rohtranskripte nicht mehr
+      ausgeliefert und es bleibt der Report. Der Report wird beim
+      Monatsabschluss gerechnet, nicht erst am Cutoff — sonst fallen Lauf und
+      Verschwinden der Quelldaten auf denselben Tag, und ein fehlgeschlagener
+      Lauf lässt den Monat ohne beides zurück.
+      **Der Schalter steht auf `CUTOFF_ENABLED=false`, und das ist die
+      vereinbarte Reihenfolge, keine Vorsicht:** heute sind zehn Monate
+      (Sep 2025 – Jun 2026) älter als 90 Tage und **keiner** hat einen Report.
+      Scharf geschaltet verlören sie sofort ihre Chats, ohne dass an ihrer
+      Stelle etwas stünde. Erst die zehn Monate nachrechnen (~4 $, mehrere
+      Stunden), prüfen, dann `CUTOFF_ENABLED=true` setzen.
+      **Weiterhin offen — und Teil der ursprünglichen Vorbedingung: wer
+      verantwortet die Frist.** Anlass und Frist stehen jetzt fest, der
+      Verantwortliche nicht. Und Stufe 1 erfüllt die Frist ausdrücklich nicht:
+      es wird nichts gelöscht, nur nicht mehr angezeigt.
+- [ ] **DSGVO-Retention Stufe 2 (echtes Löschen in der DB)**
       Der zweistufige Cutoff ist kein Teil des Dashboard-Neubaus mehr. Er kommt
       als eigenes, kleines Vorhaben zurück, und zwar **erst wenn drei Dinge
       feststehen: Anlass, Frist, Verantwortlicher.** Das ist die Vorbedingung,

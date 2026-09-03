@@ -41,14 +41,19 @@ import travel_index
 from chat_segments import SEGMENTS, Segment
 from db_logging import ChatHistory, Message, _message_bounds, supabase, DEBUG
 from month_aggregate import (
+    CUTOFF_ENABLED,
     DAY_NAME,
     GERMAN_MONTHS,
     MonthAggregate,
     MonthKey,
     QualityAggregate,
     aggregate_month,
+    median_duration,
+    avg_messages,
     avg_user_messages,
+    chats_visible,
     current_month_start,
+    month_state,
     is_new_format,
     is_user,
     month_bounds,
@@ -141,6 +146,9 @@ class MonthlySummary(TypedDict):
 class MonthDetail(TypedDict):
     month: str
     label: str
+    state: str  # laufend | abgeschlossen | alt
+    chats_hidden: bool
+    comparison: Optional[dict[str, Any]]
     total_chats: int
     segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
@@ -475,20 +483,76 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
     }
 
 
+def previous_period_comparison(key: MonthKey, segments) -> dict[str, Any] | None:
+    """The same slice of the previous month, for the running month only.
+
+    Whole-month against part-month is the comparison that misleads: on the 3rd,
+    "92 gegen 1.734" reads as a collapse. So the previous month is cut at the
+    same day of the month and only that part is compared.
+
+    What it cannot fix: 1.-3. September and 1.-3. August are different weekdays,
+    and this axis is weekday-sensitive. Close enough to steer by, not a
+    like-for-like figure.
+    """
+    now = datetime.now(tz)
+    day = now.day
+    previous = previous_month(key)
+    rows, count = fetch_month_chats(previous)
+    partial = month_aggregate.aggregate_month(rows, previous, max_day=day)
+
+    current = cached_aggregate(month_cache, key)
+    if current is None:
+        return None
+
+    return {
+        "month": previous,
+        "label": month_label(previous),
+        "through_day": day,
+        "chats": select(partial["total_chats"], segments),
+        "avg_user_messages": avg_user_messages(partial, segments),
+        "avg_messages": avg_messages(partial, segments),
+        "median_duration_seconds": median_duration(partial, segments),
+        # Same figures for the running month, so the frontend does no arithmetic.
+        "current": {
+            "chats": select(current["total_chats"], segments),
+            "avg_user_messages": avg_user_messages(current, segments),
+            "avg_messages": avg_messages(current, segments),
+            "median_duration_seconds": median_duration(current, segments),
+        },
+    }
+
+
 def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | None:
     agg = cached_aggregate(month_cache, key)
     if agg is None:
         return None
     segments = selected_segments()
-    chats = cached_chats(month_cache, key) if include_chats else None
+    state = month_state(key)
+
+    # Stufe 1 der Löschung: ab hier werden die Rohtranskripte nicht mehr
+    # ausgeliefert — nicht nur ausgeblendet, sondern gar nicht erst geholt.
+    # Ein Endpunkt, der die Daten noch sendet und sich auf das Frontend
+    # verlässt, hat sie nicht verborgen.
+    hidden = not chats_visible(key)
+    chats = None if (hidden or not include_chats) else cached_chats(month_cache, key)
     if chats is not None and segments:
         chats = [c for c in chats if c["segment"] in segments]
+
+    comparison = (
+        previous_period_comparison(key, segments) if state == "laufend" else None
+    )
+
     return {
         "month": key,
         "label": agg["label"],
+        "state": state,
+        "chats_hidden": hidden,
+        "comparison": comparison,
         "total_chats": select(agg["total_chats"], segments),
         "segment_counts": segment_counts(agg["total_chats"]),
         "avg_user_messages_per_chat": avg_user_messages(agg, segments),
+        "avg_messages_per_chat": avg_messages(agg, segments),
+        "median_duration_seconds": median_duration(agg, segments),
         "daily_counts": [
             build_daily_count(int(day), key, select(vector, segments))
             for day, vector in sorted(agg["daily"].items(), key=lambda kv: int(kv[0]))

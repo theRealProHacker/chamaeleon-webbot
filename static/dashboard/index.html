@@ -326,6 +326,42 @@
         color: var(--text);
       }
 
+      .comparison {
+        margin-top: 1rem;
+        padding-top: 0.9rem;
+        border-top: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+      }
+
+      .comparison-head {
+        grid-column: 1 / -1;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin: 0;
+      }
+
+      .comparison-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .comparison-row .label {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+      }
+
+      .comparison-row .values {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .comparison-row .previous {
+        color: var(--text-muted);
+      }
+
       /* Cause table — the answer to "where does the bot fall down". Top of the
          wide column because it is the one thing on this page that produces work. */
       .cause-table {
@@ -985,6 +1021,17 @@
             </div>
           </article>
 
+          <article id="weekdayChartCard" class="card">
+            <h2>Chats nach Wochentag</h2>
+            <div
+              id="weekdayChartWrapper"
+              class="chart-wrapper loading-skeleton"
+              role="img"
+              aria-label="Chat-Verteilung nach Wochentag"
+            >
+              <canvas id="weekdayChart" aria-hidden="true"></canvas>
+            </div>
+          </article>
           <article id="dailyChartCard" class="card" hidden>
             <h2 id="dailyChartTitle">Chats pro Tag</h2>
             <div
@@ -997,6 +1044,17 @@
             </div>
           </article>
 
+          <article id="hourlyChartCard" class="card" hidden>
+            <h2 id="hourlyChartTitle">Chats pro Stunde</h2>
+            <div
+              id="hourlyChartWrapper"
+              class="chart-wrapper loading-skeleton"
+              role="img"
+              aria-label="Chats pro Stunde im gewählten Monat"
+            >
+              <canvas id="hourlyChart" aria-hidden="true"></canvas>
+            </div>
+          </article>
         </section>
         <section class="panel right-panel">
           <article id="metricsCard" class="card loading-skeleton">
@@ -1008,7 +1066,7 @@
                 <span class="metric-caption" id="totalChatsCaption">Gespräche</span>
               </div>
               <div class="metric">
-                <span class="metric-label">Ø Nachrichten</span>
+                <span class="metric-label">Ø Nutzernachrichten</span>
                 <span class="metric-value" id="avgUserMessagesValue">--</span>
                 <span class="metric-caption">Pro Gespräch</span>
               </div>
@@ -1019,6 +1077,7 @@
               </div>
             </div>
             <p id="metricsError" class="error-message" hidden></p>
+            <div id="comparison" class="comparison" hidden></div>
           </article>
           <article id="qualityCard" class="card">
             <h2 id="qualityTitle">Wo der Bot danebenliegt</h2>
@@ -1087,6 +1146,7 @@
                 </div>
               </div>
             </div>
+            <p id="messagesState" class="card-state" hidden></p>
             <div id="messagesList" class="messages-list">
               <div class="empty-state">
                 Monat auswählen, um Gespräche zu erkunden.
@@ -1119,13 +1179,20 @@
         monthlyChartCtx: document
           .getElementById("monthlyChart")
           .getContext("2d"),
+        weekdayChartCtx: document
+          .getElementById("weekdayChart")
+          .getContext("2d"),
+        hourlyChartCtx: document.getElementById("hourlyChart").getContext("2d"),
         dailyChartCtx: document.getElementById("dailyChart").getContext("2d"),
         tagbar: document.getElementById("tagbar"),
         heatmapEl: document.getElementById("heatmap"),
         heatmapState: document.getElementById("heatmapState"),
         heatmapTitleEl: document.getElementById("heatmapTitle"),
+        qualityCard: document.getElementById("qualityCard"),
         qualitySubtitle: document.getElementById("qualitySubtitle"),
         heatmapLegend: document.getElementById("heatmapLegend"),
+        comparisonEl: document.getElementById("comparison"),
+        messagesState: document.getElementById("messagesState"),
         badMetric: document.getElementById("badMetric"),
         qualityBadValue: document.getElementById("qualityBadValue"),
         qualityBadCaption: document.getElementById("qualityBadCaption"),
@@ -1143,6 +1210,12 @@
         monthlyChartWrapper: document.getElementById("monthlyChartWrapper"),
         dailyChartCard: document.getElementById("dailyChartCard"),
         dailyChartWrapper: document.getElementById("dailyChartWrapper"),
+        weekdayChartCard: document.getElementById("weekdayChartCard"),
+        weekdayChartWrapper: document.getElementById("weekdayChartWrapper"),
+        hourlyChartCard: document.getElementById("hourlyChartCard"),
+        hourlyChartWrapper: document.getElementById("hourlyChartWrapper"),
+        hourlyChartTitleEl: document.getElementById("hourlyChartTitle"),
+        heatmapCard: document.getElementById("heatmapCard"),
         metricsTitleEl: document.getElementById("metricsTitle"),
         totalChatsValueEl: document.getElementById("totalChatsValue"),
         totalChatsCaptionEl: document.getElementById("totalChatsCaption"),
@@ -1169,11 +1242,16 @@
         charts: {
           monthly: null,
           daily: null,
+          weekday: null,
+          hourly: null,
         },
+        selectedWeekdayIndex: null,
         summary: {
           monthly: [],
           segmentCounts: {},
           heatmap: [],
+          weekday: [],
+          hourly: [],
         },
         monthDetails: new Map(),
         currentView: {
@@ -1181,7 +1259,9 @@
           chats: [],
           filteredChats: [],
           heatmap: [],
+          hourlyCounts: [],
           quality: null,
+          hasReport: false,
         },
       };
 
@@ -1338,14 +1418,24 @@
           // The tag counts are always the FULL split, never filtered — a tag
           // showing 0 because it is deselected would be unreadable.
           state.summary.segmentCounts = payload.segment_counts ?? {};
+          state.summary.weekday = Array.isArray(payload.weekday_counts)
+            ? payload.weekday_counts
+            : [];
+          state.summary.hourly = Array.isArray(payload.hourly_counts)
+            ? payload.hourly_counts
+            : [];
 
           renderTagbar();
           renderMonthlyChart(state.summary.monthly);
 
           if (!state.selectedMonthKey) {
+            // Ohne gewählten Monat gibt es keinen Report: die Ansicht ist
+            // genau die von vor dem Umbau, nur mit Bereichsleiste.
+            state.currentView.hasReport = false;
             state.currentView.heatmap = state.summary.heatmap;
-            renderHeatmap(state.summary.heatmap, null);
-            renderQuality(null, payload.total_chats, null);
+            applyView({ report: false, monthSelected: false });
+            renderWeekdayChart(state.summary.weekday);
+            renderComparison(null);
           }
 
           if (!state.selectedMonthKey) {
@@ -1484,17 +1574,220 @@
           monthData?.daily_counts || [],
           state.currentView.label,
         );
-        renderHeatmap(state.currentView.heatmap, state.currentView.label);
-        renderQuality(
-          monthData?.quality,
-          monthData?.total_chats,
-          state.currentView.label,
-        );
+        const report = hasReport(monthData);
+        state.currentView.hasReport = report;
+        applyView({ report, monthSelected: true });
+
+        if (report) {
+          renderHeatmap(state.currentView.heatmap, state.currentView.label);
+          renderQuality(
+            monthData?.quality,
+            monthData?.total_chats,
+            state.currentView.label,
+          );
+        } else {
+          renderWeekdayChart(monthData?.weekday_counts || []);
+        }
+
+        renderComparison(monthData?.comparison);
         renderMessagesWithCurrentFilter();
 
         if (monthData?.month) {
           cache.setMonth(monthData.month, monthData);
         }
+      }
+
+      function renderWeekdayChart(weekdayData) {
+        const normalized = Array.isArray(weekdayData) ? weekdayData : [];
+        const labels = normalized.map(
+          (item) => item.short_label || item.weekday || "",
+        );
+        const counts = normalized.map((item) => item.count ?? 0);
+        const titleLabels = normalized.map(
+          (item) => item.weekday || item.short_label || "",
+        );
+
+        state.currentWeekdayData = normalized;
+        const colors = normalized.map((_, idx) =>
+          idx === state.selectedWeekdayIndex ? "#2563eb" : "#94a3b8",
+        );
+        const hoverColors = normalized.map((_, idx) =>
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#2563eb",
+        );
+
+        if (!state.charts.weekday) {
+          state.charts.weekday = new Chart(DOM.weekdayChartCtx, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: "Chats",
+                  data: counts,
+                  backgroundColor: colors,
+                  hoverBackgroundColor: hoverColors,
+                  borderRadius: 8,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    title: (items) =>
+                      titleLabels?.[items?.[0]?.dataIndex ?? 0] ?? "",
+                    label: (item) => `${item.formattedValue} Chats`,
+                  },
+                },
+              },
+              scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+              },
+              onClick: (_evt, elements) => handleWeekdaySelection(elements),
+            },
+          });
+        } else {
+          state.charts.weekday.data.labels = labels;
+          state.charts.weekday.data.datasets[0].data = counts;
+          state.charts.weekday.options.plugins.tooltip.callbacks.title = (
+            items,
+          ) => titleLabels?.[items?.[0]?.dataIndex ?? 0] ?? "";
+          state.charts.weekday.options.onClick = (_evt, elements) =>
+            handleWeekdaySelection(elements);
+          updateWeekdayChartColors();
+        }
+
+        if (DOM.weekdayChartWrapper.classList.contains("loading-skeleton")) {
+          DOM.weekdayChartWrapper.classList.remove("loading-skeleton");
+        }
+      }
+
+      function updateWeekdayChartColors() {
+        if (!state.charts.weekday || !Array.isArray(state.currentWeekdayData)) {
+          return;
+        }
+        const dataset = state.charts.weekday.data?.datasets?.[0];
+        if (!dataset) return;
+
+        dataset.backgroundColor = state.currentWeekdayData.map((_, idx) =>
+          idx === state.selectedWeekdayIndex ? "#2563eb" : "#94a3b8",
+        );
+        dataset.hoverBackgroundColor = state.currentWeekdayData.map((_, idx) =>
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#2563eb",
+        );
+        state.charts.weekday.update("none");
+      }
+
+      function calculateHourlyCountsFromChats(chats) {
+        const counts = Array(24).fill(0);
+        chats.forEach((chat) => {
+          const primaryTimestamp =
+            deriveChatTimestamp(chat) || chat.started_at || chat.ended_at;
+          const parts = berlinParts(primaryTimestamp);
+          if (parts) counts[parts.hour] += 1;
+        });
+        return counts.map((count, hour) => ({
+          hour,
+          label: `${String(hour).padStart(2, "0")}:00`,
+          count,
+        }));
+      }
+
+      function updateHourlyChartFromFilteredChats() {
+        const hourlyCounts =
+          state.selectedWeekdayIndex === null
+            ? state.currentView.hourlyCounts
+            : calculateHourlyCountsFromChats(state.currentView.filteredChats);
+        renderHourlyChart(hourlyCounts, state.currentView.label);
+      }
+
+      function renderHourlyChart(hourlyCounts, label) {
+        if (!Array.isArray(hourlyCounts)) {
+          DOM.hourlyChartCard.hidden = true;
+          return;
+        }
+
+        DOM.hourlyChartCard.hidden = false;
+        DOM.hourlyChartTitleEl.textContent = `Chats pro Stunde · ${label}`;
+
+        const labels = hourlyCounts.map(
+          (item) =>
+            item.label ?? `${String(item.hour ?? 0).padStart(2, "0")}:00`,
+        );
+        const counts = hourlyCounts.map((item) => item.count ?? 0);
+
+        if (!state.charts.hourly) {
+          state.charts.hourly = new Chart(DOM.hourlyChartCtx, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: "Chats",
+                  data: counts,
+                  backgroundColor: "#fed7aa",
+                  borderRadius: 6,
+                  hoverBackgroundColor: "#fb923c",
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    title: (items) => items?.[0]?.label || "",
+                    label: (item) => `${item.formattedValue} Chats`,
+                  },
+                },
+              },
+              scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+              },
+            },
+          });
+        } else {
+          state.charts.hourly.data.labels = labels;
+          state.charts.hourly.data.datasets[0].data = counts;
+          state.charts.hourly.update("none");
+        }
+
+        if (DOM.hourlyChartWrapper.classList.contains("loading-skeleton")) {
+          DOM.hourlyChartWrapper.classList.remove("loading-skeleton");
+        }
+      }
+
+      // ── Welche Ansicht ────────────────────────────────────────────────
+      //
+      // Zwei unabhängige Schalter, keine drei Modi:
+      //
+      //   hat einen Report  -> Ursachentabelle und Heatmap statt Wochentag/Stunde
+      //   älter als 90 Tage -> Rohtranskripte werden nicht mehr geliefert
+      //
+      // Sie hängen bewusst nicht aneinander. Ein Monat mit Report ist eine
+      // Weile lang beides: Report UND Rohdaten. Genau in dieser Zeit kann
+      // jemand dem Report noch misstrauen und nachsehen.
+
+      function hasReport(monthData) {
+        const status = monthData?.quality?.status;
+        return status === "ok" || status === "partial";
+      }
+
+      function applyView({ report, monthSelected }) {
+        // Report-Ansicht: Heatmap ersetzt die beiden klassischen Karten und
+        // übernimmt deren Filterrolle.
+        DOM.heatmapCard.hidden = !report;
+        DOM.weekdayChartCard.hidden = report;
+        DOM.hourlyChartCard.hidden = report || !monthSelected;
+        DOM.dailyChartCard.hidden = !monthSelected;
+        DOM.qualityCard.hidden = !report;
       }
 
       // ── Heatmap ───────────────────────────────────────────────────────
@@ -1621,6 +1914,85 @@
         writeFiltersToUrl();
         renderHeatmap(state.currentView.heatmap, state.currentView.label);
         renderMessagesWithCurrentFilter();
+      }
+
+      // ── Vergleich im laufenden Monat ──────────────────────────────────
+      //
+      // Nur der gleiche Ausschnitt: am 3. September stehen 1.-3. September
+      // gegen 1.-3. August. Ganzer Monat gegen Teilmonat waere die Zahl, die
+      // wie ein Einbruch aussieht, obwohl nichts passiert ist.
+
+      function renderComparison(comparison) {
+        if (!comparison) {
+          DOM.comparisonEl.hidden = true;
+          DOM.comparisonEl.replaceChildren();
+          return;
+        }
+
+        const rows = [
+          ["Chats", comparison.current.chats, comparison.chats, formatNumber],
+          [
+            "Ø Nutzernachrichten",
+            comparison.current.avg_user_messages,
+            comparison.avg_user_messages,
+            formatDecimal,
+          ],
+          [
+            "Ø Nachrichten",
+            comparison.current.avg_messages,
+            comparison.avg_messages,
+            formatDecimal,
+          ],
+          [
+            // Median, nicht Mittel: über August liegt der Median bei 4 s und
+            // das Mittel bei 1.054 s, weil einzelne Gespräche tagelang offen
+            // blieben. Das Mittel beschreibt diese einzelnen, der Median den
+            // Monat.
+            "Median Dauer",
+            comparison.current.median_duration_seconds,
+            comparison.median_duration_seconds,
+            formatDuration,
+          ],
+        ];
+
+        const fragment = document.createDocumentFragment();
+        const head = document.createElement("p");
+        head.className = "comparison-head";
+        head.textContent = `Gleicher Zeitraum im Vormonat: 1.–${comparison.through_day}. ${comparison.label}`;
+        fragment.appendChild(head);
+
+        rows.forEach(([label, now, before, format]) => {
+          const row = document.createElement("div");
+          row.className = "comparison-row";
+          const labelEl = document.createElement("span");
+          labelEl.className = "label";
+          labelEl.textContent = label;
+          const values = document.createElement("span");
+          values.className = "values";
+          values.textContent = format(now);
+          const previous = document.createElement("span");
+          previous.className = "previous";
+          previous.textContent = ` · Vormonat ${format(before)}`;
+          values.appendChild(previous);
+          row.appendChild(labelEl);
+          row.appendChild(values);
+          fragment.appendChild(row);
+        });
+
+        DOM.comparisonEl.replaceChildren(fragment);
+        DOM.comparisonEl.hidden = false;
+      }
+
+      function formatDuration(seconds) {
+        if (seconds === null || seconds === undefined) return "—";
+        const total = Math.max(0, Math.round(Number(seconds) || 0));
+        const minutes = Math.floor(total / 60);
+        const secs = total % 60;
+        if (minutes >= 60) {
+          return `${Math.floor(minutes / 60)} Std. ${minutes % 60} Min.`;
+        }
+        if (minutes > 0) return `${minutes} Min. ${secs} Sek.`;
+        return `${secs} Sek.`;
       }
 
       // ── Quality: causes, and what to do about them ────────────────────
@@ -1946,6 +2318,8 @@
       function filterChats(chats) {
         let base = Array.isArray(chats) ? [...chats] : [];
 
+        // Zwei Zeitfilter, je nach Ansicht genau einer aktiv: die Heatmap-Zelle
+        // im Report, der Wochentag-Balken sonst.
         if (state.selectedCell) {
           const [weekday, hour] = state.selectedCell;
           base = base.filter((chat) => {
@@ -1955,6 +2329,8 @@
             if (!parts || parts.weekday === null) return false;
             return parts.weekday === weekday && parts.hour === hour;
           });
+        } else if (state.selectedWeekdayIndex !== null) {
+          base = filterChatsByWeekday(base);
         }
 
         // Drill-down from the cause table: show the conversations behind one
@@ -1973,6 +2349,9 @@
 
       function currentFilterLabel() {
         const parts = [];
+        if (state.selectedWeekdayIndex !== null) {
+          parts.push(WEEKDAY_FULL_NAMES[state.selectedWeekdayIndex]);
+        }
         if (state.selectedCell) {
           const [weekday, hour] = state.selectedCell;
           parts.push(
@@ -1994,6 +2373,9 @@
         renderMessages(filtered, state.currentView.label, {
           filterLabel: currentFilterLabel(),
         });
+        if (!state.currentView.hasReport && state.selectedMonthKey) {
+          updateHourlyChartFromFilteredChats();
+        }
         updateExportButton();
       }
 
@@ -2083,6 +2465,18 @@
       function renderMessages(chats, label, { filterLabel = null } = {}) {
         const displayLabel = label || "Ausgewählter Monat";
         DOM.messagesTitleEl.textContent = "Gespräche";
+
+        if (state.currentView.chatsHidden) {
+          DOM.messagesSubtitleEl.textContent = "";
+          DOM.messagesState.textContent =
+            `Die Gespräche aus ${displayLabel} werden nach 90 Tagen nicht mehr angezeigt. ` +
+            "Was bleibt, ist die Auswertung oben.";
+          DOM.messagesState.hidden = false;
+          DOM.messagesListEl.innerHTML = "";
+          DOM.exportButton.disabled = true;
+          return;
+        }
+        DOM.messagesState.hidden = true;
         // The heading already says "Gespräche"; repeating the noun here made
         // it "Gespräche 1.734 Gespräche".
         DOM.messagesSubtitleEl.textContent = filterLabel
@@ -2106,34 +2500,41 @@
           const header = document.createElement("div");
           header.className = "chat-header";
           const title = document.createElement("strong");
-          // The first thing the user asked. A shortened uuid told the reader
-          // nothing and a running number is worse than nothing — it changes on
-          // every filter change and auto-refresh, so two people looking at
-          // "Chat 7" are not looking at the same conversation. The id is still
-          // there on hover and in the export, which is where the drill-down
-          // needs it; it just is not the headline. (It is an ordinary row uuid:
-          // the auth token was `session_id`, which is no longer selected.)
-          title.textContent = firstUserQuestion(chat) || `Chat ${chatIndex + 1}`;
+          // Laufende Nummer und die vollen Zeitangaben wie vor dem Umbau
+          // (Owner-Entscheidung). Die DB-`id` steht weiterhin im Titelattribut
+          // und im JSON-Export, damit der Drill-down ein Gespräch benennen kann.
+          title.textContent = `Chat ${chatIndex + 1}`;
           if (chat.id) title.title = String(chat.id);
           header.appendChild(title);
 
-          // One time, and the segment. The card used to carry Erfasst, Start,
-          // Ende, Dauer and Nutzer-Nachr. — on a one-turn chat the first three
-          // are the same value and the duration is "2 Sek.", which is
-          // bookkeeping, not something anyone acts on.
           const meta = document.createElement("div");
           meta.className = "chat-meta";
-          const recordedAt = deriveChatTimestamp(chat) || chat.started_at;
-          const cardStamp = recordedAt ? formatTimestamp(recordedAt) : "";
-          if (cardStamp) meta.appendChild(createMetaChip(cardStamp));
+          const recordedAt = deriveChatTimestamp(chat);
+          if (recordedAt)
+            meta.appendChild(
+              createMetaChip(`Erfasst: ${formatTimestamp(recordedAt)}`),
+            );
+          if (chat.started_at)
+            meta.appendChild(
+              createMetaChip(`Start: ${formatTimestamp(chat.started_at)}`),
+            );
+          if (chat.ended_at)
+            meta.appendChild(
+              createMetaChip(`Ende: ${formatTimestamp(chat.ended_at)}`),
+            );
+          if (
+            typeof chat.duration_seconds === "number" &&
+            chat.duration_seconds > 0
+          ) {
+            meta.appendChild(
+              createMetaChip(`Dauer: ${formatDuration(chat.duration_seconds)}`),
+            );
+          }
           meta.appendChild(
             createMetaChip(
-              `${formatNumber(chat.user_message_count ?? 0)} Nutzerfragen`,
+              `Nutzer-Nachr.: ${formatNumber(chat.user_message_count ?? 0)}`,
             ),
           );
-          if (chat.segment) {
-            meta.appendChild(createMetaChip(SEGMENT_LABELS[chat.segment] ?? chat.segment));
-          }
 
           container.appendChild(header);
           container.appendChild(meta);
@@ -2163,12 +2564,9 @@
               : "Nachricht";
             titleEl.textContent = roleLabel;
             if (message.timestamp) {
-              const stamp = formatTimestamp(message.timestamp);
-              if (stamp !== cardStamp) {
-                const timeEl = document.createElement("span");
-                timeEl.textContent = ` · ${stamp}`;
-                titleEl.appendChild(timeEl);
-              }
+              const timeEl = document.createElement("span");
+              timeEl.textContent = ` · ${formatTimestamp(message.timestamp)}`;
+              titleEl.appendChild(timeEl);
             }
             messageEl.appendChild(titleEl);
 
@@ -2375,16 +2773,6 @@
           hour: "2-digit",
           minute: "2-digit",
         });
-      }
-
-      function firstUserQuestion(chat) {
-        const messages = Array.isArray(chat?.messages) ? chat.messages : [];
-        for (const message of messages) {
-          if (message?.role !== "user") continue;
-          const text = typeof message.content === "string" ? message.content.trim() : "";
-          if (text) return text.length > 90 ? `${text.slice(0, 90)}…` : text;
-        }
-        return "";
       }
 
       function createMetaChip(text) {
