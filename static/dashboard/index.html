@@ -326,14 +326,6 @@
         color: var(--text);
       }
 
-      .tagbar-state {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--text);
-        margin-right: 0.5rem;
-        white-space: nowrap;
-      }
-
       /* Cause table — the answer to "where does the bot fall down". Top of the
          wide column because it is the one thing on this page that produces work. */
       .cause-table {
@@ -946,7 +938,6 @@
         aria-label="Bereich filtern"
       >
         <span class="tagbar-label">Bereich</span>
-        <span class="tagbar-state" id="tagbarHint">Alle</span>
         <button
           type="button"
           class="tag"
@@ -1130,7 +1121,6 @@
           .getContext("2d"),
         dailyChartCtx: document.getElementById("dailyChart").getContext("2d"),
         tagbar: document.getElementById("tagbar"),
-        tagbarHint: document.getElementById("tagbarHint"),
         heatmapEl: document.getElementById("heatmap"),
         heatmapState: document.getElementById("heatmapState"),
         heatmapTitleEl: document.getElementById("heatmapTitle"),
@@ -1266,9 +1256,7 @@
           countEl.textContent =
             typeof count === "number" ? formatNumber(count) : "--";
         });
-        DOM.tagbarHint.textContent = state.selectedSegments.length
-          ? state.selectedSegments.map((s) => SEGMENT_LABELS[s]).join(" + ")
-          : "Alle";
+
       }
 
       const api = {
