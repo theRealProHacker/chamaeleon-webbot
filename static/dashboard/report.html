@@ -400,6 +400,16 @@
         body {
           background: #fff;
         }
+        /* Ohne das druckt der Browser die Heatmap als leeres Gitter und die
+           Balken als leere Zellen: Hintergrundfarben fallen im Druck
+           standardmaessig weg. */
+        .heat-cell,
+        .heat-swatch,
+        .bar,
+        .bar > span {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
         .page {
           padding: 0;
           max-width: none;
