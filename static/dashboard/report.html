@@ -484,7 +484,23 @@
           font-size: 0.7rem;
           letter-spacing: 0;
           text-transform: none;
-          hyphens: auto;
+        }
+        /* Auf dem Telefon traegt die Zahl; der Anteil steht auf Bildschirm
+           und Papier. Mit drei Zahlenspalten mussten die Spaltenkoepfe
+           silbenweise umbrechen. */
+        th.share,
+        td.share {
+          display: none;
+        }
+        table.no-delta th:nth-last-child(2),
+        table.no-delta td:nth-last-child(2) {
+          padding-right: 0.35rem;
+        }
+        /* Die Heatmap passt in die Karte statt nach rechts wegzulaufen;
+           auf dem Telefon gab es keinen sichtbaren Hinweis, dass man
+           scrollen kann, und die Kernzeit lag genau im abgeschnittenen Teil. */
+        .heat-scroll > * {
+          min-width: 0;
         }
         .card {
           padding: 1rem;
@@ -492,6 +508,7 @@
         /* "Reisebüro/Erlebnisberatung" ist ein Wort und diktierte sonst die
            Spaltenbreite. */
         .row-label {
+          hyphens: auto;
           overflow-wrap: anywhere;
         }
       }
@@ -701,8 +718,10 @@
               const span = document.createElement("span");
               span.className = "row-label";
               // textContent: der Text stammt aus einem Sprachmodell ueber
-              // Nutzertext und aus der Datenbank.
-              span.textContent = cell.text;
+              // Nutzertext und aus der Datenbank. Nach einem Schraegstrich
+              // darf umbrochen werden ("Reisebüro/Erlebnisberatung" brach
+              // auf dem Telefon sonst mitten im Wort).
+              span.textContent = String(cell.text ?? "").replace(/\//g, "/\u200B");
               if (cell.title) span.title = cell.title;
               td.appendChild(span);
             } else if (cell.bar !== undefined) {
