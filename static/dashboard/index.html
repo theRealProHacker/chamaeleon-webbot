@@ -193,13 +193,26 @@
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
-      /* Mit vier Kacheln brechen zwei der Labels um; die grossen Zahlen
-         standen dann auf verschiedenen Hoehen. Jedes Label bekommt zwei
-         Zeilen Platz, die Zahl darunter steht wieder auf einer Linie. */
-      .metrics-grid-wide:has(#badMetric:not([hidden])) .metric-label {
-        min-height: 2.4em;
+      /* Die Zahlen stehen dank min-height (unten) ohnehin auf einer Hoehe;
+         was auseinanderlief, waren die Labels: ein einzeiliges schwebte
+         oben in seinen zwei Zeilen Platz, ein zweizeiliges fuellte sie. Alle
+         Labels enden jetzt auf derselben Grundlinie — bei drei wie bei vier
+         Kacheln, denn ob ein Label umbricht, entscheidet die Spaltenbreite,
+         nicht die Kachelzahl. */
+      .metrics-grid-wide .metric-label {
         display: flex;
         align-items: flex-end;
+        /* "NUTZERNACHRICHTEN" ist ein Wort; mit vier Spalten ragte es bei
+           1280px 14px aus seiner Kachel. */
+        font-size: 0.78rem;
+        letter-spacing: 0.05em;
+      }
+
+      /* Zwischen 641 und 1300px fallen vier Kacheln sonst auf 3 + 1. */
+      @media (min-width: 641px) and (max-width: 1300px) {
+        .metrics-grid-wide {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
 
       /* A count spanning 3 to 209 is not readable as digits alone. */
