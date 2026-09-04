@@ -73,8 +73,14 @@
         font-weight: 600;
       }
 
+      /* Kein negativer Rand mehr: seit es zwei dieser Zeilen gibt (Zeitraum
+         und Herkunft), zog die zweite sich sonst ueber die erste. */
+      .provenance:empty {
+        display: none;
+      }
+
       .provenance {
-        margin: -1.4rem 0 0.4rem;
+        margin: 0 0 0.3rem;
         font-size: 0.82rem;
         color: var(--text-muted);
         line-height: 1.5;
@@ -102,7 +108,7 @@
       }
 
       .lede {
-        margin: 0.4rem 0 2rem;
+        margin: 0.4rem 0 0.6rem;
         color: var(--text-muted);
         font-size: 1rem;
       }
