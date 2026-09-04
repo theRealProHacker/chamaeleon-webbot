@@ -287,7 +287,7 @@
          allen Tabellen gleich breit bleibt. */
       #countryTable th.share,
       #countryTable td.share {
-        width: 13rem;
+        width: 14.5rem;
       }
 
       .bar {
@@ -310,8 +310,10 @@
 
       /* Ueber rechtsbuendigen Zahlen steht der Kopf rechtsbuendig; sonst
          hing "SCHLECHTEN" im Juli am Kartenrand und ragte ueber die Zahlen. */
+      /* 6,5rem: "SCHLECHTEN" braucht 101px, in 5rem ragte es in den
+         naechsten Kopf — im Druck lagen die beiden uebereinander. */
       th.share {
-        width: 5rem;
+        width: 6.5rem;
         text-align: right;
       }
 
@@ -321,7 +323,7 @@
         color: var(--text-muted);
         /* "51,8 %" brach im Druck vor dem Prozentzeichen um. */
         white-space: nowrap;
-        width: 5rem;
+        width: 6.5rem;
       }
 
       td.delta.up {
@@ -451,19 +453,19 @@
       @media (max-width: 900px) and (min-width: 641px) {
         th.bar-col,
         td.bar-col {
-          width: 6rem;
+          width: 5.5rem;
         }
         th.num,
         td.num {
-          width: 5.5rem;
+          width: 5rem;
         }
         th.share,
         td.share {
-          width: 4.5rem;
+          width: 6.5rem;
         }
         #countryTable th.share,
         #countryTable td.share {
-          width: 10rem;
+          width: 11.5rem;
         }
         /* Vier Kacheln nebeneinander, aber "Ø Nutzernachrichten" bricht
            hier um: zwei Zeilen Platz fuer jedes Label, damit die Zahlen
