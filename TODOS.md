@@ -205,3 +205,12 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       stehen in `:root`, Karten und Knöpfe benutzen sie.
 - [ ] ~~**Kartenschatten verstoßen gegen die globale Designregel**~~ (einlagige
       `box-shadow`, u. a. `index.html:126`), statt gestapelter `--shadow-s/m/l`.
+- [ ] **Report: drei kleine Reste aus dem /qa-Lauf (2026-09-04).** (a) Ein
+      Monat ohne Auswertung (`/dashboard/report/2026-09`) zeigt unter dem
+      Hinweis eine leere Trennlinie, weil `load()` vor der Fusszeile
+      aussteigt. (b) Ein ungültiger Monat (`/2026-13`) liefert rohes JSON
+      statt einer Seite — Admin-URL, tippt niemand von Hand. (c) Die Kachel
+      „Gesprächsdauer 4 s“ ist rechnerisch richtig (Median, viele
+      Ein-Satz-Chats), liest sich aber wie ein Fehler; ob sie als Schlagzahl
+      auf den Report gehört, ist eine Produktfrage. Beleg:
+      `.gstack/qa-reports/qa-report-localhost-2026-09-04.md`.
