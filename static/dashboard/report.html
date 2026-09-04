@@ -884,11 +884,21 @@
           }
         });
         const top = (quality.ursachen || [])[0];
-        if (top && bad && (top.count || 0) / bad > 0.35) {
-          sentences.push(
-            `Gut die Hälfte davon — ${fmt(top.count)} von ${fmt(bad)} — entfällt auf ` +
-              `„${top.label}“.`,
-          );
+        const topShare = top && bad ? (top.count || 0) / bad : 0;
+        if (topShare > 0.35) {
+          // Der Bruch muss zum Wort passen: 36 % sind keine "gute Haelfte".
+          const portion =
+            topShare >= 0.5
+              ? "Gut die Hälfte"
+              : topShare >= 0.45
+                ? "Knapp die Hälfte"
+                : "Gut ein Drittel";
+          // "davon" braucht einen Satz davor. Ohne Vormonat gibt es keinen,
+          // dann muss der Satz selbst sagen, wovon er spricht.
+          const of = sentences.length
+            ? `davon — ${fmt(top.count)} von ${fmt(bad)} —`
+            : `der ${fmt(bad)} schlecht beantworteten Gespräche — ${fmt(top.count)} —`;
+          sentences.push(`${portion} ${of} entfällt auf „${top.label}“.`);
         }
 
         if (biggest && biggest.delta !== 0) {
