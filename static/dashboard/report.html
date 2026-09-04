@@ -226,6 +226,18 @@
         border-bottom: 1px solid var(--border);
       }
 
+      /* Ohne Vormonat gibt es nichts zu vergleichen: eine Spalte voller
+         Striche sagt nichts und kostet Platz. */
+      table.no-delta th:last-child,
+      table.no-delta td:last-child {
+        display: none;
+      }
+
+      table.no-delta th:nth-last-child(2),
+      table.no-delta td:nth-last-child(2) {
+        padding-right: 0;
+      }
+
       th.num,
       td.num {
         text-align: right;
@@ -469,7 +481,7 @@
         <article class="card">
           <h2>Wo der Bot danebenliegt</h2>
           <p class="card-subtitle" id="causeSubtitle"></p>
-          <table>
+          <table id="causeTable">
             <thead>
               <tr>
                 <th scope="col">Ursache</th>
@@ -1052,6 +1064,7 @@
           ]);
         }
         fillRows(el("causeBody"), causeRows);
+        el("causeTable").classList.toggle("no-delta", !comparable);
         // Die Tabelle summiert sich NICHT auf die Kachel darueber, und das ist
         // richtig so: sie zeigt die haeufigsten Ursachen, der Rest faellt in
         // `neu`. Ohne diesen Satz rechnet der Leser nach, findet eine Luecke
@@ -1072,6 +1085,7 @@
           el("topicTable").hidden = false;
           const topicTop = Math.max(1, ...topics.map((t) => t.count || 0));
           const topicBefore = before?.topics || null;
+          el("topicTable").classList.toggle("no-delta", !topicBefore);
           if (topicBefore) {
             el("topicDeltaHead").textContent = el("deltaHead").textContent;
           }
