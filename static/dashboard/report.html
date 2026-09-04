@@ -436,6 +436,27 @@
       /* Auf dem Telefon: die festen Spaltenbreiten (8rem je Zahlenspalte
          plus 9rem Balken) sprengten die Karte, und die ganze Seite lief
          seitlich weg. Balken raus, Breiten frei, Schrift eine Stufe kleiner. */
+      /* Tablet-Band: 30rem feste Spalten liessen dem Label bei 641px nur
+         noch 76px. */
+      @media (max-width: 900px) and (min-width: 641px) {
+        th.bar-col,
+        td.bar-col {
+          width: 6rem;
+        }
+        th.num,
+        td.num {
+          width: 5.5rem;
+        }
+        th.share,
+        td.share {
+          width: 4.5rem;
+        }
+        #countryTable th.share,
+        #countryTable td.share {
+          width: 10rem;
+        }
+      }
+
       @media (max-width: 640px) {
         .page > :not(.card):not(#content) {
           padding-left: 0;
