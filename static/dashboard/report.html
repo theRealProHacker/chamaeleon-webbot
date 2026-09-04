@@ -74,7 +74,7 @@
       }
 
       .provenance {
-        margin: -1.4rem 0 2rem;
+        margin: -1.4rem 0 0.4rem;
         font-size: 0.82rem;
         color: var(--text-muted);
         line-height: 1.5;
@@ -245,8 +245,8 @@
       /* Balken hinter dem Label: die Rangfolge muss auf einen Blick lesbar
          sein, nicht durch Ziffernvergleich. */
       td.bar-col {
-        width: 6rem;
-        padding-right: 0;
+        width: 9rem;
+        padding-right: 0.6rem;
       }
 
       .bar {
@@ -414,6 +414,7 @@
       <p class="eyebrow">Chamäleon Reisen · Chatbot</p>
       <h1 id="title">Monatsreport</h1>
       <p class="lede" id="lede"></p>
+      <p class="provenance" id="period"></p>
       <p class="provenance" id="provenance"></p>
       <p class="takeaway" id="takeaway" hidden></p>
 
@@ -433,10 +434,16 @@
               <span class="metric-caption" id="mUserCaption"></span>
             </div>
             <div class="metric">
+              <span class="metric-label">Gesprächsdauer</span>
+              <span class="metric-value" id="mDuration">--</span>
+              <span class="metric-caption" id="mDurationPrev"></span>
+              <span class="metric-caption">Median</span>
+            </div>
+            <div class="metric">
               <span class="metric-label">Schlecht beantwortet</span>
               <span class="metric-value" id="mBad">--</span>
-              <span class="metric-caption metric-share" id="mBadShare"></span>
               <span class="metric-caption" id="mBadPrev"></span>
+              <span class="metric-caption metric-share" id="mBadShare"></span>
               <span class="metric-caption metric-parts" id="mBadCaption"></span>
             </div>
           </div>
@@ -452,7 +459,7 @@
                 <th scope="col">Ursache</th>
                 <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Gespräche</th>
-                <th scope="col" class="share">Anteil davon</th>
+                <th scope="col" class="share">Anteil der schlechten</th>
                 <th scope="col" class="num" id="deltaHead">Δ Vormonat</th>
               </tr>
             </thead>
@@ -471,7 +478,8 @@
                 <th scope="col">Thema</th>
                 <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Gespräche</th>
-                <th scope="col" class="share">Anteil aller</th>
+                <th scope="col" class="share">Anteil aller Gespräche</th>
+                <th scope="col" class="num" id="topicDeltaHead">Δ Vormonat</th>
               </tr>
             </thead>
             <tbody id="topicBody"></tbody>
@@ -488,7 +496,7 @@
                 <th scope="col">Land</th>
                 <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Nennungen</th>
-                <th scope="col" class="share">Anteil</th>
+                <th scope="col" class="share">Anteil der Nennungen</th>
               </tr>
             </thead>
             <tbody id="countryBody"></tbody>
@@ -589,6 +597,13 @@
             return span;
           }),
         );
+      }
+
+      function formatDuration(seconds) {
+        if (typeof seconds !== "number") return "--";
+        if (seconds < 60) return `${Math.round(seconds)} s`;
+        if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+        return `${dec(seconds / 3600)} h`;
       }
 
       const pct = (part, whole) =>
@@ -710,17 +725,21 @@
           item.className = "heat-legend-item";
           void 0;
           const swatch = document.createElement("span");
-          swatch.className = "heat-swatch";
-          swatch.style.background = `var(--heat-${step})`;
+          swatch.className = step === 0 ? "heat-swatch heat-cell empty" : "heat-swatch";
+          if (step > 0) swatch.style.background = `var(--heat-${step})`;
           const text = document.createElement("span");
           if (step === 0) {
             text.textContent = "0";
           } else {
             // Die unterste Stufe darf nicht bei 0 anfangen — daneben steht
             // bereits ein Feld fuer die echte Null.
-            const high = step === 5 ? peak : bounds[step + 1];
+            // Obergrenze exklusiv beschriften: 3,0 stand sonst in zwei
+            // Baendern und die Legende liess sich nicht zurueckuebersetzen.
+            const high = step === 5 ? peak : bounds[step + 1] - 0.1;
             text.textContent =
-              step === 1 ? `bis ${dec(high)}` : `${dec(bounds[step])}–${dec(high)}`;
+              step === 1
+                ? `bis ${dec(high)}`
+                : `${dec(bounds[step])}–${dec(high)}`;
           }
           item.append(swatch, text);
           frag.appendChild(item);
@@ -732,8 +751,9 @@
         legend.replaceChildren(frag);
       }
 
-      async function renderComparison(data) {
-        // Gibt {total, bad} des Vormonats zurueck, oder null.
+      async function renderComparison(current) {
+        // Gibt {total, bad, topics} des Vormonats zurueck, oder null.
+        const data = current;
         const previousKey = (() => {
           const [year, month] = (data.month || "").split("-").map(Number);
           if (!year) return null;
@@ -764,9 +784,19 @@
           el("mBadPrev").textContent = `${short}: ${fmt(badBefore)}${share}`;
           if (typeof before.avg_user_messages_per_chat === "number") {
             el("mUserCaption").textContent =
-              `${short}: ${dec(before.avg_user_messages_per_chat)}`;
+              `${short}: ${dec(before.avg_user_messages_per_chat)} je Gespräch`;
           }
-          return { total: before.total_chats || 0, bad: badBefore };
+          if (typeof before.median_duration_seconds === "number") {
+            el("mDurationPrev").textContent =
+              `${short}: ${formatDuration(before.median_duration_seconds)}`;
+          }
+          // Themen nur vergleichen, wenn beide Monate gegen dieselbe Liste
+          // gelaufen sind — zwei Listen sind zwei Messgeraete.
+          const topics =
+            q.taxonomy_version === current.quality?.taxonomy_version && q.themen?.length
+              ? new Map(q.themen.map((t) => [t.thema_id, t.count]))
+              : null;
+          return { total: before.total_chats || 0, bad: badBefore, topics };
         } catch (error) {
           // Ohne Vormonat steht die Seite trotzdem; sie sagt dann nur nichts
           // ueber die Veraenderung.
@@ -862,6 +892,10 @@
         const label = data.label || MONTH;
         document.title = `Report ${label} · Chamäleon Chat`;
         el("title").textContent = `Monatsreport ${label}`;
+        const lastDay = (data.daily_counts || []).at(-1)?.label;
+        el("period").textContent = lastDay
+          ? `Zeitraum 1. bis ${lastDay} ${data.month.slice(0, 4)}`
+          : "";
 
         const quality = data.quality || {};
         const hasReport =
@@ -892,10 +926,12 @@
           el("mSegments"),
           Object.entries(segments)
             .filter(([, count]) => count > 0)
-            .map(([name, count]) => `${SEGMENT_LABELS[name] ?? name} ${fmt(count)}`),
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => `${SEGMENT_LABELS[name] ?? name}: ${fmt(count)}`),
         );
         el("mUserMsgs").textContent = dec(data.avg_user_messages_per_chat);
-        el("mUserCaption").textContent = "Nachrichten je Gespräch";
+        el("mUserCaption").textContent = "je Gespräch";
+        el("mDuration").textContent = formatDuration(data.median_duration_seconds);
 
         const evaded = quality.qualitaet?.ausgewichen ?? 0;
         const aborted = quality.qualitaet?.abgebrochen ?? 0;
@@ -924,6 +960,9 @@
           "Abgebrochen: der Nutzer hat aufgegeben. Falsch: die Antwort war " +
           "inhaltlich unrichtig.";
 
+        // Vor den Tabellen, nicht danach: Ursachen UND Themen brauchen die
+        // Vormonatszahlen fuer ihre Delta-Spalten.
+        const before = await renderComparison(data);
         const previous = new Map(Object.entries(quality.vormonat ?? {}));
         const comparable = previous.size > 0;
         // Den Vergleichsmonat benennen. "Δ Vormonat" allein zwingt den Leser
@@ -936,13 +975,16 @@
             : "Gespräche ggü. Vormonat";
         }
         const classified = quality.classified_chats || 0;
+        const causeSum = (quality.ursachen || []).reduce(
+          (sum, c) => sum + (c.count || 0),
+          0,
+        );
+        const residualCauses = bad - causeSum;
         const causeTop = Math.max(
           1,
           ...(quality.ursachen || []).map((c) => c.count || 0),
         );
-        fillRows(
-          el("causeBody"),
-          (quality.ursachen || []).map((cause) => {
+        const causeRows = (quality.ursachen || []).map((cause) => {
             let delta = "—";
             let direction = "";
             const was = previous.get(cause.ursache_id);
@@ -970,26 +1012,42 @@
               },
               { text: delta, className: `num delta${direction}` },
             ];
-          }),
-        );
+          });
+
+        // Die Restzeile gehoert IN die Tabelle. Ohne sie summierte die
+        // Delta-Spalte auf -10, waehrend der Monat sich um -6 bewegte, und wer
+        // nachrechnet — und auf einer einseitigen Uebersicht rechnet jemand
+        // nach — bekam einen Widerspruch zur Schlagzeile.
+        if (residualCauses > 0) {
+          const wasResidual = previous.get("neu");
+          let residualDelta = "—";
+          let residualDirection = "";
+          if (comparable && wasResidual !== undefined && wasResidual !== null) {
+            const diff = residualCauses - wasResidual;
+            residualDelta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+            residualDirection = diff > 0 ? " up" : diff < 0 ? " down" : "";
+          }
+          causeRows.push([
+            { text: "Ohne zugeordnete Ursache" },
+            { bar: residualCauses / causeTop },
+            { text: fmt(residualCauses) },
+            { text: pct(residualCauses, bad), className: "share" },
+            { text: residualDelta, className: `num delta${residualDirection}` },
+          ]);
+        }
+        fillRows(el("causeBody"), causeRows);
         // Die Tabelle summiert sich NICHT auf die Kachel darueber, und das ist
         // richtig so: sie zeigt die haeufigsten Ursachen, der Rest faellt in
         // `neu`. Ohne diesen Satz rechnet der Leser nach, findet eine Luecke
         // und weiss nicht, ob er einer der beiden Zahlen trauen kann.
-        const causes = quality.ursachen || [];
-        const causeSum = causes.reduce((sum, c) => sum + (c.count || 0), 0);
-        const residualCauses = bad - causeSum;
-        const notes = [];
-        if (residualCauses > 0) {
-          notes.push(
-            `${fmt(residualCauses)} der ${fmt(bad)} Gespräche passen in keine dieser Ursachen.`,
-          );
-        }
+        // Vollstaendig, nicht abgeschnitten — die Nachbartabellen zeigen
+        // Zehnerlisten, also nimmt der Leser sonst einen verborgenen Rest an.
+        const notes = ["Alle Ursachen des Monats, nichts ausgelassen."];
         if (classified && (quality.neu || 0) / classified > 0.05) {
           notes.push("Die Liste braucht eine neue Ursache.");
         }
         el("causeSubtitle").textContent =
-          "Warum der Bot eine Frage nicht beantwortet hat, je Gespräch gezählt.";
+          "Woran es lag, wenn eine Antwort nicht getragen hat. Je Gespräch gezählt.";
         el("causeFootnote").hidden = false;
         el("causeFootnote").textContent = notes.join(" ");
 
@@ -997,14 +1055,31 @@
         if (topics.length) {
           el("topicTable").hidden = false;
           const topicTop = Math.max(1, ...topics.map((t) => t.count || 0));
+          const topicBefore = before?.topics || null;
+          if (topicBefore) {
+            el("topicDeltaHead").textContent = el("deltaHead").textContent;
+          }
           fillRows(
             el("topicBody"),
-            topics.map((topic) => [
-              { text: topic.label ?? topic.thema_id, title: topic.definition },
-              { bar: (topic.count || 0) / topicTop },
-              { text: fmt(topic.count) },
-              { text: pct(topic.count, classified), className: "share" },
-            ]),
+            topics.map((topic) => {
+              let delta = "—";
+              let direction = "";
+              const was = topicBefore ? topicBefore.get(topic.thema_id) : undefined;
+              if (was !== undefined) {
+                const diff = (topic.count || 0) - was;
+                delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+                // Bei Themen ist mehr weder gut noch schlecht, es ist nur
+                // mehr — deshalb keine Farbe.
+                direction = "";
+              }
+              return [
+                { text: topic.label ?? topic.thema_id, title: topic.definition },
+                { bar: (topic.count || 0) / topicTop },
+                { text: fmt(topic.count) },
+                { text: pct(topic.count, classified), className: "share" },
+                { text: delta, className: `num delta${direction}` },
+              ];
+            }),
           );
           // Die Spalte summiert sich NICHT auf die Chatzahl: gezeigt werden
           // die zehn haeufigsten, dazu kommen die schwaecheren Themen und die
@@ -1065,7 +1140,6 @@
             "über die Vorkommen dieses Wochentags im Monat.";
         }
 
-        const before = await renderComparison(data);
         renderTakeaway(data, quality, bad, before);
 
         const stand = data.quality?.computed_at
@@ -1079,6 +1153,7 @@
           (stand ? `Ausgewertet am ${stand}. ` : "") +
           "Die Gespräche wurden automatisch von einem Sprachmodell eingeordnet. " +
           "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
+        el("provenance").style.marginBottom = "2rem";
         el("printFooter").textContent =
           `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.origin}${window.location.pathname}`;
       }
