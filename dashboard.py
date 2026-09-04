@@ -251,9 +251,38 @@ def fetch_month_chats(key: MonthKey) -> tuple[list[AnyChatRow], int | None]:
     return response.data, getattr(response, "count", None)  # type: ignore
 
 
+# One unpaged read of the whole table is 14k rows and 16 MB of jsonb, and it
+# already came back as a Postgres `statement timeout` in production — the first
+# request after a deploy then 500s. Paging keeps every single query small and
+# bounded, at the cost of a dozen round trips on a path that runs once per
+# process.
+FETCH_PAGE = 2000
+
+
 def fetch_all_chats() -> tuple[list[AnyChatRow], int | None]:
-    response = supabase.table("chats").select(CHAT_COLUMNS, count="exact").execute()
-    return response.data, getattr(response, "count", None)  # type: ignore
+    rows: list[AnyChatRow] = []
+    total: int | None = None
+    start = 0
+    while True:
+        response = (
+            supabase.table("chats")
+            .select(CHAT_COLUMNS, count="exact")
+            .order("timestamp", desc=False)
+            .range(start, start + FETCH_PAGE - 1)
+            .execute()
+        )
+        page = response.data or []
+        if total is None:
+            total = getattr(response, "count", None)
+        rows += page
+        if len(page) < FETCH_PAGE:
+            break
+        start += FETCH_PAGE
+        # A count the server did give us is the honest stop condition; without
+        # one the short page above is. Never loop unbounded against a table.
+        if total is not None and len(rows) >= total:
+            break
+    return rows, total
 
 
 # ──────────────────────────────────────────
@@ -317,6 +346,16 @@ def load_all(cache: dict) -> None:
 def ensure_loaded(cache: dict) -> None:
     if not cache["aggregates"]:
         load_all(cache)
+
+
+def warm_cache() -> None:
+    """Fill the module cache off the request path. Called once at boot."""
+    started = time.time()
+    ensure_loaded(month_cache)
+    print(
+        f"[dashboard] cache warm: {len(month_cache['aggregates'])} months, "
+        f"{sum(month_cache['row_counts'].values())} chats, {time.time() - started:.1f}s"
+    )
 
 
 def refresh_current_month(cache: dict, include_chats: bool = False) -> None:
@@ -463,6 +502,7 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
         return {
             "status": "missing",
             "ursachen": [],
+            "themen": [],
             "laender": [],
             "qualitaet": {},
             "chat_ids_by_cause": {},
@@ -471,7 +511,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
     # The FAQ gap marker is computed on READ, not stored: `faqs/` changes
     # independently of the classification run, and a cause that got a snippet
     # last week should stop being marked without repaying for the month.
-    taxonomy = chat_quality.mark_faq_gaps((row or {}).get("taxonomy") or [])
+    causes, topics = month_stats.split_taxonomy((row or {}).get("taxonomy"))
+    taxonomy = chat_quality.mark_faq_gaps(causes)
     return {
         "status": stored.get("status", "ok"),
         "computed_at": (row or {}).get("quality_computed_at"),
@@ -488,6 +529,10 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
         ),
         "chat_ids_by_cause": stored.get("chat_ids_by_cause") or {},
         "neu": select((stored.get("ursachen") or {}).get("neu", [0, 0, 0]), segments),
+        "themen": month_aggregate.top_topics(stored, topics, segments),
+        "themen_neu": select(
+            (stored.get("themen") or {}).get("neu", [0, 0, 0]), segments
+        ),
         "laender": month_aggregate.top_countries(stored, segments),
     }
 
@@ -721,13 +766,43 @@ def DASHBOARD_data():
 
 @auth_required
 def DASHBOARD_month(month: MonthKey):
+    """Everything about a month EXCEPT the transcripts.
+
+    Split off on purpose: with them the June payload is 3.0 MB and every number
+    on the page waits behind 1.738 conversations that the reader has not asked
+    to see yet. Without them it is ~20 KB. The transcripts come from
+    ``/api/dashboard/<month>/chats`` when the list is actually wanted.
+    """
     rollover(month_cache)
     if not month or not MONTH_RE.match(month):
         return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
-    detail = month_detail(month)
+    detail = month_detail(month, include_chats=False)
     if detail is None:
         return jsonify({"error": f"Month '{month}' not found"}), 404
     return jsonify(detail)
+
+
+@auth_required
+def DASHBOARD_month_chats(month: MonthKey):
+    """The raw transcripts of one month, or nothing if they are past retention.
+
+    The retention check lives HERE too, not only in `month_detail`: a second
+    endpoint that serves the same rows without asking would undo stage 1 of the
+    deletion rule completely.
+    """
+    rollover(month_cache)
+    if not month or not MONTH_RE.match(month):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    if cached_aggregate(month_cache, month) is None:
+        return jsonify({"error": f"Month '{month}' not found"}), 404
+    if not chats_visible(month):
+        return jsonify({"month": month, "chats_hidden": True, "chats": None})
+
+    segments = selected_segments()
+    chats = cached_chats(month_cache, month)
+    if segments:
+        chats = [c for c in chats if c["segment"] in segments]
+    return jsonify({"month": month, "chats_hidden": False, "chats": chats})
 
 
 @auth_required
@@ -807,6 +882,12 @@ def reindex_travels():
 routes = [
     ("/api/dashboard", DASHBOARD_data, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/api/dashboard/<string:month>", DASHBOARD_month, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    (
+        "/api/dashboard/<string:month>/chats",
+        DASHBOARD_month_chats,
+        ["GET"],
+        rate_limit.DASHBOARD_LIMIT,
+    ),
     ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_status, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_run, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/dashboard", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),

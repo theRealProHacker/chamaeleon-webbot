@@ -80,21 +80,41 @@ def _run(month: str, fetch_rows) -> None:
     try:
         rows = fetch_rows()
         taxonomy, taxonomy_version = month_stats.latest_taxonomy()
+        topics = month_stats.latest_topics()
+
+        # Der Stichprobe wird einmal gezogen und von beiden Achsen benutzt: sie
+        # ist deterministisch, also ist derselbe Schnitt durch den Monat auch
+        # derselbe fuer Ursachen und Themen.
+        sample_prepared: list[dict] | None = None
+
+        def _sample() -> list[dict]:
+            nonlocal sample_prepared
+            if sample_prepared is None:
+                sample = _stratified_sample(rows, TAXONOMY_SAMPLE_SIZE)
+                sample_prepared = [
+                    c for row in sample if (c := chat_quality.prepare_chat(row))
+                ]
+            return sample_prepared
 
         if not taxonomy:
             # First run ever: derive the taxonomy from a sample of THIS month.
             # Every later month inherits it, so cause IDs stay comparable.
-            sample = _stratified_sample(rows, TAXONOMY_SAMPLE_SIZE)
-            prepared = [c for row in sample if (c := chat_quality.prepare_chat(row))]
-            taxonomy, _ = chat_quality.build_taxonomy(prepared)
+            taxonomy, _ = chat_quality.build_taxonomy(_sample())
             taxonomy_version = 1
             print(f"[quality-job] {month}: derived taxonomy v1 with {len(taxonomy)} causes")
+
+        if not topics:
+            # Same, one month later in the project's life: every month written
+            # before the topic axis existed has no list to inherit.
+            topics, _ = chat_quality.build_topic_taxonomy(_sample())
+            print(f"[quality-job] {month}: derived topic list with {len(topics)} topics")
 
         result = chat_quality.classify_month(
             rows,
             chat_quality.active_causes(taxonomy),
             month,
             taxonomy_version=taxonomy_version,
+            topics=chat_quality.active_topics(topics),
         )
         quality = month_aggregate.aggregate_quality(
             rows,
@@ -130,6 +150,7 @@ def _run(month: str, fetch_rows) -> None:
             taxonomy_version=taxonomy_version,
             run_id=result["run_id"],
             status=result["status"],
+            topics=topics,
         )
     except Exception as e:  # noqa: BLE001 — a failed run must not kill the worker
         print(f"[quality-job] {month}: run failed: {e}")

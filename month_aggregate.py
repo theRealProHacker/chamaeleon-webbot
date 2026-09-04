@@ -475,6 +475,8 @@ def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
 # ──────────────────────────────────────────
 
 NO_COUNTRY = "ohne Land"
+# Residualtopf beider LLM-Achsen: "passt in keinen Eintrag der Liste".
+NEW_TOPIC = "neu"
 
 
 class QualityAggregate(TypedDict):
@@ -490,6 +492,9 @@ class QualityAggregate(TypedDict):
     # quality -> vector; cause id (or "neu") -> vector; country (or "ohne Land") -> vector
     qualitaet: dict[str, list[int]]
     ursachen: dict[str, list[int]]
+    # topic id (or "neu") -> vector. Unlike `ursachen` this covers EVERY chat,
+    # answered ones included, so it sums to `classified_chats`.
+    themen: dict[str, list[int]]
     laender: dict[str, list[int]]
     classified_chats: list[int]
     unmapped_chats: int
@@ -536,6 +541,7 @@ def aggregate_quality(
         "status": status,
         "qualitaet": {},
         "ursachen": {},
+        "themen": {},
         "laender": {},
         "classified_chats": empty_vector(),
         "unmapped_chats": unmapped,
@@ -555,6 +561,13 @@ def aggregate_quality(
             add(agg["ursachen"].setdefault(cause, empty_vector()), segment)
             if chat_id:
                 agg["chat_ids_by_cause"].setdefault(cause, []).append(chat_id)
+
+        # Anders als die Ursache traegt JEDES Gespraech ein Thema, auch ein gut
+        # beantwortetes: die Achse beschreibt, worueber geredet wird, nicht wo
+        # es schiefging. Folge: die Themenspalte summiert sich auf
+        # classified_chats, die Ursachenspalte nur auf die schlechten Antworten.
+        topic = verdict.get("thema_id") or NEW_TOPIC
+        add(agg["themen"].setdefault(topic, empty_vector()), segment)
 
         countries = verdict.get("laender") or []
         if not countries:
@@ -584,6 +597,7 @@ def missing_quality(month: MonthKey) -> QualityAggregate:
         "status": "missing",
         "qualitaet": {},
         "ursachen": {},
+        "themen": {},
         "laender": {},
         "classified_chats": empty_vector(),
         "unmapped_chats": 0,
@@ -620,6 +634,37 @@ def top_causes(
             }
         )
     ranked.sort(key=lambda c: (c["count"] is None, -(c["count"] or 0)))
+    return ranked[:limit]
+
+
+def top_topics(
+    agg: QualityAggregate,
+    taxonomy: Sequence[Any],
+    segments: Iterable[Segment] | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    """Topics ranked by how many conversations were about them.
+
+    ``neu`` is left out of the ranking for the same reason as in `top_causes`:
+    it is the residual of the list, not an entry in it. Its size is reported
+    separately, where a large one reads as "the list is out of date".
+    """
+    labels = {t["thema_id"]: t for t in taxonomy}
+    ranked: list[dict] = []
+    for topic_id, vector in agg.get("themen", {}).items():
+        if topic_id == NEW_TOPIC:
+            continue
+        meta = labels.get(topic_id, {})
+        ranked.append(
+            {
+                "thema_id": topic_id,
+                "label": meta.get("label", topic_id),
+                "definition": meta.get("definition", ""),
+                "count": select(vector, segments),
+                "vector": vector,
+            }
+        )
+    ranked.sort(key=lambda t: -t["count"])
     return ranked[:limit]
 
 

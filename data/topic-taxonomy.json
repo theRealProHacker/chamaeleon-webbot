@@ -1,0 +1,64 @@
+{
+  "themen": [
+    {
+      "thema_id": "t01",
+      "label": "Flüge und Anreise",
+      "definition": "Dieses Thema umfasst alle Fragen und Anliegen der Nutzer bezüglich Flügen, Flugzeiten, Airlines, Rail&Fly-Tickets, Sitzplatzreservierungen, Online Check-in und Zubringerflügen."
+    },
+    {
+      "thema_id": "t02",
+      "label": "Visum und Einreisebestimmungen",
+      "definition": "Dieses Thema behandelt alle Fragen zu Visa, Einreisebestimmungen, elektronischen Reisegenehmigungen (eTA/e-Visa) und erforderlichen Dokumenten für verschiedene Länder."
+    },
+    {
+      "thema_id": "t03",
+      "label": "Zahlung und Rechnung",
+      "definition": "Dieses Thema beinhaltet alle Anfragen zu Zahlungsmodalitäten, Anzahlungen, Restzahlungen, Kreditkartenzahlungen, Zahlungslinks und Rechnungen."
+    },
+    {
+      "thema_id": "t04",
+      "label": "Reiseunterlagen und Buchungsdetails",
+      "definition": "Dieses Thema umfasst Fragen zu Reiseunterlagen, Flugplänen, Buchungsnummern, Passdaten, Reisebestätigungen und dem Einsehen von Buchungsdetails."
+    },
+    {
+      "thema_id": "t05",
+      "label": "Reisezeit und Klima",
+      "definition": "Dieses Thema behandelt Anfragen zur besten Reisezeit für bestimmte Länder oder Regionen und Informationen zum Klima während der Reise."
+    },
+    {
+      "thema_id": "t06",
+      "label": "Agenturbereich und Provision",
+      "definition": "Dieses Thema umfasst alle Fragen von Reisebüros zum Agenturbereich, Login, Passwort zurücksetzen, Provisionen, Umsatzübersichten und Marketingmaterialien."
+    },
+    {
+      "thema_id": "t07",
+      "label": "Reiseanpassungen und Stornierungen",
+      "definition": "Dieses Thema beinhaltet Anfragen zu Änderungen an bestehenden Buchungen, Verlängerungen, Stornierungen von Optionen oder festen Buchungen."
+    },
+    {
+      "thema_id": "t08",
+      "label": "Gepäck und Transport vor Ort",
+      "definition": "Dieses Thema behandelt Fragen zu Gepäckbestimmungen, Transportmitteln während der Reise, Gepäckanhängern und der Handhabung von Gepäck."
+    },
+    {
+      "thema_id": "t09",
+      "label": "Gesundheit und Impfungen",
+      "definition": "Dieses Thema umfasst Fragen zu empfohlenen Impfungen, Malariaprophylaxe und reisemedizinischer Vorsorge."
+    },
+    {
+      "thema_id": "t10",
+      "label": "Reiseziele und Empfehlungen",
+      "definition": "Dieses Thema beinhaltet allgemeine Anfragen zu Reisezielen, Empfehlungen für bestimmte Reisearten (z.B. Aktiv- oder Genussreisen) oder Gruppengrößen."
+    },
+    {
+      "thema_id": "t11",
+      "label": "Kataloge und Informationen",
+      "definition": "Dieses Thema umfasst Anfragen zu Reisekatalogen, deren Bestellung oder Online-Ansicht sowie allgemeinen Informationen zu Chamäleon Reisen."
+    },
+    {
+      "thema_id": "t12",
+      "label": "LiveStreams und Events",
+      "definition": "Dieses Thema behandelt Fragen zu LiveStreams, deren Aufzeichnungen, Verlosungen und Anmeldungen zu Events wie den Erlebnistagen."
+    }
+  ]
+}

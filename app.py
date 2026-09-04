@@ -423,6 +423,14 @@ if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         except Exception as e:
             print(f"[app] startup sitemap sync failed: {e}")
         travel_index.rebuild()
+        # Den Monats-Cache gleich mitfuellen. Sonst zahlt der erste Besucher
+        # nach jedem Deploy den vollen Tabellenlauf im Request — und genau der
+        # ist schon einmal in den Postgres-Statement-Timeout gelaufen, also war
+        # es nicht nur langsam, sondern ein 500er.
+        try:
+            dashboard.warm_cache()
+        except Exception as e:
+            print(f"[app] startup dashboard warm failed: {e}")
 
     threading.Thread(target=_startup_warm, name="startup-warm", daemon=True).start()
 

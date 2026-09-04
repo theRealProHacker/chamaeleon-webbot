@@ -563,6 +563,26 @@
         word-spacing: 0.08em;
       }
 
+      .load-more {
+        display: block;
+        width: 100%;
+        margin-top: 0.75rem;
+        padding: 0.7rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: var(--shadow-s);
+      }
+
+      .load-more:hover {
+        background: var(--surface-muted);
+        box-shadow: var(--shadow-m);
+      }
+
       .chart-hint {
         margin: 0.75rem 0 0;
         font-size: 0.9rem;
@@ -1107,6 +1127,21 @@
             </table>
             <p class="cause-footnote" id="causeFootnote" hidden></p>
           </article>
+          <article id="topicCard" class="card">
+            <h2>Worüber gesprochen wird</h2>
+            <p class="card-subtitle">Das Anliegen des Nutzers, ein Thema je Gespräch.</p>
+            <div id="topicState" class="card-state" hidden></div>
+            <table class="cause-table is-static" id="topicTable" hidden>
+              <thead>
+                <tr>
+                  <th scope="col">Thema</th>
+                  <th scope="col" class="num">Gespräche</th>
+                </tr>
+              </thead>
+              <tbody id="topicTableBody"></tbody>
+            </table>
+            <p class="cause-footnote" id="topicFootnote" hidden></p>
+          </article>
           <article id="countryCard" class="card">
             <h2>Reiseziele</h2>
             <p class="card-subtitle">Die zehn häufigsten Länder.</p>
@@ -1237,6 +1272,11 @@
         monthlyChartWrapper: document.getElementById("monthlyChartWrapper"),
         dailyChartCard: document.getElementById("dailyChartCard"),
         dailyChartWrapper: document.getElementById("dailyChartWrapper"),
+        topicCard: document.getElementById("topicCard"),
+        topicState: document.getElementById("topicState"),
+        topicTable: document.getElementById("topicTable"),
+        topicTableBody: document.getElementById("topicTableBody"),
+        topicFootnote: document.getElementById("topicFootnote"),
         countryCard: document.getElementById("countryCard"),
         countryState: document.getElementById("countryState"),
         countryTable: document.getElementById("countryTable"),
@@ -1288,6 +1328,8 @@
           hourly: [],
         },
         monthDetails: new Map(),
+        monthChats: new Map(),
+        visibleChatCount: 0,
         currentView: {
           label: "Ausgewählter Monat",
           chats: [],
@@ -1398,7 +1440,25 @@
           }
           return response.json();
         },
+        async getMonthChats(monthKey) {
+          const query = segmentQuery();
+          const response = await fetch(
+            query
+              ? `/api/dashboard/${monthKey}/chats?${query}`
+              : `/api/dashboard/${monthKey}/chats`,
+            { cache: "no-store" },
+          );
+          if (!response.ok) {
+            throw new Error("Gespräche konnten nicht geladen werden");
+          }
+          return response.json();
+        },
       };
+
+      // Wie viele Gespraechskarten auf einmal gebaut werden, und wie viele
+      // Monate an Transkripten der Browser offen haelt.
+      const CHAT_PAGE_SIZE = 25;
+      const MAX_CACHED_CHAT_MONTHS = 3;
 
       const cache = {
         hasStaticMonth(monthKey) {
@@ -1416,15 +1476,32 @@
             state.monthDetails.set(monthKey, monthData);
           }
         },
+        getChats(monthKey) {
+          // Der laufende Monat waechst; seine Transkripte duerfen nie aus dem
+          // Cache kommen, sonst fehlen die Gespraeche von heute Nachmittag.
+          if (!monthKey || monthKey === state.currentMonth) return null;
+          return state.monthChats.get(monthKey) ?? null;
+        },
+        setChats(monthKey, payload) {
+          if (!monthKey) return;
+          state.monthChats.set(monthKey, payload);
+          // Transkripte sind der schwere Teil; ein paar Monate offen zu halten
+          // reicht, alles zu halten waere ein Leck im Browser.
+          while (state.monthChats.size > MAX_CACHED_CHAT_MONTHS) {
+            state.monthChats.delete(state.monthChats.keys().next().value);
+          }
+        },
         invalidateCurrentMonth() {
           if (state.currentMonth) {
             state.monthDetails.delete(state.currentMonth);
+            state.monthChats.delete(state.currentMonth);
           }
         },
         invalidateAll() {
           // Every cached month was fetched under one tag selection. Changing
           // the selection makes all of them wrong, not just the current one.
           state.monthDetails.clear();
+          state.monthChats.clear();
         },
         reconcileCurrentMonth(nextCurrentMonth) {
           if (!state.currentMonth) {
@@ -1516,6 +1593,7 @@
         if (!monthKey) return;
         if (!forceReload && cache.hasStaticMonth(monthKey)) {
           renderMonthDetail(cache.getMonth(monthKey));
+          loadMonthChats(monthKey);
           return;
         }
 
@@ -1525,12 +1603,45 @@
           cache.setMonth(monthKey, monthData);
           renderMonthDetail(monthData);
           hideError();
+          loadMonthChats(monthKey);
         } catch (error) {
           console.error(error);
           showError(error?.message ?? "Fehler beim Laden der Monatsdaten.");
         } finally {
           if (showIndicator) hideRefreshIndicator();
         }
+      }
+
+      // Die Transkripte kommen getrennt und spaeter: sie sind der mit Abstand
+      // groesste Teil der Antwort (3,0 MB fuer Juni gegen ~20 KB fuer alles
+      // andere) und der einzige, den der Leser in dem Moment noch nicht sieht.
+      async function loadMonthChats(monthKey) {
+        if (monthKey !== state.selectedMonthKey) return;
+        const cached = cache.getChats(monthKey);
+        if (cached) {
+          applyChats(monthKey, cached);
+          return;
+        }
+        try {
+          const payload = await api.getMonthChats(monthKey);
+          // Zwischenzeitlich weitergeklickt: die Antwort gehoert nicht mehr
+          // zur Ansicht und darf sie nicht ueberschreiben.
+          if (payload.month !== state.selectedMonthKey) return;
+          cache.setChats(monthKey, payload);
+          applyChats(monthKey, payload);
+        } catch (error) {
+          console.error(error);
+          showError(error?.message ?? "Gespräche konnten nicht geladen werden.");
+        }
+      }
+
+      function applyChats(monthKey, payload) {
+        state.currentView.chats = Array.isArray(payload.chats)
+          ? payload.chats
+          : [];
+        state.currentView.chatsHidden = Boolean(payload.chats_hidden);
+        state.visibleChatCount = CHAT_PAGE_SIZE;
+        renderMessagesWithCurrentFilter();
       }
 
       function handleRefresh() {
@@ -1591,9 +1702,11 @@
         state.currentView.heatmap = Array.isArray(monthData?.heatmap)
           ? monthData.heatmap
           : [];
-        state.currentView.chats = Array.isArray(monthData?.chats)
-          ? monthData.chats
-          : [];
+        // Die Transkripte stehen nicht mehr in diesem Payload; sie kommen aus
+        // loadMonthChats. Bis dahin bleibt die Liste leer statt falsch.
+        state.currentView.chats = [];
+        state.currentView.chatsHidden = Boolean(monthData?.chats_hidden);
+        state.visibleChatCount = CHAT_PAGE_SIZE;
         state.currentView.hourlyCounts = Array.isArray(monthData?.hourly_counts)
           ? monthData.hourly_counts
           : [];
@@ -1923,6 +2036,7 @@
         DOM.hourlyChartCard.hidden = report;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.qualityCard.hidden = !report;
+        DOM.topicCard.hidden = !report;
         DOM.countryCard.hidden = !report;
       }
 
@@ -2192,7 +2306,68 @@
           "Zeile anklicken zeigt die Gespräche dahinter.";
 
         renderCauseTable(quality);
+        renderTopicTable(quality);
         renderCountryTable(quality, totalChats);
+      }
+
+      function renderTopicTable(quality) {
+        const topics = Array.isArray(quality?.themen) ? quality.themen : [];
+        const status = quality?.status ?? "missing";
+
+        if (status !== "ok" && status !== "partial") {
+          DOM.topicTable.hidden = true;
+          DOM.topicFootnote.hidden = true;
+          setCardState(
+            DOM.topicState,
+            QUALITY_STATE_TEXT[status] ?? QUALITY_STATE_TEXT.missing,
+          );
+          return;
+        }
+        if (!topics.length) {
+          DOM.topicTable.hidden = true;
+          DOM.topicFootnote.hidden = true;
+          // Ein Monat, der vor der Themenachse gelaufen ist, hat keine Themen —
+          // und das ist etwas anderes als "es wurde ueber nichts gesprochen".
+          setCardState(
+            DOM.topicState,
+            "Dieser Monat wurde ausgewertet, bevor es die Themenliste gab.",
+          );
+          return;
+        }
+        clearCardState(DOM.topicState);
+
+        const body = document.createDocumentFragment();
+        topics.forEach((topic) => {
+          const row = document.createElement("tr");
+
+          const labelCell = document.createElement("td");
+          const label = document.createElement("span");
+          label.className = "cause-label";
+          label.textContent = topic.label ?? topic.thema_id;
+          if (topic.definition) label.title = topic.definition;
+          labelCell.appendChild(label);
+          row.appendChild(labelCell);
+
+          const countCell = document.createElement("td");
+          countCell.className = "num";
+          countCell.textContent = formatNumber(topic.count);
+          row.appendChild(countCell);
+
+          body.appendChild(row);
+        });
+        DOM.topicTableBody.replaceChildren(body);
+        DOM.topicTable.hidden = false;
+
+        // Wie bei den Ursachen: erst melden, wenn der Rest gross genug ist, um
+        // die Liste in Frage zu stellen — und als Befund formuliert.
+        const classified = quality.classified_chats || 0;
+        const residual = quality.themen_neu || 0;
+        if (classified && residual / classified > 0.05) {
+          DOM.topicFootnote.hidden = false;
+          DOM.topicFootnote.textContent = `${formatNumber(residual)} Gespräche passen in keines dieser Themen — die Liste braucht ein neues.`;
+        } else {
+          DOM.topicFootnote.hidden = true;
+        }
       }
 
       function renderCountryTable(quality, totalChats) {
@@ -2691,8 +2866,15 @@
           return;
         }
 
+        // Seitenweise statt alles auf einmal. Juni baute 1.738 Karten mit
+        // allen Nachrichten darin — 61.478 DOM-Knoten, die niemand angefordert
+        // hat und von denen der Leser die ersten zwanzig sieht.
         const orderedChats = Array.isArray(chats) ? [...chats] : [];
-        orderedChats.forEach((chat, chatIndex) => {
+        const limit = Math.min(
+          state.visibleChatCount || CHAT_PAGE_SIZE,
+          orderedChats.length,
+        );
+        orderedChats.slice(0, limit).forEach((chat, chatIndex) => {
           const container = document.createElement("article");
           container.className = "chat-thread";
 
@@ -2846,6 +3028,20 @@
 
           DOM.messagesListEl.appendChild(container);
         });
+
+        if (limit < orderedChats.length) {
+          const more = document.createElement("button");
+          more.type = "button";
+          more.className = "load-more";
+          const remaining = orderedChats.length - limit;
+          const next = Math.min(CHAT_PAGE_SIZE, remaining);
+          more.textContent = `${formatNumber(next)} weitere Gespräche zeigen (noch ${formatNumber(remaining)})`;
+          more.addEventListener("click", () => {
+            state.visibleChatCount = limit + CHAT_PAGE_SIZE;
+            renderMessagesWithCurrentFilter();
+          });
+          DOM.messagesListEl.appendChild(more);
+        }
       }
 
       function clearMonthDetail() {

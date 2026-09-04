@@ -79,6 +79,11 @@ MAX_RETRIES_PER_BATCH = 3
 # Minimum size for a cause to be shown at all, and the promotion threshold for
 # `neu` (answered question in the design: k = 20).
 MIN_CAUSE_SIZE = 20
+# Same threshold for the topic axis. Kept as its own name rather than reusing
+# MIN_CAUSE_SIZE: the two axes have different natural cardinalities (a handful
+# of recurring topics against a long tail of failure causes) and will drift
+# apart the first time either is tuned.
+MIN_TOPIC_SIZE = 20
 # A cause below k in this many consecutive months is retired (A4).
 RETIRE_AFTER_MONTHS = 3
 
@@ -94,6 +99,9 @@ QUALITIES: tuple[str, ...] = ("beantwortet", "ausgewichen", "falsch", "abgebroch
 LOAD_BEARING_QUALITIES: tuple[str, ...] = ("ausgewichen", "abgebrochen")
 
 NEW_CAUSE_ID = "neu"
+# Same sentinel on the topic axis, deliberately the same string: both mean
+# "did not fit the list", and the dashboard reports both the same way.
+NEW_TOPIC_ID = "neu"
 
 
 # ──────────────────────────────────────────
@@ -296,6 +304,7 @@ def classify_with_completeness(
     chats: Sequence[dict],
     causes: Sequence[dict],
     vocabulary: Sequence[str],
+    topics: Sequence[dict] = (),
 ) -> tuple[list[dict], str]:
     """Classify a batch, insisting on a verdict for every chat in it.
 
@@ -313,7 +322,7 @@ def classify_with_completeness(
 
     def attempt() -> list[dict]:
         nonlocal phash
-        result, phash = classify_batch(chats, causes, vocabulary)
+        result, phash = classify_batch(chats, causes, vocabulary, topics)
         answered = {v["chat_db_id"] for v in result}
         if len(answered) < len(chats):
             raise IncompleteBatch(
@@ -332,7 +341,7 @@ def classify_with_completeness(
 
     # Keep whatever the last attempt did answer, then split the rest.
     try:
-        verdicts, phash = classify_batch(chats, causes, vocabulary)
+        verdicts, phash = classify_batch(chats, causes, vocabulary, topics)
     except Exception:  # noqa: BLE001
         verdicts = []
     answered = {v["chat_db_id"] for v in verdicts}
@@ -348,7 +357,7 @@ def classify_with_completeness(
     for start in range(0, len(missing), half):
         chunk = missing[start : start + half]
         try:
-            extra, _ = classify_with_completeness(chunk, causes, vocabulary)
+            extra, _ = classify_with_completeness(chunk, causes, vocabulary, topics)
             verdicts.extend(extra)
         except Exception as exc:  # noqa: BLE001
             print(f"[chat-quality] sub-batch of {len(chunk)} failed for good: {exc}")
@@ -411,6 +420,16 @@ class Taxonomy(BaseModel):
     ursachen: list[Cause]
 
 
+class Topic(BaseModel):
+    thema_id: str = Field(description="Stabile ID, Format t01, t02, …")
+    label: str = Field(description="Kurzes Label, max 4 Wörter, paraphrasiert")
+    definition: str = Field(description="Ein Satz, der das Thema abgrenzt")
+
+
+class TopicTaxonomy(BaseModel):
+    themen: list[Topic]
+
+
 TAXONOMY_PROMPT = """Du analysierst Gespräche zwischen Nutzern und dem Chatbot des \
 Reiseveranstalters Chamäleon Reisen.
 
@@ -435,6 +454,71 @@ keine Buchungsnummern und keine Ortsangaben aus den Gesprächen.
 Hier sind {n} Gespräche:
 
 {transcripts}"""
+
+
+TOPIC_TAXONOMY_PROMPT = """Du analysierst Gespräche zwischen Nutzern und dem Chatbot des \
+Reiseveranstalters Chamäleon Reisen.
+
+Deine Aufgabe: Finde die wiederkehrenden THEMEN, über die die Nutzer sprechen. \
+Nicht die Fehler des Bots — das ANLIEGEN des Nutzers.
+
+Beispiele für die Art von Thema, die gesucht ist:
+- Preise und Kosten einer Reise
+- Visum und Einreise
+- Impfungen und Gesundheit
+- Flüge und Anreise
+- Klima und Reisezeit
+
+Regeln:
+- {min_topics} bis {max_topics} Themen.
+- Jedes Thema muss in mindestens {min_size} der Gespräche vorkommen — was \
+seltener ist, gehört nicht in die Liste.
+- Die Themen müssen sich gegenseitig ausschließen: jedes Gespräch soll in genau \
+eines fallen. Bei mehreren Anliegen zählt das, worum es hauptsächlich geht.
+- KEIN Thema, das ein Reiseland benennt. Länder werden getrennt erfasst; \
+„Namibia" ist kein Thema, „Klima und Reisezeit" ist eines.
+- IDs strikt fortlaufend: t01, t02, t03, …
+- Labels sind paraphrasiert und enthalten KEINE wörtlichen Zitate, keine Namen, \
+keine Buchungsnummern und keine Ortsangaben aus den Gesprächen.
+- Definition: genau ein Satz, der das Thema von den anderen abgrenzt.
+
+Hier sind {n} Gespräche:
+
+{transcripts}"""
+
+
+def build_topic_taxonomy(
+    chats: Sequence[dict],
+    min_topics: int = 8,
+    max_topics: int = 14,
+) -> tuple[list[dict], str]:
+    """Derive the topic taxonomy from a sample. Returns (topics, prompt_hash).
+
+    Same sample and same continuity rules as the causes, one separate call: the
+    two axes answer different questions and a single prompt asked to do both
+    reliably collapsed one into the other.
+    """
+    transcripts = "\n\n---\n\n".join(
+        f"### Gespräch {i}\n{render_chat(chat)}" for i, chat in enumerate(chats)
+    )
+    prompt = TOPIC_TAXONOMY_PROMPT.format(
+        min_topics=min_topics,
+        max_topics=max_topics,
+        min_size=MIN_TOPIC_SIZE,
+        n=len(chats),
+        transcripts=transcripts,
+    )
+    model = _model().with_structured_output(TopicTaxonomy)
+    result: TopicTaxonomy = _with_retries(lambda: model.invoke(prompt), "topic-taxonomy")  # type: ignore
+    topics = [
+        {
+            "thema_id": t.thema_id,
+            "label": sanitize_label(t.label),
+            "definition": sanitize_label(t.definition),
+        }
+        for t in result.themen
+    ]
+    return topics, prompt_hash(prompt)
 
 
 def build_taxonomy(
@@ -496,6 +580,7 @@ class ChatVerdict(BaseModel):
     idx: int = Field(description="Nummer des Gesprächs aus der Eingabe")
     qualitaet: str = Field(description="beantwortet | ausgewichen | falsch | abgebrochen")
     ursache_id: str = Field(description="ID aus der Taxonomie, oder 'neu'. Bei 'beantwortet': ''")
+    thema_id: str = Field(default="", description="Themen-ID aus der Themenliste, oder 'neu'")
     laender: list[str] = Field(default_factory=list, description="Länder aus dem Vokabular")
     beleg: int = Field(default=-1, description="Nummer der belegenden BOT-Nachricht, sonst -1")
 
@@ -536,6 +621,16 @@ Bei `beantwortet`: leerer String. Sonst die passende ID aus dieser Taxonomie:
 
 Passt keine: `neu`.
 
+## thema_id
+
+Worum es dem Nutzer geht — für JEDES Gespräch, auch für ein gut beantwortetes. \
+Genau eine ID aus dieser Liste:
+
+{topics}
+
+Bei mehreren Anliegen: das hauptsächliche. Passt keins: `neu`. Ein Reiseland ist \
+kein Thema — das steht getrennt unter `laender`.
+
 ## laender
 
 Die im Gespräch tatsächlich besprochenen Reiseländer, AUSSCHLIESSLICH aus diesem \
@@ -563,6 +658,12 @@ def _format_taxonomy(causes: Sequence[dict]) -> str:
     return "\n".join(f"- {c['ursache_id']}: {c['label']} — {c['definition']}" for c in causes)
 
 
+def _format_topics(topics: Sequence[dict]) -> str:
+    if not topics:
+        return "(noch keine Themenliste — vergib für jedes Gespräch `neu`)"
+    return "\n".join(f"- {t['thema_id']}: {t['label']} — {t['definition']}" for t in topics)
+
+
 def _format_chat_block(idx: int, chat: dict, vocabulary: Sequence[str]) -> str:
     priors = url_prior(chat["urls"], vocabulary)
     mentioned = mentioned_countries(turns_as_messages(chat), vocabulary)
@@ -579,6 +680,7 @@ def classify_batch(
     chats: Sequence[dict],
     causes: Sequence[dict],
     vocabulary: Sequence[str],
+    topics: Sequence[dict] = (),
 ) -> tuple[list[dict], str]:
     """Classify one batch. Returns (verdicts, prompt_hash).
 
@@ -591,6 +693,7 @@ def classify_batch(
     )
     prompt = CLASSIFY_PROMPT.format(
         taxonomy=_format_taxonomy(causes),
+        topics=_format_topics(topics),
         vocabulary=", ".join(vocabulary),
         chats=blocks,
     )
@@ -598,6 +701,7 @@ def classify_batch(
     result: BatchVerdict = _with_retries(lambda: model.invoke(prompt), "classification batch")  # type: ignore
 
     allowed_causes = {c["ursache_id"] for c in causes} | {NEW_CAUSE_ID, ""}
+    allowed_topics = {t["thema_id"] for t in topics} | {NEW_TOPIC_ID}
     allowed_countries = set(vocabulary)
     verdicts: list[dict] = []
     for verdict in result.gespraeche:
@@ -612,6 +716,9 @@ def classify_batch(
         # measured confounder, enforced here rather than hoped for in the prompt.
         if quality == "abgebrochen" and user_message_count(chat) < 2:
             quality = "ausgewichen" if cause else "beantwortet"
+        # Anders als ursache_id gilt das Thema fuer JEDES Gespraech, auch fuer
+        # ein gut beantwortetes — sonst beschriebe die Achse nur die Ausfaelle.
+        topic = verdict.thema_id if verdict.thema_id in allowed_topics else NEW_TOPIC_ID
         laender = [c for c in dict.fromkeys(verdict.laender) if c in allowed_countries]
         beleg = verdict.beleg if verdict.beleg in chat["assistant_indices"] else -1
         verdicts.append(
@@ -620,6 +727,7 @@ def classify_batch(
                 "chat_db_id": chat["chat_db_id"],
                 "qualitaet": quality,
                 "ursache_id": cause,
+                "thema_id": topic,
                 "laender": laender,
                 "beleg": beleg,
             }
@@ -698,6 +806,7 @@ def classify_month(
     taxonomy_version: int = 0,
     resume: bool = True,
     max_chats: int = MAX_CHATS_PER_RUN,
+    topics: Sequence[dict] = (),
 ) -> dict:
     """Classify every chat of one month. Resumable, checkpointed per batch.
 
@@ -729,7 +838,9 @@ def classify_month(
         if not todo:
             continue
         try:
-            verdicts, phash = classify_with_completeness(todo, causes, vocabulary)
+            verdicts, phash = classify_with_completeness(
+                todo, causes, vocabulary, topics
+            )
         except Exception as exc:  # noqa: BLE001
             print(f"[chat-quality] {month}: batch {batch_index} failed for good: {exc}")
             result["status"] = "partial"
@@ -762,6 +873,7 @@ def classify_month(
                     "taxonomy_version": taxonomy_version,
                     "qualitaet": verdict["qualitaet"],
                     "ursache_id": verdict["ursache_id"],
+                    "thema_id": verdict.get("thema_id", NEW_TOPIC_ID),
                     "url_prior": priors,
                     "llm_laender": verdict["laender"],
                     "laender": laender,
@@ -862,6 +974,46 @@ def retire_causes(
 def active_causes(causes: Sequence[dict]) -> list[dict]:
     """Causes that still go into the classification prompt."""
     return [c for c in causes if not c.get("retired")]
+
+
+def next_topic_id(topics: Sequence[dict]) -> str:
+    """The next free ``tNN``. IDs are never reused — the comparison is over IDs."""
+    used = {
+        int(m.group(1))
+        for t in topics
+        if (m := re.fullmatch(r"t(\d+)", str(t.get("thema_id", ""))))
+    }
+    return f"t{(max(used) + 1) if used else 1:02d}"
+
+
+def promote_new_topics(
+    topics: Sequence[dict],
+    new_bucket: Sequence[dict],
+    k: int = MIN_TOPIC_SIZE,
+) -> list[dict]:
+    """Promote `neu` topic groups that reached k, with fresh stable IDs.
+
+    Same rule as the causes (A4): promotion takes effect for month N+1, never
+    retroactively, so a month is always read with the list it was run against.
+    """
+    promoted = list(topics)
+    for candidate in sorted(new_bucket, key=lambda t: -t.get("count", 0)):
+        if candidate.get("count", 0) < k:
+            continue
+        promoted.append(
+            {
+                "thema_id": next_topic_id(promoted),
+                "label": candidate["label"],
+                "definition": candidate["definition"],
+                "promoted_from": NEW_TOPIC_ID,
+            }
+        )
+    return promoted
+
+
+def active_topics(topics: Sequence[dict]) -> list[dict]:
+    """Topics that still go into the classification prompt."""
+    return [t for t in topics if not t.get("retired")]
 
 
 # ──────────────────────────────────────────

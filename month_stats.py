@@ -97,12 +97,14 @@ def save_quality(
     taxonomy_version: int,
     run_id: str,
     status: str,
+    topics: list[dict] | None = None,
 ) -> bool:
-    """Upsert the paid half plus the taxonomy it was classified against.
+    """Upsert the paid half plus the taxonomies it was classified against.
 
     The taxonomy travels with the month on purpose: a month must always be read
     with the taxonomy it was RUN with. Reading July's numbers through August's
-    taxonomy compares two different measuring devices.
+    taxonomy compares two different measuring devices. The same holds for the
+    topic list, which is why both live in the one column together.
     """
     return _upsert(
         month,
@@ -112,10 +114,29 @@ def save_quality(
             "quality_version": version,
             "quality_status": status,
             "run_id": run_id,
-            "taxonomy": taxonomy,
+            "taxonomy": {"ursachen": taxonomy, "themen": topics or []},
             "taxonomy_version": taxonomy_version,
         },
     )
+
+
+def split_taxonomy(stored: Any) -> tuple[list[dict], list[dict]]:
+    """Read a stored `taxonomy` value as (causes, topics).
+
+    Two shapes are in the table on purpose, and neither is wrong:
+
+    - a bare LIST, written before the topic axis existed (July and August 2026)
+    - a DICT ``{"ursachen": [...], "themen": [...]}`` since
+
+    Normalising on read rather than migrating the rows keeps this a pure schema
+    widening: an old row still reads correctly, and a rollback of this code
+    still reads the new rows' causes. A DDL migration would have needed a manual
+    Supabase step, which is exactly the kind of thing that sits open for months
+    here.
+    """
+    if isinstance(stored, dict):
+        return stored.get("ursachen") or [], stored.get("themen") or []
+    return list(stored or []), []
 
 
 def _upsert(month: str, fields: dict) -> bool:
@@ -139,7 +160,7 @@ def drop_month(month: str) -> bool:
 
 
 def latest_taxonomy() -> tuple[list[dict], int]:
-    """The newest stored taxonomy and its version, or ([], 0).
+    """The newest stored cause taxonomy and its version, or ([], 0).
 
     This is what a new month is classified against (A4): month N uses month
     N−1's taxonomy plus an explicit ``neu`` bucket, so cause IDs stay comparable
@@ -160,4 +181,31 @@ def latest_taxonomy() -> tuple[list[dict], int]:
         return [], 0
     if not rows:
         return [], 0
-    return rows[0].get("taxonomy") or [], rows[0].get("taxonomy_version") or 0
+    causes, _ = split_taxonomy(rows[0].get("taxonomy"))
+    return causes, rows[0].get("taxonomy_version") or 0
+
+
+def latest_topics() -> list[dict]:
+    """The newest stored topic list, or [].
+
+    Empty is a real answer and not an error: every month written before the
+    topic axis existed returns it, and the caller then derives a first list.
+    """
+    try:
+        rows = (
+            supabase.table(TABLE)
+            .select("taxonomy, taxonomy_version")
+            .not_.is_("taxonomy", "null")
+            .order("taxonomy_version", desc=True)
+            .limit(5)
+            .execute()
+            .data
+        ) or []
+    except Exception as e:
+        print(f"[month-stats] topic load failed: {e}")
+        return []
+    for row in rows:
+        _, topics = split_taxonomy(row.get("taxonomy"))
+        if topics:
+            return topics
+    return []
