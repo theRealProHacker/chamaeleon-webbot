@@ -2339,7 +2339,11 @@
         // apart, with nothing saying that `falsch` also carries a cause.
         DOM.badMetric.hidden = false;
         DOM.qualityBadValue.textContent = formatNumber(bad);
-        DOM.qualityBadCaption.textContent = `${formatNumber(evaded)} ausgewichen · ${formatNumber(aborted)} abgebrochen`;
+        // Alle drei Teile, sonst rechnet der Leser 631 + 57 und landet 17
+        // unter der Schlagzeile.
+        DOM.qualityBadCaption.textContent =
+          `${formatNumber(evaded)} ausgewichen · ${formatNumber(aborted)} abgebrochen` +
+          (wrong ? ` · ${formatNumber(wrong)} falsch` : "");
 
         // The card says what its rows are and that they can be opened. It does
         // not repeat the month (the card above it already carries it) and it
