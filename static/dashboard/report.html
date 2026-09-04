@@ -263,8 +263,16 @@
       /* Balken hinter dem Label: die Rangfolge muss auf einen Blick lesbar
          sein, nicht durch Ziffernvergleich. */
       td.bar-col {
-        width: 9rem;
         padding-right: 0.6rem;
+      }
+
+      /* Die Labelspalte hat in allen drei Tabellen dieselbe Breite, damit
+         die Balken untereinander an derselben Stelle beginnen; sonst rueckte
+         der Balken in der Laendertabelle (eine Spalte weniger) weit nach
+         rechts. Der Balken nimmt, was uebrig bleibt. */
+      th:first-child,
+      td:first-child {
+        width: 21rem;
       }
 
       .bar {
@@ -421,6 +429,10 @@
         }
         /* Zahlenspalten so schmal wie ihr Inhalt, der Rest gehoert dem
            Label — sonst bekam das Label ein Viertel und brach jedes Wort. */
+        th:first-child,
+        td:first-child {
+          width: auto;
+        }
         th.num,
         td.num,
         th.share,
