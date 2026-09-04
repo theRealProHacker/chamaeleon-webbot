@@ -107,15 +107,11 @@
         font-size: 1rem;
       }
 
-      .baseline,
       .takeaway {
-        margin: 0 0 0.6rem;
-        font-size: 0.95rem;
+        margin: 0 0 1.8rem;
+        font-size: 1rem;
+        line-height: 1.5;
         color: var(--text);
-      }
-
-      .takeaway {
-        margin-bottom: 1.8rem;
         font-weight: 600;
       }
 
@@ -174,18 +170,16 @@
         color: var(--text-muted);
       }
 
+      /* Untereinander statt durch Mittelpunkte getrennt: am Zeilenende hing
+         der Trenner, am Zeilenanfang stand er — ein freistehendes Trennzeichen
+         ist in beide Richtungen ein sichtbarer Umbruchfehler. */
       .metric-parts {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0 0.3rem;
+        flex-direction: column;
       }
 
       .metric-parts > span {
         white-space: nowrap;
-      }
-
-      .metric-parts > span + span::before {
-        content: "· ";
       }
 
       .metric-share {
@@ -193,10 +187,26 @@
         color: var(--text);
       }
 
+      #mChatsPrev,
+      #mBadPrev,
+      #mUserCaption {
+        color: var(--text-muted);
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.95rem;
+      }
+
+      th:first-child,
+      td:first-child {
+        padding-left: 0;
+      }
+
+      th:last-child,
+      td:last-child {
+        padding-right: 0;
       }
 
       th {
@@ -234,26 +244,24 @@
 
       /* Balken hinter dem Label: die Rangfolge muss auf einen Blick lesbar
          sein, nicht durch Ziffernvergleich. */
-      td.bar-cell {
-        position: relative;
+      td.bar-col {
+        width: 6rem;
+        padding-right: 0;
       }
 
       .bar {
-        position: absolute;
-        left: 0.6rem;
-        right: 0.6rem;
-        bottom: 0.3rem;
-        height: 3px;
-        border-radius: 2px;
-        background: var(--border);
+        height: 8px;
+        border-radius: 3px;
+        background: var(--surface-muted);
         overflow: hidden;
       }
 
       .bar > span {
         display: block;
         height: 100%;
+        border-radius: 3px;
         background: var(--accent);
-        opacity: 0.55;
+        opacity: 0.5;
       }
 
       td.share {
@@ -300,6 +308,11 @@
         align-items: center;
       }
 
+      .heatmap,
+      .heat-hours {
+        padding-left: 0;
+      }
+
       .heat-day {
         font-size: 0.75rem;
         color: var(--text-muted);
@@ -312,6 +325,13 @@
         aspect-ratio: 1;
         border-radius: 3px;
         background: var(--heat-0);
+      }
+
+      /* "gar keine Gespraeche" muss von "fast keine" unterscheidbar sein —
+         genau diese Grenze braucht man bei Oeffnungszeiten. */
+      .heat-cell.empty {
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--border);
       }
 
       .heat-hours {
@@ -363,18 +383,11 @@
       }
 
       .print-footer {
-        display: none;
-      }
-
-      @media print {
-        .print-footer {
-          display: block;
-          margin-top: 2rem;
-          padding-top: 0.8rem;
-          border-top: 1px solid var(--border);
-          font-size: 0.75rem;
-          color: var(--text-muted);
-        }
+        margin-top: 2.5rem;
+        padding-top: 0.9rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.78rem;
+        color: var(--text-muted);
       }
 
       @media print {
@@ -402,7 +415,6 @@
       <h1 id="title">Monatsreport</h1>
       <p class="lede" id="lede"></p>
       <p class="provenance" id="provenance"></p>
-      <p class="baseline" id="baseline" hidden></p>
       <p class="takeaway" id="takeaway" hidden></p>
 
       <div id="content" hidden>
@@ -412,6 +424,7 @@
             <div class="metric">
               <span class="metric-label">Gespräche</span>
               <span class="metric-value" id="mChats">--</span>
+              <span class="metric-caption" id="mChatsPrev"></span>
               <span class="metric-caption metric-parts" id="mSegments"></span>
             </div>
             <div class="metric">
@@ -423,6 +436,7 @@
               <span class="metric-label">Schlecht beantwortet</span>
               <span class="metric-value" id="mBad">--</span>
               <span class="metric-caption metric-share" id="mBadShare"></span>
+              <span class="metric-caption" id="mBadPrev"></span>
               <span class="metric-caption metric-parts" id="mBadCaption"></span>
             </div>
           </div>
@@ -436,8 +450,9 @@
             <thead>
               <tr>
                 <th scope="col">Ursache</th>
+                <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Gespräche</th>
-                <th scope="col" class="share">Anteil</th>
+                <th scope="col" class="share">Anteil davon</th>
                 <th scope="col" class="num" id="deltaHead">Δ Vormonat</th>
               </tr>
             </thead>
@@ -454,8 +469,9 @@
             <thead>
               <tr>
                 <th scope="col">Thema</th>
+                <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Gespräche</th>
-                <th scope="col" class="share">Anteil</th>
+                <th scope="col" class="share">Anteil aller</th>
               </tr>
             </thead>
             <tbody id="topicBody"></tbody>
@@ -470,7 +486,9 @@
             <thead>
               <tr>
                 <th scope="col">Land</th>
+                <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Nennungen</th>
+                <th scope="col" class="share">Anteil</th>
               </tr>
             </thead>
             <tbody id="countryBody"></tbody>
@@ -536,7 +554,6 @@
           cells.forEach((cell, index) => {
             const td = document.createElement("td");
             if (index === 0) {
-              td.className = "bar-cell";
               const span = document.createElement("span");
               span.className = "row-label";
               // textContent: der Text stammt aus einem Sprachmodell ueber
@@ -544,14 +561,14 @@
               span.textContent = cell.text;
               if (cell.title) span.title = cell.title;
               td.appendChild(span);
-              if (typeof cell.fraction === "number") {
-                const bar = document.createElement("div");
-                bar.className = "bar";
-                const fill = document.createElement("span");
-                fill.style.width = `${Math.max(1, Math.round(cell.fraction * 100))}%`;
-                bar.appendChild(fill);
-                td.appendChild(bar);
-              }
+            } else if (cell.bar !== undefined) {
+              td.className = "bar-col";
+              const bar = document.createElement("div");
+              bar.className = "bar";
+              const fill = document.createElement("span");
+              fill.style.width = `${Math.max(2, Math.round(cell.bar * 100))}%`;
+              bar.appendChild(fill);
+              td.appendChild(bar);
             } else {
               td.className = cell.className || "num";
               td.textContent = cell.text;
@@ -575,7 +592,12 @@
       }
 
       const pct = (part, whole) =>
-        whole ? `${(Math.round((part / whole) * 1000) / 10).toLocaleString("de-DE")} %` : "—";
+        whole
+          ? `${((part / whole) * 100).toLocaleString("de-DE", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })} %`
+          : "—";
 
       function renderHeatmap(rows, occurrences) {
         const grid = el("heatmap");
@@ -596,7 +618,14 @@
         // als sei jede Stunde gleich, und der naechtliche Einbruch verschwand.
         const edges = [];
         for (let step = 1; step <= 4; step += 1) {
-          edges.push(nonZero[Math.floor((nonZero.length * step) / 5)] ?? 0);
+          const raw = nonZero[Math.floor((nonZero.length * step) / 5)] ?? 0;
+          // Auf halbe Gespraeche runden. Ungerundete Quantile lesen sich als
+          // Messwerte ("2,3") und suggerieren eine Genauigkeit, die eine
+          // Farbstufe nicht hat.
+          const rounded = Math.round(raw * 2) / 2;
+          edges.push(edges.length && rounded <= edges[edges.length - 1]
+            ? edges[edges.length - 1] + 0.5
+            : rounded);
         }
         const stepOf = (count) => {
           if (count === 0) return 0;
@@ -615,10 +644,11 @@
             const cell = document.createElement("div");
             cell.className = "heat-cell";
             if (count === null) {
-              cell.style.background = "var(--heat-0)";
+              cell.classList.add("empty");
               cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")} Uhr — kein ${DAYS[day]} im Zeitraum`;
             } else {
-              cell.style.background = `var(--heat-${stepOf(count)})`;
+              if (count === 0) cell.classList.add("empty");
+              else cell.style.background = `var(--heat-${stepOf(count)})`;
               cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")} Uhr — ${dec(count)} Gespräche im Schnitt`;
             }
             frag.appendChild(cell);
@@ -630,18 +660,31 @@
         // Die belebteste Stunde ausdruecklich benennen. Sie ist die eine
         // Aussage, die aus dieser Karte folgt, und in der obersten Farbstufe
         // steckt sonst alles von 19 bis 42 ununterscheidbar zusammen.
-        let peak = { value: -1 };
-        rows.forEach((row, day) =>
-          row.forEach((count, hour) => {
-            if (count !== null && count > peak.value) {
-              peak = { value: count, day, hour };
-            }
-          }),
+        // Randsummen statt der dunkelsten Zelle. Eine einzelne Zelle ist ueber
+        // vier oder fuenf Vorkommen gemittelt und damit der rauschanfaelligste
+        // Wert der Matrix — sie als Befund auszugeben, hat einen ruhigen
+        // Samstagnachmittag zur Kernzeit erklaert.
+        const dayTotals = rows.map((row) =>
+          row.reduce((sum, v) => sum + (v ?? 0), 0),
         );
-        if (peak.value > 0) {
+        const hourTotals = Array.from({ length: 24 }, (_, hour) =>
+          rows.reduce((sum, row) => sum + (row[hour] ?? 0), 0),
+        );
+        const bestDay = dayTotals.indexOf(Math.max(...dayTotals));
+        const bestHour = hourTotals.indexOf(Math.max(...hourTotals));
+        // Das Kernfenster: die zusammenhaengenden Stunden nahe der Spitze.
+        // Gegen den Tagesschnitt gemessen liefe es von 08 bis 21 Uhr — dreizehn
+        // Stunden sind keine Kernzeit, sondern der Geschaeftstag.
+        const threshold = Math.max(...hourTotals) * 0.7;
+        let start = bestHour;
+        let end = bestHour;
+        while (start > 0 && hourTotals[start - 1] >= threshold) start -= 1;
+        while (end < 23 && hourTotals[end + 1] >= threshold) end += 1;
+        if (Math.max(...hourTotals) > 0) {
           el("heatFootnote").textContent =
-            `Am meisten los: ${WEEKDAYS_LONG[peak.day]} um ${String(peak.hour).padStart(2, "0")} Uhr ` +
-            `mit ${dec(peak.value)} Gesprächen im Schnitt.`;
+            `Die Kernzeit liegt zwischen ${String(start).padStart(2, "0")} und ` +
+            `${String(end + 1).padStart(2, "0")} Uhr; der stärkste Wochentag ist ` +
+            `${WEEKDAYS_LONG[bestDay]}.`;
         }
 
         const hours = document.createDocumentFragment();
@@ -649,7 +692,7 @@
         for (let hour = 0; hour < 24; hour += 1) {
           const mark = document.createElement("div");
           mark.className = "heat-hour";
-          mark.textContent = hour % 3 === 0 ? String(hour) : hour === 23 ? "23" : "";
+          mark.textContent = hour % 3 === 0 ? String(hour) : "";
           hours.appendChild(mark);
         }
         el("heatHours").replaceChildren(hours);
@@ -713,13 +756,15 @@
           const share = before.total_chats
             ? ` (${Math.round((badBefore / before.total_chats) * 100)} %)`
             : "";
-          el("baseline").hidden = false;
-          el("baseline").textContent =
-            `Zum Vergleich — ${before.label}: ${fmt(before.total_chats)} Gespräche, ` +
-            `davon ${fmt(badBefore)} schlecht beantwortet${share}.`;
+          // Der Vormonat gehoert IN die Kacheln, nicht als eigener Absatz
+          // davor: der Leser bekam sonst die Referenz vor dem Messwert, und
+          // von drei Kacheln trug nur eine ueberhaupt einen Vergleich.
+          const short = before.label.replace(/ \d{4}$/, "");
+          el("mChatsPrev").textContent = `${short}: ${fmt(before.total_chats)}`;
+          el("mBadPrev").textContent = `${short}: ${fmt(badBefore)}${share}`;
           if (typeof before.avg_user_messages_per_chat === "number") {
             el("mUserCaption").textContent =
-              `Vormonat ${dec(before.avg_user_messages_per_chat)}`;
+              `${short}: ${dec(before.avg_user_messages_per_chat)}`;
           }
           return { total: before.total_chats || 0, bad: badBefore };
         } catch (error) {
@@ -743,15 +788,29 @@
           const points = rateNow - rateBefore;
           const volumeText =
             volume === 0
-              ? "gleich viele Gespräche wie im Vormonat"
+              ? "Gleich viele Gespräche wie im Vormonat"
               : `${fmt(Math.abs(volume))} ${volume > 0 ? "mehr" : "weniger"} Gespräche als im Vormonat ` +
                 `(${volume > 0 ? "+" : "−"}${Math.abs(Math.round((volume / before.total) * 100))} %)`;
-          const rateText =
-            Math.abs(points) < 0.5
-              ? "die Quote schlecht beantworteter Gespräche blieb gleich"
-              : `die Quote schlecht beantworteter Gespräche ${points > 0 ? "stieg" : "fiel"} von ` +
-                `${Math.round(rateBefore)} % auf ${Math.round(rateNow)} %`;
-          sentences.push(`${volumeText}, und ${rateText}.`);
+          const badDelta = bad - before.bad;
+          const badText =
+            Math.abs(badDelta) <= Math.max(3, before.bad * 0.02)
+              ? `${fmt(bad)} schlecht beantwortete Gespräche, praktisch so viele wie im Vormonat (${fmt(before.bad)})`
+              : `${fmt(bad)} schlecht beantwortete Gespräche, ${fmt(Math.abs(badDelta))} ` +
+                `${badDelta > 0 ? "mehr" : "weniger"} als im Vormonat (${fmt(before.bad)})`;
+          sentences.push(`${volumeText}. ${badText}.`);
+          // Die Quote nur dann, wenn sie sich anders bewegt als die absolute
+          // Zahl — sonst behauptet sie eine Veraenderung, die aus dem Nenner
+          // kommt und nicht aus der Qualitaet.
+          if (Math.abs(points) >= 0.5) {
+            const sameDirection = points > 0 === badDelta > 0;
+            sentences.push(
+              `Die Quote ${points > 0 ? "stieg" : "fiel"} damit von ${Math.round(rateBefore)} % ` +
+                `auf ${Math.round(rateNow)} %` +
+                (sameDirection || badDelta === 0
+                  ? "."
+                  : " — das kommt aus der geringeren Zahl der Gespräche, nicht aus mehr Fehlern."),
+            );
+          }
         }
 
         // Die groesste Ursachenbewegung, absolut ausgedrueckt. "18 Mal
@@ -766,6 +825,14 @@
             biggest = { label: cause.label, delta, count: cause.count, was };
           }
         });
+        const top = (quality.ursachen || [])[0];
+        if (top && bad && (top.count || 0) / bad > 0.35) {
+          sentences.push(
+            `Gut die Hälfte davon — ${fmt(top.count)} von ${fmt(bad)} — entfällt auf ` +
+              `„${top.label}“.`,
+          );
+        }
+
         if (biggest && biggest.delta !== 0) {
           const direction = biggest.delta > 0 ? "stieg" : "fiel";
           sentences.push(
@@ -853,13 +920,9 @@
         // was von einem Monat bleibt — sie kann sich nicht darauf verlassen,
         // dass jemand daneben sitzt und die Begriffe kennt.
         el("glossary").textContent =
-          "Gezählt wird je Gespräch, nicht je Nachricht. „Ausgewichen“ heißt: der Bot " +
-          "hat freundlich geantwortet, ohne die Frage zu beantworten. „Abgebrochen“: " +
-          "der Nutzer hat erkennbar aufgegeben. „Falsch“: die Antwort war inhaltlich " +
-          "unrichtig — die einzige Klasse, in der der Bot etwas Unwahres gesagt hat. " +
-          "Die Ursachentabelle unten teilt dieselben Gespräche noch einmal auf, " +
-          "nach dem Grund statt nach der Art — die beiden Aufteilungen lassen sich " +
-          "nicht aufeinander abbilden.";
+          "Ausgewichen: freundlich geantwortet, ohne die Frage zu beantworten. " +
+          "Abgebrochen: der Nutzer hat aufgegeben. Falsch: die Antwort war " +
+          "inhaltlich unrichtig.";
 
         const previous = new Map(Object.entries(quality.vormonat ?? {}));
         const comparable = previous.size > 0;
@@ -869,8 +932,8 @@
           const [year, month] = data.month.split("-").map(Number);
           const before = new Date(Date.UTC(year, month - 2, 1));
           el("deltaHead").textContent = comparable
-            ? `gegenüber ${before.toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" })}`
-            : "gegenüber Vormonat";
+            ? `Gespräche ggü. ${before.toLocaleDateString("de-DE", { month: "long", timeZone: "UTC" })}`
+            : "Gespräche ggü. Vormonat";
         }
         const classified = quality.classified_chats || 0;
         const causeTop = Math.max(
@@ -896,11 +959,8 @@
               direction = diff > 0 ? " up" : diff < 0 ? " down" : "";
             }
             return [
-              {
-                text: cause.label ?? cause.ursache_id,
-                title: cause.definition,
-                fraction: (cause.count || 0) / causeTop,
-              },
+              { text: cause.label ?? cause.ursache_id, title: cause.definition },
+              { bar: (cause.count || 0) / causeTop },
               // null heisst "wird nicht mehr gemessen" und ist nicht 0 — eine
               // stillgelegte Ursache mit einer 0 laese sich als Erfolg lesen.
               { text: cause.count === null ? "—" : fmt(cause.count) },
@@ -919,11 +979,11 @@
         const causes = quality.ursachen || [];
         const causeSum = causes.reduce((sum, c) => sum + (c.count || 0), 0);
         const residualCauses = bad - causeSum;
-        const notes = [
-          `Die ${causes.length} häufigsten Ursachen decken ${fmt(causeSum)} der ${fmt(bad)} schlecht beantworteten Gespräche.`,
-        ];
+        const notes = [];
         if (residualCauses > 0) {
-          notes.push(`${fmt(residualCauses)} passen in keine davon.`);
+          notes.push(
+            `${fmt(residualCauses)} der ${fmt(bad)} Gespräche passen in keine dieser Ursachen.`,
+          );
         }
         if (classified && (quality.neu || 0) / classified > 0.05) {
           notes.push("Die Liste braucht eine neue Ursache.");
@@ -940,11 +1000,8 @@
           fillRows(
             el("topicBody"),
             topics.map((topic) => [
-              {
-                text: topic.label ?? topic.thema_id,
-                title: topic.definition,
-                fraction: (topic.count || 0) / topicTop,
-              },
+              { text: topic.label ?? topic.thema_id, title: topic.definition },
+              { bar: (topic.count || 0) / topicTop },
               { text: fmt(topic.count) },
               { text: pct(topic.count, classified), className: "share" },
             ]),
@@ -959,18 +1016,13 @@
           el("topicSubtitle").textContent =
             "Das Anliegen des Nutzers, ein Thema je Gespräch. Die zehn häufigsten.";
           const topicNotes = [
-            `Diese zehn decken ${fmt(topicSum)} der ${fmt(classified)} Gespräche.`,
+            `${fmt(topicSum)} von ${fmt(classified)} Gesprächen.`,
           ];
           if (rest > 0) {
-            topicNotes.push(
-              `${fmt(rest)} fielen auf weitere Themen der Liste, die es nicht in die Top 10 geschafft haben.`,
-            );
+            topicNotes.push(`${fmt(rest)} auf weitere Themen dahinter.`);
           }
           if (residual > 0) {
-            topicNotes.push(
-              `${fmt(residual)} (${pct(residual, classified)}) passen in kein Thema der Liste — ` +
-                "für sie fehlt bisher eine Kategorie.",
-            );
+            topicNotes.push(`${fmt(residual)} passen in keines der Themen.`);
           }
           el("topicFootnote").hidden = false;
           el("topicFootnote").textContent = topicNotes.join(" ");
@@ -982,11 +1034,14 @@
 
         const countries = quality.laender || [];
         const countryTop = Math.max(1, ...countries.map((c) => c.count || 0));
+        const countryAll = data.quality?.laender_gesamt || 0;
         fillRows(
           el("countryBody"),
           countries.map((entry) => [
-            { text: entry.land, fraction: (entry.count || 0) / countryTop },
+            { text: entry.land },
+            { bar: (entry.count || 0) / countryTop },
             { text: fmt(entry.count) },
+            { text: pct(entry.count, countryAll), className: "share" },
           ]),
         );
         // Immer erklaeren, nicht nur wenn die Spalte die Chatzahl uebersteigt:
@@ -997,12 +1052,10 @@
           const without = data.quality?.laender_ohne ?? 0;
           el("countryFootnote").hidden = false;
           el("countryFootnote").textContent =
-            `Die zehn häufigsten Länder decken ${fmt(countrySum)} Nennungen. ` +
-            "Ein Gespräch über mehrere Länder zählt für jedes davon" +
-            (without
-              ? `, und in ${fmt(without)} Gesprächen kam gar kein Land vor`
-              : "") +
-            " — die Spalte lässt sich deshalb nicht gegen die Zahl der Gespräche rechnen.";
+            `${fmt(countrySum)} von ${fmt(countryAll)} Nennungen insgesamt. ` +
+            "Wer über mehrere Länder spricht, zählt für jedes davon" +
+            (without ? `; in ${fmt(without)} Gesprächen kam kein Land vor` : "") +
+            ".";
         }
 
         if (Array.isArray(data.heatmap) && data.heatmap.length === 7) {
@@ -1027,7 +1080,7 @@
           "Die Gespräche wurden automatisch von einem Sprachmodell eingeordnet. " +
           "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
         el("printFooter").textContent =
-          `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.href}`;
+          `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.origin}${window.location.pathname}`;
       }
 
       load();

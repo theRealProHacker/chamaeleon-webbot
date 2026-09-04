@@ -542,6 +542,14 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             (stored.get("laender") or {}).get(month_aggregate.NO_COUNTRY, [0, 0, 0]),
             segments,
         ),
+        # Alle Laendernennungen des Monats. Ohne diese Bezugsgroesse ist eine
+        # 131 fuer Namibia nicht einzuordnen — und sie ist die einzige Zahl,
+        # gegen die sich die Spalte ueberhaupt rechnen laesst.
+        "laender_gesamt": sum(
+            select(vector, segments)
+            for country, vector in (stored.get("laender") or {}).items()
+            if country != month_aggregate.NO_COUNTRY
+        ),
     }
 
 
