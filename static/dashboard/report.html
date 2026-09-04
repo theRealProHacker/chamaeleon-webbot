@@ -408,6 +408,62 @@
         color: var(--text-muted);
       }
 
+      /* Auf dem Telefon: die festen Spaltenbreiten (8rem je Zahlenspalte
+         plus 9rem Balken) sprengten die Karte, und die ganze Seite lief
+         seitlich weg. Balken raus, Breiten frei, Schrift eine Stufe kleiner. */
+      @media (max-width: 640px) {
+        .page > :not(.card):not(#content) {
+          padding-left: 0;
+        }
+        th.bar-col,
+        td.bar-col {
+          display: none;
+        }
+        /* Zahlenspalten so schmal wie ihr Inhalt, der Rest gehoert dem
+           Label — sonst bekam das Label ein Viertel und brach jedes Wort. */
+        th.num,
+        td.num,
+        th.share,
+        td.share {
+          width: 1%;
+        }
+        td.num,
+        td.share {
+          white-space: nowrap;
+        }
+        table {
+          font-size: 0.85rem;
+        }
+        .metrics {
+          grid-template-columns: 1fr 1fr;
+        }
+        .metric-label {
+          font-size: 0.68rem;
+          letter-spacing: 0.04em;
+        }
+        th,
+        td {
+          padding-left: 0.35rem;
+          padding-right: 0.35rem;
+        }
+        /* Die Spaltenkoepfe diktieren die Mindestbreite ("GESPRÄCHE" ist
+           ein Wort); eine Stufe kleiner, damit das Label Luft bekommt. */
+        th {
+          font-size: 0.7rem;
+          letter-spacing: 0;
+          text-transform: none;
+          hyphens: auto;
+        }
+        .card {
+          padding: 1rem;
+        }
+        /* "Reisebüro/Erlebnisberatung" ist ein Wort und diktierte sonst die
+           Spaltenbreite. */
+        .row-label {
+          overflow-wrap: anywhere;
+        }
+      }
+
       @media print {
         body {
           background: #fff;
