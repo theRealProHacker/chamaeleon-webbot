@@ -485,9 +485,29 @@
         .back {
           display: none;
         }
+        /* Eine Karte bleibt beisammen: Chromium haelt eine Ueberschrift
+           nicht bei ihrer Tabelle ("break-after: avoid" vor einer Tabelle
+           wird ignoriert), also standen die Titel allein am Seitenende,
+           sobald die Karten umbrechen durften. */
         .card {
           box-shadow: none;
           break-inside: avoid;
+        }
+        /* Etwas dichter als am Bildschirm: mit den Bildschirmabstaenden war
+           Seite 4 randvoll und die Fusszeile stand allein auf Seite 5. */
+        .card {
+          padding: 1rem 1.2rem;
+          margin-bottom: 0.8rem;
+        }
+        td {
+          padding-top: 0.42rem;
+          padding-bottom: 0.42rem;
+        }
+        /* Die Fusszeile darf nicht allein auf eine fuenfte Seite rutschen. */
+        .print-footer {
+          break-inside: avoid;
+          margin-top: 0.8rem;
+          padding-top: 0.5rem;
         }
       }
     </style>
