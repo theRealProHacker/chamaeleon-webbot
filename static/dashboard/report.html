@@ -466,12 +466,18 @@
         table {
           font-size: 0.85rem;
         }
-        .metrics {
-          grid-template-columns: 1fr 1fr;
-        }
+        /* Kein "1fr 1fr": das floort jede Spalte auf ihren Inhalt, und
+           "Allgemeine Webseite: 1.188" schob die Seite bei 320px wieder ins
+           Seitenscrollen. Das auto-fit-Raster darueber ergibt bei 375px von
+           selbst zwei Spalten und bei 320px eine. Das Label bekommt zwei
+           Zeilen Platz, damit die grossen Zahlen nebeneinander auf einer
+           Hoehe stehen. */
         .metric-label {
           font-size: 0.68rem;
           letter-spacing: 0.04em;
+          min-height: 2.4em;
+          display: flex;
+          align-items: flex-end;
         }
         th,
         td {
