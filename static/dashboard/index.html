@@ -1125,7 +1125,7 @@
                 <span class="metric-value" id="avgUserMessagesValue">--</span>
                 <span class="metric-caption">Pro Gespräch</span>
               </div>
-              <div class="metric">
+              <div class="metric" id="durationMetric" hidden>
                 <span class="metric-label">Gesprächsdauer</span>
                 <span class="metric-value" id="medianDurationValue">--</span>
                 <span class="metric-caption">Median</span>
@@ -1327,6 +1327,7 @@
         totalChatsCaptionEl: document.getElementById("totalChatsCaption"),
         avgUserMessagesEl: document.getElementById("avgUserMessagesValue"),
         medianDurationEl: document.getElementById("medianDurationValue"),
+        durationMetric: document.getElementById("durationMetric"),
         metricsErrorEl: document.getElementById("metricsError"),
         messagesTitleEl: document.getElementById("messagesTitle"),
         messagesSubtitleEl: document.getElementById("messagesSubtitle"),
@@ -1589,7 +1590,6 @@
               {
                 total_chats: payload.total_chats,
                 avg_user_messages_per_chat: payload.avg_user_messages_per_chat,
-                median_duration_seconds: payload.median_duration_seconds,
               },
               "Alle Chats",
             );
@@ -1732,10 +1732,15 @@
         DOM.avgUserMessagesEl.textContent = formatDecimal(avgUserMessages);
         // Median, nicht Mittel — siehe die Notiz am Vormonatsvergleich: das
         // Mittel beschreibt die paar tagelang offenen Gespraeche, der Median
-        // den Monat.
-        DOM.medianDurationEl.textContent = formatDuration(
-          totals?.median_duration_seconds,
-        );
+        // den Monat. Nur je Monat: ueber den gesamten Zeitraum haette der
+        // Median nur die Chats seit Mai 2026 als Basis (davor gibt es keine
+        // Zeitstempel je Nachricht) und stuende neben einer Chatzahl, die
+        // alle zaehlt. Ein Monat ohne Basis zeigt "—".
+        const hasDuration = "median_duration_seconds" in (totals || {});
+        DOM.durationMetric.hidden = !hasDuration;
+        DOM.medianDurationEl.textContent = hasDuration
+          ? formatDuration(totals.median_duration_seconds)
+          : "--";
       }
 
       function renderMonthDetail(monthData) {

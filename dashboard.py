@@ -159,6 +159,7 @@ class MonthDetail(TypedDict):
     total_chats: int
     segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
+    median_duration_seconds: Optional[float]
     daily_counts: list[DailyCount]
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
@@ -171,7 +172,6 @@ class DashboardPayload(TypedDict):
     total_chats: int
     segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
-    median_duration_seconds: Optional[float]
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
     heatmap: list[list[int]]
@@ -757,7 +757,6 @@ def DASHBOARD_data():
         "total_chats": select(all_time["total_chats"], segments),
         "segment_counts": segment_counts(all_time["total_chats"]),
         "avg_user_messages_per_chat": avg_user_messages(all_time, segments),
-        "median_duration_seconds": median_duration(all_time, segments),
         "hourly_counts": [
             build_hourly_count(hour, select(vector, segments))
             for hour, vector in enumerate(all_time["hourly"])
