@@ -201,6 +201,10 @@
 
       table {
         width: 100%;
+        /* Feste Spaltenbreiten, damit die Balken in allen drei Tabellen
+           an derselben Stelle beginnen; im Automatik-Layout zog jeder
+           Spaltenkopf seine Spalte ein Stueck breiter. */
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 0.95rem;
       }
@@ -262,17 +266,23 @@
 
       /* Balken hinter dem Label: die Rangfolge muss auf einen Blick lesbar
          sein, nicht durch Ziffernvergleich. */
+      /* Im festen Tabellenlayout zaehlt die Kopfzeile; darum th UND td. */
+      th.bar-col,
+      td.bar-col {
+        width: 9rem;
+      }
+
       td.bar-col {
         padding-right: 0.6rem;
       }
 
-      /* Die Labelspalte hat in allen drei Tabellen dieselbe Breite, damit
-         die Balken untereinander an derselben Stelle beginnen; sonst rueckte
-         der Balken in der Laendertabelle (eine Spalte weniger) weit nach
-         rechts. Der Balken nimmt, was uebrig bleibt. */
-      th:first-child,
-      td:first-child {
-        width: 21rem;
+      /* Alle drei Tabellen sollen dieselbe Balkenspur an derselben Stelle
+         haben. Die Laendertabelle hat eine Spalte weniger; ihre Anteilsspalte
+         bekommt deshalb die Breite von Anteil + Delta, damit das Label in
+         allen Tabellen gleich breit bleibt. */
+      #countryTable th.share,
+      #countryTable td.share {
+        width: 13rem;
       }
 
       .bar {
@@ -284,10 +294,17 @@
 
       .bar > span {
         display: block;
+        /* Auch 2 von 365 muessen als Strich sichtbar sein, auf Papier erst
+           recht. */
+        min-width: 3px;
         height: 100%;
         border-radius: 3px;
         background: var(--accent);
         opacity: 0.5;
+      }
+
+      th.share {
+        width: 5rem;
       }
 
       td.share {
@@ -429,6 +446,9 @@
         }
         /* Zahlenspalten so schmal wie ihr Inhalt, der Rest gehoert dem
            Label — sonst bekam das Label ein Viertel und brach jedes Wort. */
+        table {
+          table-layout: auto;
+        }
         th:first-child,
         td:first-child {
           width: auto;
@@ -606,7 +626,7 @@
         <article class="card">
           <h2>Reiseziele</h2>
           <p class="card-subtitle">Die zehn häufigsten Länder.</p>
-          <table>
+          <table id="countryTable">
             <thead>
               <tr>
                 <th scope="col">Land</th>
