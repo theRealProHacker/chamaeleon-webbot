@@ -214,3 +214,11 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       Ein-Satz-Chats), liest sich aber wie ein Fehler; ob sie als Schlagzahl
       auf den Report gehört, ist eine Produktfrage. Beleg:
       `.gstack/qa-reports/qa-report-localhost-2026-09-04.md`.
+- [ ] **Dashboard unter 1024px: das Monatsdiagramm liegt HINTER dem rechten
+      Panel.** Zwischen der Kennzahlen-Karte und „Wo der Bot danebenliegt"
+      schaut ein Streifen des Balkendiagramms hervor (Achse „1.400" bzw. „40"
+      und Balken). Auf 1024 und 375px reproduziert, auch auf dem Stand vor der
+      Gesprächsdauer-Kachel (4dc4cf8) — also vorbestehend, nicht durch sie
+      verursacht. Dazu scrollt die Seite auf dem Telefon seitlich (Bereichs-
+      leiste, Ursachentabelle). Belege: `.gstack/qa-reports/screenshots/qa2-old-1024.png`,
+      `qa2-mobile-aug.png`.
