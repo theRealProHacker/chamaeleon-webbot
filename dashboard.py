@@ -534,6 +534,14 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             (stored.get("themen") or {}).get("neu", [0, 0, 0]), segments
         ),
         "laender": month_aggregate.top_countries(stored, segments),
+        # Die Zahl der Gespraeche, in denen kein Reiseland vorkam. Sie faellt
+        # aus der Zehnerliste heraus (sie sortiert immer ans Ende), gehoert aber
+        # in den Report: ohne sie liest sich die Laenderspalte, als beschriebe
+        # sie alle Gespraeche.
+        "laender_ohne": select(
+            (stored.get("laender") or {}).get(month_aggregate.NO_COUNTRY, [0, 0, 0]),
+            segments,
+        ),
     }
 
 
