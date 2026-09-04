@@ -193,6 +193,15 @@
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
+      /* Mit vier Kacheln brechen zwei der Labels um; die grossen Zahlen
+         standen dann auf verschiedenen Hoehen. Jedes Label bekommt zwei
+         Zeilen Platz, die Zahl darunter steht wieder auf einer Linie. */
+      .metrics-grid-wide:has(#badMetric:not([hidden])) .metric-label {
+        min-height: 2.4em;
+        display: flex;
+        align-items: flex-end;
+      }
+
       /* A count spanning 3 to 209 is not readable as digits alone. */
       .cause-bar-track {
         display: block;
@@ -1116,6 +1125,11 @@
                 <span class="metric-value" id="avgUserMessagesValue">--</span>
                 <span class="metric-caption">Pro Gespräch</span>
               </div>
+              <div class="metric">
+                <span class="metric-label">Gesprächsdauer</span>
+                <span class="metric-value" id="medianDurationValue">--</span>
+                <span class="metric-caption">Median</span>
+              </div>
               <div class="metric" id="badMetric" hidden>
                 <span class="metric-label">Schlechte Antworten</span>
                 <span class="metric-value" id="qualityBadValue">--</span>
@@ -1312,6 +1326,7 @@
         totalChatsValueEl: document.getElementById("totalChatsValue"),
         totalChatsCaptionEl: document.getElementById("totalChatsCaption"),
         avgUserMessagesEl: document.getElementById("avgUserMessagesValue"),
+        medianDurationEl: document.getElementById("medianDurationValue"),
         metricsErrorEl: document.getElementById("metricsError"),
         messagesTitleEl: document.getElementById("messagesTitle"),
         messagesSubtitleEl: document.getElementById("messagesSubtitle"),
@@ -1574,6 +1589,7 @@
               {
                 total_chats: payload.total_chats,
                 avg_user_messages_per_chat: payload.avg_user_messages_per_chat,
+                median_duration_seconds: payload.median_duration_seconds,
               },
               "Alle Chats",
             );
@@ -1714,6 +1730,12 @@
         DOM.totalChatsCaptionEl.textContent =
           scopeLabel === "Alle Chats" ? "Über den gesamten Zeitraum" : "";
         DOM.avgUserMessagesEl.textContent = formatDecimal(avgUserMessages);
+        // Median, nicht Mittel — siehe die Notiz am Vormonatsvergleich: das
+        // Mittel beschreibt die paar tagelang offenen Gespraeche, der Median
+        // den Monat.
+        DOM.medianDurationEl.textContent = formatDuration(
+          totals?.median_duration_seconds,
+        );
       }
 
       function renderMonthDetail(monthData) {
@@ -1736,6 +1758,7 @@
           {
             total_chats: monthData?.total_chats,
             avg_user_messages_per_chat: monthData?.avg_user_messages_per_chat,
+            median_duration_seconds: monthData?.median_duration_seconds,
           },
           state.currentView.label,
         );
