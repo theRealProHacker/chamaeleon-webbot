@@ -1057,6 +1057,10 @@
         const label = data.label || MONTH;
         document.title = `Report ${label} · Chamäleon Chat`;
         el("title").textContent = `Monatsreport ${label}`;
+        // Vor dem fruehen Ausstieg fuer Monate ohne Auswertung: sonst stand
+        // dort eine leere Trennlinie ohne Fusszeile.
+        el("printFooter").textContent =
+          `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.origin}${window.location.pathname}`;
         const lastDay = (data.daily_counts || []).at(-1)?.label;
         el("period").textContent = lastDay
           ? `Zeitraum 1. bis ${lastDay} ${data.month.slice(0, 4)}`
@@ -1321,8 +1325,6 @@
           "Die Gespräche wurden automatisch von einem Sprachmodell eingeordnet. " +
           "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
         el("provenance").style.marginBottom = "2rem";
-        el("printFooter").textContent =
-          `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.origin}${window.location.pathname}`;
       }
 
       load();
