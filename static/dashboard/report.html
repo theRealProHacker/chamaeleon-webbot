@@ -1203,7 +1203,7 @@
               cause.count !== null
             ) {
               const diff = cause.count - was;
-              delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+              delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
               // In einer Tabelle ueber Fehler ist mehr schlechter. Ohne Farbe
               // muss der Leser sich das selbst herleiten.
               direction = diff > 0 ? " up" : diff < 0 ? " down" : "";
@@ -1232,7 +1232,7 @@
           let residualDirection = "";
           if (comparable && wasResidual !== undefined && wasResidual !== null) {
             const diff = residualCauses - wasResidual;
-            residualDelta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+            residualDelta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
             residualDirection = diff > 0 ? " up" : diff < 0 ? " down" : "";
           }
           causeRows.push([
@@ -1277,7 +1277,7 @@
               const was = topicBefore ? topicBefore.get(topic.thema_id) : undefined;
               if (was !== undefined) {
                 const diff = (topic.count || 0) - was;
-                delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+                delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
                 // Bei Themen ist mehr weder gut noch schlecht, es ist nur
                 // mehr — deshalb keine Farbe.
                 direction = "";
