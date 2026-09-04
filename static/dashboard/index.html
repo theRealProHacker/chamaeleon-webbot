@@ -204,13 +204,15 @@
         align-items: flex-end;
         /* "NUTZERNACHRICHTEN" ist ein Wort; mit vier Spalten ragte es bei
            1280px 14px aus seiner Kachel. */
-        font-size: 0.78rem;
-        letter-spacing: 0.05em;
+        font-size: 0.74rem;
+        letter-spacing: 0.04em;
       }
 
-      /* Zwischen 641 und 1300px fallen vier Kacheln sonst auf 3 + 1. */
+      /* Zwischen 641 und 1300px fallen vier Kacheln sonst auf 3 + 1.
+         Doppelte Klasse: die allgemeine .metrics-grid-Regel steht weiter
+         unten und gewann sonst bei gleicher Spezifitaet. */
       @media (min-width: 641px) and (max-width: 1300px) {
-        .metrics-grid-wide {
+        .metrics-grid.metrics-grid-wide {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
