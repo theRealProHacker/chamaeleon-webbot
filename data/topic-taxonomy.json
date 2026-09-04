@@ -2,63 +2,103 @@
   "themen": [
     {
       "thema_id": "t01",
-      "label": "Flüge und Anreise",
-      "definition": "Dieses Thema umfasst alle Fragen und Anliegen der Nutzer bezüglich Flügen, Flugzeiten, Airlines, Rail&Fly-Tickets, Sitzplatzreservierungen, Online Check-in und Zubringerflügen."
+      "label": "Reisezeit und Klima",
+      "definition": "Dieses Thema umfasst Fragen zur besten Reisezeit, saisonalen Bedingungen, Temperaturen und Klimazonen eines Reiseziels."
     },
     {
       "thema_id": "t02",
       "label": "Visum und Einreisebestimmungen",
-      "definition": "Dieses Thema behandelt alle Fragen zu Visa, Einreisebestimmungen, elektronischen Reisegenehmigungen (eTA/e-Visa) und erforderlichen Dokumenten für verschiedene Länder."
+      "definition": "Dieses Thema behandelt alle Fragen rund um Visa, Einreisevorschriften, Passgültigkeit und benötigte Dokumente für ein Reiseland."
     },
     {
       "thema_id": "t03",
-      "label": "Zahlung und Rechnung",
-      "definition": "Dieses Thema beinhaltet alle Anfragen zu Zahlungsmodalitäten, Anzahlungen, Restzahlungen, Kreditkartenzahlungen, Zahlungslinks und Rechnungen."
+      "label": "Flüge und Anreise",
+      "definition": "Dieses Thema beinhaltet Fragen zu Fluggesellschaften, Abflughäfen, Flugzeiten, Zubringerflügen, Rail&Fly-Tickets und dem Check-in-Prozess."
     },
     {
       "thema_id": "t04",
-      "label": "Reiseunterlagen und Buchungsdetails",
-      "definition": "Dieses Thema umfasst Fragen zu Reiseunterlagen, Flugplänen, Buchungsnummern, Passdaten, Reisebestätigungen und dem Einsehen von Buchungsdetails."
+      "label": "Preise und Zahlungsmodalitäten",
+      "definition": "Dieses Thema umfasst Fragen zu Reisepreisen, Kosten für Zusatzleistungen, Zahlungsarten, Anzahlungen, Restzahlungen und Kreditkartenzahlungen."
     },
     {
       "thema_id": "t05",
-      "label": "Reisezeit und Klima",
-      "definition": "Dieses Thema behandelt Anfragen zur besten Reisezeit für bestimmte Länder oder Regionen und Informationen zum Klima während der Reise."
+      "label": "Reiseunterlagen und Dokumente",
+      "definition": "Dieses Thema bezieht sich auf Fragen zu Reisebestätigungen, Rechnungen, Flugplänen, digitalen und physischen Reiseunterlagen sowie deren Verfügbarkeit."
     },
     {
       "thema_id": "t06",
-      "label": "Agenturbereich und Provision",
-      "definition": "Dieses Thema umfasst alle Fragen von Reisebüros zum Agenturbereich, Login, Passwort zurücksetzen, Provisionen, Umsatzübersichten und Marketingmaterialien."
+      "label": "Buchung und Reservierung",
+      "definition": "Dieses Thema umfasst Fragen zur Buchung von Reisen, unverbindlichen Reservierungen, Optionen, deren Status und der Umwandlung in Festbuchungen."
     },
     {
       "thema_id": "t07",
-      "label": "Reiseanpassungen und Stornierungen",
-      "definition": "Dieses Thema beinhaltet Anfragen zu Änderungen an bestehenden Buchungen, Verlängerungen, Stornierungen von Optionen oder festen Buchungen."
+      "label": "Unterkünfte und Zimmer",
+      "definition": "Dieses Thema behandelt Fragen zu Hotels, Lodges, Zimmerkategorien, Einzelzimmerzuschlägen und speziellen Unterkunftswünschen."
     },
     {
       "thema_id": "t08",
-      "label": "Gepäck und Transport vor Ort",
-      "definition": "Dieses Thema behandelt Fragen zu Gepäckbestimmungen, Transportmitteln während der Reise, Gepäckanhängern und der Handhabung von Gepäck."
-    },
-    {
-      "thema_id": "t09",
       "label": "Gesundheit und Impfungen",
       "definition": "Dieses Thema umfasst Fragen zu empfohlenen Impfungen, Malariaprophylaxe und reisemedizinischer Vorsorge."
     },
     {
+      "thema_id": "t09",
+      "label": "Gepäck und Transport vor Ort",
+      "definition": "Dieses Thema beinhaltet Fragen zu Gepäckbestimmungen, Transportmitteln vor Ort, Straßenverhältnissen und Gepäckanhängern."
+    },
+    {
       "thema_id": "t10",
-      "label": "Reiseziele und Empfehlungen",
-      "definition": "Dieses Thema beinhaltet allgemeine Anfragen zu Reisezielen, Empfehlungen für bestimmte Reisearten (z.B. Aktiv- oder Genussreisen) oder Gruppengrößen."
+      "label": "Reiseplanung und -gestaltung",
+      "definition": "Dieses Thema umfasst Fragen zur individuellen Anpassung von Reisen, Verlängerungen, optionalen Aktivitäten und der allgemeinen Reiseplanung."
     },
     {
       "thema_id": "t11",
-      "label": "Kataloge und Informationen",
-      "definition": "Dieses Thema umfasst Anfragen zu Reisekatalogen, deren Bestellung oder Online-Ansicht sowie allgemeinen Informationen zu Chamäleon Reisen."
+      "label": "Agenturbereich und Partnerprogramm",
+      "definition": "Dieses Thema bezieht sich auf Fragen von Reisebüros zu Login, Provisionen, Marketingmaterialien, Schulungen und der Zusammenarbeit mit Chamäleon Reisen."
     },
     {
       "thema_id": "t12",
-      "label": "LiveStreams und Events",
-      "definition": "Dieses Thema behandelt Fragen zu LiveStreams, deren Aufzeichnungen, Verlosungen und Anmeldungen zu Events wie den Erlebnistagen."
+      "label": "Sitzplatzreservierung und Komfort",
+      "definition": "Dieses Thema umfasst Fragen zur Reservierung von Sitzplätzen im Flugzeug, Kosten für mehr Beinfreiheit und speziellen Sitzplatzwünschen."
+    },
+    {
+      "thema_id": "t13",
+      "label": "Stornierung und Änderungen",
+      "definition": "Dieses Thema behandelt Fragen zur Stornierung von Reisen oder einzelnen Leistungen sowie zu Änderungen an bestehenden Buchungen."
+    },
+    {
+      "thema_id": "t14",
+      "label": "Reiseziele und Empfehlungen",
+      "definition": "Dieses Thema umfasst allgemeine Anfragen zu Reisezielen, Empfehlungen für bestimmte Interessen oder Personengruppen und Informationen zu Ländern."
+    },
+    {
+      "thema_id": "t15",
+      "label": "Kommunikation und Kontakt",
+      "definition": "Dieses Thema beinhaltet Fragen zu Kontaktmöglichkeiten mit Chamäleon Reisen, E-Mail-Adressen und Telefonnummern."
+    },
+    {
+      "thema_id": "t16",
+      "label": "Währung und Zahlungsmittel vor Ort",
+      "definition": "Dieses Thema umfasst Fragen zu lokalen Währungen, Geldwechsel, Kreditkartennutzung und Trinkgeldempfehlungen im Reiseland."
+    },
+    {
+      "thema_id": "t17",
+      "label": "Technische Probleme und Support",
+      "definition": "Dieses Thema behandelt Schwierigkeiten mit dem Login, der Webseite, dem Hochladen von Dokumenten oder anderen technischen Anliegen."
+    },
+    {
+      "thema_id": "t18",
+      "label": "Reiseerlebnisse und Aktivitäten",
+      "definition": "Dieses Thema umfasst Fragen zu spezifischen Aktivitäten, Ausflügen, Safaris und dem allgemeinen Charakter der Reiseerlebnisse."
+    },
+    {
+      "thema_id": "t19",
+      "label": "Kataloge und Informationsmaterial",
+      "definition": "Dieses Thema bezieht sich auf die Bestellung und den Zugriff auf Reisekataloge, Broschüren und andere Informationsmaterialien."
+    },
+    {
+      "thema_id": "t20",
+      "label": "Datenschutz und persönliche Daten",
+      "definition": "Dieses Thema umfasst Fragen zum Schutz persönlicher Daten, dem Zugriff auf Buchungsinformationen und der Aktualisierung von Kundendaten."
     }
   ]
 }

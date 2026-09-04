@@ -832,6 +832,19 @@ def DASHBOARD_index():
 
 
 @auth_required
+def DASHBOARD_report(month: MonthKey):
+    """The report of one month as its own page.
+
+    Deliberately a page and not a tab: this is what remains of a month once its
+    transcripts are gone, so it has to be linkable, printable, and readable by
+    someone who did not click their way through the dashboard to get here.
+    """
+    if not month or not MONTH_RE.match(month):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    return send_from_directory("static/dashboard", "report.html")
+
+
+@auth_required
 def admin_index():
     # Hidden admin page: no link from the dashboard, same Basic-Auth gate.
     return send_from_directory("static/admin", "index.html")
@@ -892,6 +905,12 @@ routes = [
     ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_run, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/dashboard", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/dashboard/", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    (
+        "/dashboard/report/<string:month>",
+        DASHBOARD_report,
+        ["GET"],
+        rate_limit.DASHBOARD_LIMIT,
+    ),
     ("/admin", admin_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/", admin_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/reindex", reindex_travels, ["POST"], rate_limit.ADMIN_LIMIT),

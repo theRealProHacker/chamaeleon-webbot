@@ -563,6 +563,20 @@
         word-spacing: 0.08em;
       }
 
+      .report-link {
+        display: inline-block;
+        margin-bottom: 0.9rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .report-link:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
       .load-more {
         display: block;
         width: 100%;
@@ -1114,6 +1128,9 @@
           <article id="qualityCard" class="card">
             <h2 id="qualityTitle">Wo der Bot danebenliegt</h2>
             <p class="card-subtitle" id="qualitySubtitle"></p>
+            <a id="reportLink" class="report-link" href="#" hidden
+              >Report als eigene Seite öffnen →</a
+            >
             <div id="qualityState" class="card-state" hidden></div>
             <table class="cause-table" id="causeTable" hidden>
               <thead>
@@ -1272,6 +1289,7 @@
         monthlyChartWrapper: document.getElementById("monthlyChartWrapper"),
         dailyChartCard: document.getElementById("dailyChartCard"),
         dailyChartWrapper: document.getElementById("dailyChartWrapper"),
+        reportLink: document.getElementById("reportLink"),
         topicCard: document.getElementById("topicCard"),
         topicState: document.getElementById("topicState"),
         topicTable: document.getElementById("topicTable"),
@@ -2275,6 +2293,7 @@
           DOM.badMetric.hidden = true;
           DOM.causeTable.hidden = true;
           DOM.causeFootnote.hidden = true;
+          DOM.reportLink.hidden = true;
           DOM.qualitySubtitle.textContent = "";
           setCardState(DOM.qualityState, QUALITY_STATE_TEXT[status] ?? QUALITY_STATE_TEXT.missing);
           return;
@@ -2304,6 +2323,16 @@
         // does not print a "Stand" — that is provenance, not product.
         DOM.qualitySubtitle.textContent =
           "Zeile anklicken zeigt die Gespräche dahinter.";
+
+        // Der Report ist das, was von einem Monat bleibt, wenn seine
+        // Transkripte weg sind — also muss er eine eigene, verschickbare
+        // Adresse haben und nicht nur ein Zustand dieser Seite.
+        if (state.selectedMonthKey) {
+          DOM.reportLink.hidden = false;
+          DOM.reportLink.href = `/dashboard/report/${state.selectedMonthKey}`;
+        } else {
+          DOM.reportLink.hidden = true;
+        }
 
         renderCauseTable(quality);
         renderTopicTable(quality);

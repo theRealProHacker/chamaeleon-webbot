@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Monatsreport · Chamäleon Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --surface-muted: #f1f5f9;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --text-muted: #475569;
+        --accent: #2563eb;
+
+        --shadow-s:
+          inset 0 1px 2px #ffffff30,
+          0 1px 2px #00000030,
+          0 2px 4px #00000015;
+        --shadow-m:
+          inset 0 1px 2px #ffffff50,
+          0 2px 4px #00000030,
+          0 4px 8px #00000015;
+
+        --heat-0: #e2e8f0;
+        --heat-1: #b9d5f7;
+        --heat-2: #93c5fd;
+        --heat-3: #5b9bf8;
+        --heat-4: #2563eb;
+        --heat-5: #1e40af;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .page {
+        max-width: 60rem;
+        margin: 0 auto;
+        padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 4rem;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.3rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+
+      .provenance {
+        margin: -1.4rem 0 2rem;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      .back {
+        display: inline-block;
+        margin-bottom: 1.5rem;
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+
+      .back:hover {
+        color: var(--accent);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.7rem, 3vw, 2.3rem);
+        letter-spacing: -0.02em;
+      }
+
+      .lede {
+        margin: 0.4rem 0 2rem;
+        color: var(--text-muted);
+        font-size: 1rem;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1.4rem;
+        margin-bottom: 1.25rem;
+        box-shadow: var(--shadow-s);
+      }
+
+      h2 {
+        margin: 0 0 0.35rem;
+        font-size: 1.15rem;
+        letter-spacing: -0.01em;
+        word-spacing: 0.08em;
+      }
+
+      .card-subtitle {
+        margin: 0 0 1rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .metrics {
+        margin-top: 1.1rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: 1rem;
+      }
+
+      .metric {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+
+      .metric-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+
+      .metric-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+      }
+
+      .metric-caption {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+
+      th {
+        text-align: left;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        font-weight: 600;
+        padding: 0 0.6rem 0.6rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th.num,
+      td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        width: 8rem;
+      }
+
+      td {
+        padding: 0.6rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: baseline;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      /* In einer Rangliste wird die ZAHL gescannt, nicht die Prosa. */
+      .row-label {
+        font-weight: 500;
+      }
+
+      td.num {
+        font-weight: 600;
+      }
+
+      .footnote {
+        margin: 0.9rem 0 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      .state {
+        padding: 1rem;
+        border-radius: 10px;
+        background: var(--surface-muted);
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+
+      /* Heatmap: dieselbe Rampe und dasselbe Raster wie im Dashboard, ohne
+         Klickfilter — auf einer Reportseite gibt es keine Gespraeche mehr,
+         in die man hineinklicken koennte. */
+      .heatmap {
+        display: grid;
+        grid-template-columns: 2.2rem repeat(24, minmax(0, 1fr));
+        gap: 2px;
+        align-items: center;
+      }
+
+      .heat-day {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-align: right;
+        padding-right: 0.35rem;
+      }
+
+      .heat-cell {
+        aspect-ratio: 1;
+        border-radius: 3px;
+        background: var(--heat-0);
+      }
+
+      .heat-hours {
+        display: grid;
+        grid-template-columns: 2.2rem repeat(24, minmax(0, 1fr));
+        gap: 2px;
+        margin-top: 0.35rem;
+      }
+
+      .heat-hour {
+        font-size: 0.62rem;
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .heat-legend {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.9rem;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .heat-swatch {
+        width: 0.85rem;
+        height: 0.85rem;
+        border-radius: 3px;
+      }
+
+      .heat-legend-note {
+        margin-left: 0.5rem;
+      }
+
+      .heat-scroll {
+        overflow-x: auto;
+      }
+
+      .heat-scroll > * {
+        min-width: 34rem;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+        .page {
+          padding: 0;
+          max-width: none;
+        }
+        .back {
+          display: none;
+        }
+        .card {
+          box-shadow: none;
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <a class="back" href="/dashboard">← Zurück zum Dashboard</a>
+      <p class="eyebrow">Chamäleon Reisen · Chatbot</p>
+      <h1 id="title">Monatsreport</h1>
+      <p class="lede" id="lede"></p>
+      <p class="provenance" id="provenance"></p>
+
+      <div id="content" hidden>
+        <article class="card">
+          <h2>Der Monat in Zahlen</h2>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">Gespräche</span>
+              <span class="metric-value" id="mChats">--</span>
+              <span class="metric-caption" id="mSegments"></span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Ø Nutzernachrichten</span>
+              <span class="metric-value" id="mUserMsgs">--</span>
+              <span class="metric-caption" id="mUserCaption"></span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Schlecht beantwortet</span>
+              <span class="metric-value" id="mBad">--</span>
+              <span class="metric-caption" id="mBadCaption"></span>
+            </div>
+          </div>
+          <p class="footnote" id="glossary"></p>
+        </article>
+
+        <article class="card">
+          <h2>Wo der Bot danebenliegt</h2>
+          <p class="card-subtitle" id="causeSubtitle"></p>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Ursache</th>
+                <th scope="col" class="num">Gespräche</th>
+                <th scope="col" class="num" id="deltaHead">Δ Vormonat</th>
+              </tr>
+            </thead>
+            <tbody id="causeBody"></tbody>
+          </table>
+          <p class="footnote" id="causeFootnote" hidden></p>
+        </article>
+
+        <article class="card" id="topicCard">
+          <h2>Worüber gesprochen wird</h2>
+          <p class="card-subtitle">
+            Das Anliegen des Nutzers, ein Thema je Gespräch.
+          </p>
+          <div class="state" id="topicState" hidden></div>
+          <table id="topicTable" hidden>
+            <thead>
+              <tr>
+                <th scope="col">Thema</th>
+                <th scope="col" class="num">Gespräche</th>
+              </tr>
+            </thead>
+            <tbody id="topicBody"></tbody>
+          </table>
+          <p class="footnote" id="topicFootnote" hidden></p>
+        </article>
+
+        <article class="card">
+          <h2>Reiseziele</h2>
+          <p class="card-subtitle">Die zehn häufigsten Länder.</p>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Land</th>
+                <th scope="col" class="num">Gespräche</th>
+              </tr>
+            </thead>
+            <tbody id="countryBody"></tbody>
+          </table>
+          <p class="footnote" id="countryFootnote" hidden></p>
+        </article>
+
+        <article class="card">
+          <h2>Wochentag und Uhrzeit</h2>
+          <p class="card-subtitle">Startzeit der Gespräche, Berliner Zeit.</p>
+          <div class="heat-scroll">
+            <div class="heatmap" id="heatmap"></div>
+            <div class="heat-hours" id="heatHours"></div>
+          </div>
+          <div class="heat-legend">
+            <span>0</span>
+            <span class="heat-swatch" style="background: var(--heat-1)"></span>
+            <span class="heat-swatch" style="background: var(--heat-2)"></span>
+            <span class="heat-swatch" style="background: var(--heat-3)"></span>
+            <span class="heat-swatch" style="background: var(--heat-4)"></span>
+            <span class="heat-swatch" style="background: var(--heat-5)"></span>
+            <span id="heatMax">--</span>
+            <span class="heat-legend-note">Gespräche pro Stunde</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="state" id="pageState">Report wird geladen …</div>
+    </main>
+
+    <script>
+      const MONTH = window.location.pathname.split("/").pop();
+      const DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+      const SEGMENT_LABELS = {
+        allgemein: "Allgemeine Webseite",
+        meinchamaeleon: "MeinChamäleon",
+        agentur: "Agentur",
+      };
+
+      const fmt = (n) =>
+        typeof n === "number" ? n.toLocaleString("de-DE") : "--";
+      const dec = (n) =>
+        typeof n === "number"
+          ? n.toLocaleString("de-DE", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })
+          : "--";
+      const el = (id) => document.getElementById(id);
+
+      function setState(text) {
+        el("pageState").textContent = text;
+        el("pageState").hidden = false;
+        el("content").hidden = true;
+      }
+
+      function fillRows(tbody, rows) {
+        const frag = document.createDocumentFragment();
+        rows.forEach((cells) => {
+          const tr = document.createElement("tr");
+          cells.forEach((cell, index) => {
+            const td = document.createElement("td");
+            if (index === 0) {
+              const span = document.createElement("span");
+              span.className = "row-label";
+              // textContent: der Text stammt aus einem Sprachmodell ueber
+              // Nutzertext und aus der Datenbank.
+              span.textContent = cell.text;
+              if (cell.title) span.title = cell.title;
+              td.appendChild(span);
+            } else {
+              td.className = "num";
+              td.textContent = cell.text;
+              if (cell.title) td.title = cell.title;
+            }
+            tr.appendChild(td);
+          });
+          frag.appendChild(tr);
+        });
+        tbody.replaceChildren(frag);
+      }
+
+      function renderHeatmap(rows) {
+        const grid = el("heatmap");
+        const peak = Math.max(1, ...rows.flat());
+        // Ohne Skala ist eine dunkle Zelle 8 oder 80 Gespraeche.
+        el("heatMax").textContent = fmt(peak);
+        const frag = document.createDocumentFragment();
+        rows.forEach((row, day) => {
+          const label = document.createElement("div");
+          label.className = "heat-day";
+          label.textContent = DAYS[day];
+          frag.appendChild(label);
+          row.forEach((count, hour) => {
+            const cell = document.createElement("div");
+            cell.className = "heat-cell";
+            const step = count === 0 ? 0 : Math.ceil((count / peak) * 5);
+            cell.style.background = `var(--heat-${step})`;
+            cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")}:00 — ${fmt(count)} Gespräche`;
+            frag.appendChild(cell);
+          });
+        });
+        grid.replaceChildren(frag);
+
+        const hours = document.createDocumentFragment();
+        hours.appendChild(document.createElement("div"));
+        for (let hour = 0; hour < 24; hour += 1) {
+          const mark = document.createElement("div");
+          mark.className = "heat-hour";
+          mark.textContent = hour % 3 === 0 ? String(hour) : "";
+          hours.appendChild(mark);
+        }
+        el("heatHours").replaceChildren(hours);
+      }
+
+      async function load() {
+        let data;
+        try {
+          const response = await fetch(`/api/dashboard/${MONTH}`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(String(response.status));
+          data = await response.json();
+        } catch (error) {
+          setState("Der Report konnte nicht geladen werden.");
+          return;
+        }
+
+        const label = data.label || MONTH;
+        document.title = `Report ${label} · Chamäleon Chat`;
+        el("title").textContent = `Monatsreport ${label}`;
+
+        const quality = data.quality || {};
+        const hasReport =
+          quality.status === "ok" || quality.status === "partial";
+        if (!hasReport) {
+          // Der haeufigste Fall auf dieser Seite ist ein Monat, der noch nicht
+          // ausgewertet wurde — der muss als solcher dastehen und nicht als
+          // leerer Report mit lauter Nullen.
+          el("lede").textContent = "";
+          setState(
+            `Für ${label} liegt noch keine Auswertung vor. Die Zahlen des Monats stehen im Dashboard.`,
+          );
+          return;
+        }
+
+        el("pageState").hidden = true;
+        el("content").hidden = false;
+        el("lede").textContent =
+          quality.status === "partial"
+            ? "Die Auswertung ist unvollständig — ein Teil der Gespräche wurde nicht eingeordnet."
+            : "Was in diesem Monat gefragt wurde und wo der Bot danebenlag.";
+
+        el("mChats").textContent = fmt(data.total_chats);
+        const segments = data.segment_counts || {};
+        // Lesbare Namen, nicht die internen Slugs: "meinchamaeleon" sagt einer
+        // Mitarbeiterin im Buero nichts.
+        el("mSegments").textContent = Object.entries(segments)
+          .filter(([, count]) => count > 0)
+          .map(([name, count]) => `${SEGMENT_LABELS[name] ?? name} ${fmt(count)}`)
+          .join(" · ");
+        el("mUserMsgs").textContent = dec(data.avg_user_messages_per_chat);
+        el("mUserCaption").textContent = "Wie viel gefragt wurde";
+
+        const evaded = quality.qualitaet?.ausgewichen ?? 0;
+        const aborted = quality.qualitaet?.abgebrochen ?? 0;
+        const wrong = quality.qualitaet?.falsch ?? 0;
+        const bad = evaded + aborted + wrong;
+        el("mBad").textContent = fmt(bad);
+        // Die Bildunterschrift muss ALLE drei Klassen nennen. Ohne `falsch`
+        // standen hier zwei Zahlen, die nicht auf die Zahl darueber addierten,
+        // und der Leser hatte keine Moeglichkeit zu sehen, welche stimmt.
+        const parts = [`${fmt(evaded)} ausgewichen`, `${fmt(aborted)} abgebrochen`];
+        if (wrong) parts.push(`${fmt(wrong)} falsch`);
+        const share = data.total_chats
+          ? ` · ${Math.round((bad / data.total_chats) * 100)} % aller Gespräche`
+          : "";
+        el("mBadCaption").textContent = parts.join(" · ") + share;
+
+        // Zaehleinheit und Vokabular einmal erklaeren. Diese Seite ist das,
+        // was von einem Monat bleibt — sie kann sich nicht darauf verlassen,
+        // dass jemand daneben sitzt und die Begriffe kennt.
+        el("glossary").textContent =
+          "Gezählt wird je Gespräch, nicht je Nachricht. „Ausgewichen“ heißt: der Bot " +
+          "hat freundlich geantwortet, ohne die Frage zu beantworten. „Abgebrochen“: " +
+          "der Nutzer hat erkennbar aufgegeben.";
+
+        const previous = new Map(Object.entries(quality.vormonat ?? {}));
+        const comparable = previous.size > 0;
+        // Den Vergleichsmonat benennen. "Δ Vormonat" allein zwingt den Leser
+        // zu raten, gegen welchen Monat da gerechnet wird.
+        if (data.month) {
+          const [year, month] = data.month.split("-").map(Number);
+          const before = new Date(Date.UTC(year, month - 2, 1));
+          el("deltaHead").textContent = comparable
+            ? `Δ ${before.toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" })}`
+            : "Δ Vormonat";
+        }
+        fillRows(
+          el("causeBody"),
+          (quality.ursachen || []).map((cause) => {
+            let delta = "—";
+            const before = previous.get(cause.ursache_id);
+            if (
+              comparable &&
+              before !== undefined &&
+              before !== null &&
+              cause.count !== null
+            ) {
+              const diff = cause.count - before;
+              delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+            }
+            return [
+              { text: cause.label ?? cause.ursache_id, title: cause.definition },
+              // null heisst "wird nicht mehr gemessen" und ist nicht 0 — eine
+              // stillgelegte Ursache mit einer 0 laese sich als Erfolg lesen.
+              { text: cause.count === null ? "—" : fmt(cause.count) },
+              { text: delta },
+            ];
+          }),
+        );
+        // Die Tabelle summiert sich NICHT auf die Kachel darueber, und das ist
+        // richtig so: sie zeigt die haeufigsten Ursachen, der Rest faellt in
+        // `neu`. Ohne diesen Satz rechnet der Leser nach, findet eine Luecke
+        // und weiss nicht, ob er einer der beiden Zahlen trauen kann.
+        const causes = quality.ursachen || [];
+        const causeSum = causes.reduce((sum, c) => sum + (c.count || 0), 0);
+        const residualCauses = bad - causeSum;
+        const notes = [
+          `Die ${causes.length} häufigsten Ursachen decken ${fmt(causeSum)} der ${fmt(bad)} schlecht beantworteten Gespräche.`,
+        ];
+        if (residualCauses > 0) {
+          notes.push(`${fmt(residualCauses)} passen in keine davon.`);
+        }
+        const classified = quality.classified_chats || 0;
+        if (classified && (quality.neu || 0) / classified > 0.05) {
+          notes.push("Die Liste braucht eine neue Ursache.");
+        }
+        el("causeSubtitle").textContent =
+          "Warum der Bot eine Frage nicht beantwortet hat, je Gespräch gezählt.";
+        el("causeFootnote").hidden = false;
+        el("causeFootnote").textContent = notes.join(" ");
+
+        const topics = quality.themen || [];
+        if (topics.length) {
+          el("topicTable").hidden = false;
+          fillRows(
+            el("topicBody"),
+            topics.map((topic) => [
+              { text: topic.label ?? topic.thema_id, title: topic.definition },
+              { text: fmt(topic.count) },
+            ]),
+          );
+          const residual = quality.themen_neu || 0;
+          if (classified && residual / classified > 0.05) {
+            el("topicFootnote").hidden = false;
+            el("topicFootnote").textContent =
+              `${fmt(residual)} Gespräche passen in keines dieser Themen — die Liste braucht ein neues.`;
+          }
+        } else {
+          // Kein Entwickler-Hinweis im Produkt: eine Karte, die nur erklaert,
+          // warum sie leer ist, gehoert nicht auf die Seite.
+          el("topicCard").hidden = true;
+        }
+
+        const countries = quality.laender || [];
+        fillRows(
+          el("countryBody"),
+          countries.map((entry) => [
+            { text: entry.land },
+            { text: fmt(entry.count) },
+          ]),
+        );
+        // Immer erklaeren, nicht nur wenn die Spalte die Chatzahl uebersteigt:
+        // dass hier eine ZEHNERLISTE steht und dass viele Gespraeche gar kein
+        // Land nennen, ist beides aus der Tabelle nicht ablesbar.
+        const countrySum = countries.reduce((sum, e) => sum + e.count, 0);
+        if (countries.length) {
+          el("countryFootnote").hidden = false;
+          el("countryFootnote").textContent =
+            `Die zehn häufigsten Länder decken ${fmt(countrySum)} Nennungen. ` +
+            "Ein Gespräch über mehrere Länder zählt für jedes davon, und viele Gespräche nennen gar kein Land — " +
+            "die Spalte lässt sich deshalb nicht gegen die Zahl der Gespräche rechnen.";
+        }
+
+        if (Array.isArray(data.heatmap) && data.heatmap.length === 7) {
+          renderHeatmap(data.heatmap);
+        }
+
+        const stand = data.quality?.computed_at
+          ? new Date(data.quality.computed_at).toLocaleDateString("de-DE", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+          : null;
+        el("provenance").textContent =
+          (stand ? `Ausgewertet am ${stand}. ` : "") +
+          "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
+      }
+
+      load();
+    </script>
+  </body>
+</html>

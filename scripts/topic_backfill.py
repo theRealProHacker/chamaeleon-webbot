@@ -35,7 +35,7 @@ import quality_job
 
 MONTHS = ["2026-07", "2026-08"]
 TOPIC_PATH = "data/topic-taxonomy.json"
-SAMPLE_PER_MONTH = 75
+SAMPLE_PER_MONTH = 150
 
 
 def load_or_build_topics(rows_by_month: dict[str, list]) -> list[dict]:
@@ -56,7 +56,12 @@ def load_or_build_topics(rows_by_month: dict[str, list]) -> list[dict]:
         picked = quality_job._stratified_sample(rows_by_month[month], SAMPLE_PER_MONTH)
         sample += [c for row in picked if (c := chat_quality.prepare_chat(row))]
     print(f"[topics] deriving from {len(sample)} chats across {len(MONTHS)} months")
-    topics, _ = chat_quality.build_topic_taxonomy(sample)
+    # Breiter als der erste Versuch. Mit 12 Themen aus 150 Chats musste jedes
+    # Thema ueber 13 % des Monats abdecken, und ein Viertel aller Gespraeche
+    # fiel durch: Unterkunft und Zimmer, Verpflegung, Versicherungen,
+    # Verfuegbarkeit, Kontakt zu Mitarbeitern, das Herzensmensch-Programm — alles
+    # wiederkehrend, keines gross genug fuer die alte Schwelle.
+    topics, _ = chat_quality.build_topic_taxonomy(sample, min_topics=16, max_topics=22)
 
     os.makedirs(os.path.dirname(TOPIC_PATH), exist_ok=True)
     with open(TOPIC_PATH, "w", encoding="utf-8") as f:
