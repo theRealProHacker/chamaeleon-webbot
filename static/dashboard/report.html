@@ -79,6 +79,11 @@
         display: none;
       }
 
+      /* Die letzte der Herkunftszeilen setzt den Abstand zum Inhalt. */
+      #provenance {
+        margin-bottom: 2rem;
+      }
+
       .provenance {
         margin: 0 0 0.3rem;
         font-size: 0.82rem;
@@ -541,6 +546,10 @@
           hyphens: auto;
           overflow-wrap: anywhere;
         }
+      }
+
+      @page {
+        margin: 12mm 14mm;
       }
 
       @media print {
@@ -1363,7 +1372,6 @@
           (stand ? `Ausgewertet am ${stand}. ` : "") +
           "Die Gespräche wurden automatisch von einem Sprachmodell eingeordnet. " +
           "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
-        el("provenance").style.marginBottom = "2rem";
       }
 
       load();
