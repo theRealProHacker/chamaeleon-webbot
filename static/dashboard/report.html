@@ -516,6 +516,11 @@
           display: flex;
           align-items: flex-end;
         }
+        /* "Allgemeine Webseite: 1.188" ist breiter als eine halbe Karte und
+           lief ohne Umbruch in die Nachbarkachel. */
+        .metric-parts > span {
+          white-space: normal;
+        }
         th,
         td {
           padding-left: 0.35rem;
