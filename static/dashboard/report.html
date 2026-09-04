@@ -58,6 +58,12 @@
         padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 4rem;
       }
 
+      /* Buendig mit dem TEXT in den Karten, nicht mit deren Aussenkante: der
+         Titel hing sonst 16px links vom ganzen restlichen Dokument. */
+      .page > :not(.card):not(#content) {
+        padding-left: 1.4rem;
+      }
+
       .eyebrow {
         margin: 0 0 0.3rem;
         font-size: 0.75rem;
@@ -168,6 +174,20 @@
         color: var(--text-muted);
       }
 
+      .metric-parts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.3rem;
+      }
+
+      .metric-parts > span {
+        white-space: nowrap;
+      }
+
+      .metric-parts > span + span::before {
+        content: "· ";
+      }
+
       .metric-share {
         font-weight: 600;
         color: var(--text);
@@ -210,6 +230,45 @@
       /* In einer Rangliste wird die ZAHL gescannt, nicht die Prosa. */
       .row-label {
         font-weight: 500;
+      }
+
+      /* Balken hinter dem Label: die Rangfolge muss auf einen Blick lesbar
+         sein, nicht durch Ziffernvergleich. */
+      td.bar-cell {
+        position: relative;
+      }
+
+      .bar {
+        position: absolute;
+        left: 0.6rem;
+        right: 0.6rem;
+        bottom: 0.3rem;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--border);
+        overflow: hidden;
+      }
+
+      .bar > span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        opacity: 0.55;
+      }
+
+      td.share {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+        width: 5rem;
+      }
+
+      td.delta.up {
+        color: #b91c1c;
+      }
+
+      td.delta.down {
+        color: #15803d;
       }
 
       td.num {
@@ -285,6 +344,10 @@
         border-radius: 3px;
       }
 
+      .heat-legend-unit {
+        color: var(--text-muted);
+      }
+
       .heat-legend-item {
         display: inline-flex;
         align-items: center;
@@ -349,7 +412,7 @@
             <div class="metric">
               <span class="metric-label">Gespräche</span>
               <span class="metric-value" id="mChats">--</span>
-              <span class="metric-caption" id="mSegments"></span>
+              <span class="metric-caption metric-parts" id="mSegments"></span>
             </div>
             <div class="metric">
               <span class="metric-label">Ø Nutzernachrichten</span>
@@ -360,7 +423,7 @@
               <span class="metric-label">Schlecht beantwortet</span>
               <span class="metric-value" id="mBad">--</span>
               <span class="metric-caption metric-share" id="mBadShare"></span>
-              <span class="metric-caption" id="mBadCaption"></span>
+              <span class="metric-caption metric-parts" id="mBadCaption"></span>
             </div>
           </div>
           <p class="footnote" id="glossary"></p>
@@ -374,6 +437,7 @@
               <tr>
                 <th scope="col">Ursache</th>
                 <th scope="col" class="num">Gespräche</th>
+                <th scope="col" class="share">Anteil</th>
                 <th scope="col" class="num" id="deltaHead">Δ Vormonat</th>
               </tr>
             </thead>
@@ -391,6 +455,7 @@
               <tr>
                 <th scope="col">Thema</th>
                 <th scope="col" class="num">Gespräche</th>
+                <th scope="col" class="share">Anteil</th>
               </tr>
             </thead>
             <tbody id="topicBody"></tbody>
@@ -432,6 +497,15 @@
     <script>
       const MONTH = window.location.pathname.split("/").pop();
       const DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+      const WEEKDAYS_LONG = [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+      ];
       const SEGMENT_LABELS = {
         allgemein: "Allgemeine Webseite",
         meinchamaeleon: "MeinChamäleon",
@@ -462,6 +536,7 @@
           cells.forEach((cell, index) => {
             const td = document.createElement("td");
             if (index === 0) {
+              td.className = "bar-cell";
               const span = document.createElement("span");
               span.className = "row-label";
               // textContent: der Text stammt aus einem Sprachmodell ueber
@@ -469,8 +544,16 @@
               span.textContent = cell.text;
               if (cell.title) span.title = cell.title;
               td.appendChild(span);
+              if (typeof cell.fraction === "number") {
+                const bar = document.createElement("div");
+                bar.className = "bar";
+                const fill = document.createElement("span");
+                fill.style.width = `${Math.max(1, Math.round(cell.fraction * 100))}%`;
+                bar.appendChild(fill);
+                td.appendChild(bar);
+              }
             } else {
-              td.className = "num";
+              td.className = cell.className || "num";
               td.textContent = cell.text;
               if (cell.title) td.title = cell.title;
             }
@@ -481,9 +564,30 @@
         tbody.replaceChildren(frag);
       }
 
-      function renderHeatmap(rows) {
+      function setParts(node, parts) {
+        node.replaceChildren(
+          ...parts.map((text) => {
+            const span = document.createElement("span");
+            span.textContent = text;
+            return span;
+          }),
+        );
+      }
+
+      const pct = (part, whole) =>
+        whole ? `${(Math.round((part / whole) * 1000) / 10).toLocaleString("de-DE")} %` : "—";
+
+      function renderHeatmap(rows, occurrences) {
         const grid = el("heatmap");
-        const values = rows.flat();
+        // Durch die Zahl der Vorkommen des Wochentags geteilt. Ein Monat hat
+        // von manchen Wochentagen fuenf und von anderen vier; roh gezaehlt ist
+        // die Montagszeile bis zu 25 % dunkler, ohne dass montags mehr los ist.
+        const perDay = rows.map((row, day) => {
+          const times = occurrences?.[day] || 0;
+          return times ? row.map((count) => count / times) : row.map(() => null);
+        });
+        rows = perDay;
+        const values = rows.flat().filter((v) => v !== null);
         const nonZero = values.filter((v) => v > 0).sort((a, b) => a - b);
 
         // Nach Rang, nicht linear. Die Verteilung ist rechtsschief — Median 10
@@ -510,20 +614,42 @@
           row.forEach((count, hour) => {
             const cell = document.createElement("div");
             cell.className = "heat-cell";
-            cell.style.background = `var(--heat-${stepOf(count)})`;
-            cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")}:00 — ${fmt(count)} Gespräche`;
+            if (count === null) {
+              cell.style.background = "var(--heat-0)";
+              cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")} Uhr — kein ${DAYS[day]} im Zeitraum`;
+            } else {
+              cell.style.background = `var(--heat-${stepOf(count)})`;
+              cell.title = `${DAYS[day]}, ${String(hour).padStart(2, "0")} Uhr — ${dec(count)} Gespräche im Schnitt`;
+            }
             frag.appendChild(cell);
           });
         });
         grid.replaceChildren(frag);
         renderHeatLegend(edges, Math.max(0, ...values));
 
+        // Die belebteste Stunde ausdruecklich benennen. Sie ist die eine
+        // Aussage, die aus dieser Karte folgt, und in der obersten Farbstufe
+        // steckt sonst alles von 19 bis 42 ununterscheidbar zusammen.
+        let peak = { value: -1 };
+        rows.forEach((row, day) =>
+          row.forEach((count, hour) => {
+            if (count !== null && count > peak.value) {
+              peak = { value: count, day, hour };
+            }
+          }),
+        );
+        if (peak.value > 0) {
+          el("heatFootnote").textContent =
+            `Am meisten los: ${WEEKDAYS_LONG[peak.day]} um ${String(peak.hour).padStart(2, "0")} Uhr ` +
+            `mit ${dec(peak.value)} Gesprächen im Schnitt.`;
+        }
+
         const hours = document.createDocumentFragment();
         hours.appendChild(document.createElement("div"));
         for (let hour = 0; hour < 24; hour += 1) {
           const mark = document.createElement("div");
           mark.className = "heat-hour";
-          mark.textContent = hour % 3 === 0 ? String(hour) : "";
+          mark.textContent = hour % 3 === 0 ? String(hour) : hour === 23 ? "23" : "";
           hours.appendChild(mark);
         }
         el("heatHours").replaceChildren(hours);
@@ -539,6 +665,7 @@
         for (let step = 0; step <= 5; step += 1) {
           const item = document.createElement("span");
           item.className = "heat-legend-item";
+          void 0;
           const swatch = document.createElement("span");
           swatch.className = "heat-swatch";
           swatch.style.background = `var(--heat-${step})`;
@@ -546,32 +673,39 @@
           if (step === 0) {
             text.textContent = "0";
           } else {
-            const low = step === 1 ? 1 : bounds[step];
-            const high = bounds[step + 1] - 1;
-            text.textContent = low >= high ? String(low) : `${low}–${high}`;
+            // Die unterste Stufe darf nicht bei 0 anfangen — daneben steht
+            // bereits ein Feld fuer die echte Null.
+            const high = step === 5 ? peak : bounds[step + 1];
+            text.textContent =
+              step === 1 ? `bis ${dec(high)}` : `${dec(bounds[step])}–${dec(high)}`;
           }
           item.append(swatch, text);
           frag.appendChild(item);
         }
+        const unit = document.createElement("span");
+        unit.className = "heat-legend-unit";
+        unit.textContent = "Ø Gespräche je Stunde";
+        frag.appendChild(unit);
         legend.replaceChildren(frag);
       }
 
       async function renderComparison(data) {
+        // Gibt {total, bad} des Vormonats zurueck, oder null.
         const previousKey = (() => {
           const [year, month] = (data.month || "").split("-").map(Number);
           if (!year) return null;
           const d = new Date(Date.UTC(year, month - 2, 1));
           return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
         })();
-        if (!previousKey) return;
+        if (!previousKey) return null;
         try {
           const response = await fetch(`/api/dashboard/${previousKey}`, {
             cache: "no-store",
           });
-          if (!response.ok) return;
+          if (!response.ok) return null;
           const before = await response.json();
           const q = before.quality || {};
-          if (q.status !== "ok" && q.status !== "partial") return;
+          if (q.status !== "ok" && q.status !== "partial") return null;
           const badBefore =
             (q.qualitaet?.ausgewichen ?? 0) +
             (q.qualitaet?.abgebrochen ?? 0) +
@@ -583,32 +717,66 @@
           el("baseline").textContent =
             `Zum Vergleich — ${before.label}: ${fmt(before.total_chats)} Gespräche, ` +
             `davon ${fmt(badBefore)} schlecht beantwortet${share}.`;
+          if (typeof before.avg_user_messages_per_chat === "number") {
+            el("mUserCaption").textContent =
+              `Vormonat ${dec(before.avg_user_messages_per_chat)}`;
+          }
+          return { total: before.total_chats || 0, bad: badBefore };
         } catch (error) {
           // Ohne Vormonat steht die Seite trotzdem; sie sagt dann nur nichts
           // ueber die Veraenderung.
+          return null;
         }
       }
 
-      function renderTakeaway(quality, bad) {
-        // Die groesste Bewegung, im Klartext. Fuenf Tabellen ohne einen Satz
-        // dazu lassen den Leser die Aussage selbst suchen.
+      function renderTakeaway(data, quality, bad, before) {
+        // Fuenf Ranglisten ohne einen Satz dazu lassen den Leser die Aussage
+        // selbst suchen. Der Satz muss aber die richtige sein: die Quote ueber
+        // den ganzen Monat schlaegt jede einzelne Ursachenzeile.
+        const sentences = [];
+
+        if (before && before.total && before.bad !== null) {
+          const now = data.total_chats || 0;
+          const rateNow = now ? (bad / now) * 100 : 0;
+          const rateBefore = before.total ? (before.bad / before.total) * 100 : 0;
+          const volume = now - before.total;
+          const points = rateNow - rateBefore;
+          const volumeText =
+            volume === 0
+              ? "gleich viele Gespräche wie im Vormonat"
+              : `${fmt(Math.abs(volume))} ${volume > 0 ? "mehr" : "weniger"} Gespräche als im Vormonat ` +
+                `(${volume > 0 ? "+" : "−"}${Math.abs(Math.round((volume / before.total) * 100))} %)`;
+          const rateText =
+            Math.abs(points) < 0.5
+              ? "die Quote schlecht beantworteter Gespräche blieb gleich"
+              : `die Quote schlecht beantworteter Gespräche ${points > 0 ? "stieg" : "fiel"} von ` +
+                `${Math.round(rateBefore)} % auf ${Math.round(rateNow)} %`;
+          sentences.push(`${volumeText}, und ${rateText}.`);
+        }
+
+        // Die groesste Ursachenbewegung, absolut ausgedrueckt. "18 Mal
+        // haeufiger" hiesse achtzehnfach; gemeint sind achtzehn Gespraeche.
         const previous = new Map(Object.entries(quality.vormonat ?? {}));
-        if (!previous.size) return;
         let biggest = null;
         (quality.ursachen || []).forEach((cause) => {
-          const before = previous.get(cause.ursache_id);
-          if (before === undefined || before === null || cause.count === null) return;
-          const delta = cause.count - before;
+          const was = previous.get(cause.ursache_id);
+          if (was === undefined || was === null || cause.count === null) return;
+          const delta = cause.count - was;
           if (!biggest || Math.abs(delta) > Math.abs(biggest.delta)) {
-            biggest = { label: cause.label, delta, count: cause.count };
+            biggest = { label: cause.label, delta, count: cause.count, was };
           }
         });
-        if (!biggest || biggest.delta === 0) return;
-        const direction = biggest.delta > 0 ? "häufiger" : "seltener";
+        if (biggest && biggest.delta !== 0) {
+          const direction = biggest.delta > 0 ? "stieg" : "fiel";
+          sentences.push(
+            `Größte einzelne Bewegung: „${biggest.label}“ ${direction} von ` +
+              `${fmt(biggest.was)} auf ${fmt(biggest.count)}.`,
+          );
+        }
+
+        if (!sentences.length) return;
         el("takeaway").hidden = false;
-        el("takeaway").textContent =
-          `Größte Veränderung: „${biggest.label}“ ist ${Math.abs(biggest.delta)} Mal ` +
-          `${direction} als im Vormonat und steht jetzt bei ${fmt(biggest.count)}.`;
+        el("takeaway").textContent = sentences.join(" ");
       }
 
       async function load() {
@@ -653,10 +821,12 @@
         const segments = data.segment_counts || {};
         // Lesbare Namen, nicht die internen Slugs: "meinchamaeleon" sagt einer
         // Mitarbeiterin im Buero nichts.
-        el("mSegments").textContent = Object.entries(segments)
-          .filter(([, count]) => count > 0)
-          .map(([name, count]) => `${SEGMENT_LABELS[name] ?? name}\u00a0${fmt(count)}`)
-          .join(" · ");
+        setParts(
+          el("mSegments"),
+          Object.entries(segments)
+            .filter(([, count]) => count > 0)
+            .map(([name, count]) => `${SEGMENT_LABELS[name] ?? name} ${fmt(count)}`),
+        );
         el("mUserMsgs").textContent = dec(data.avg_user_messages_per_chat);
         el("mUserCaption").textContent = "Nachrichten je Gespräch";
 
@@ -670,10 +840,9 @@
         // und der Leser hatte keine Moeglichkeit zu sehen, welche stimmt.
         // Geschuetzte Leerzeichen zwischen Zahl und Wort: sonst bricht die
         // Zeile als "… 20 / falsch" und die Zahl steht ohne ihr Label da.
-        const nb = (value, word) => `${fmt(value)}\u00a0${word}`;
-        const parts = [nb(evaded, "ausgewichen"), nb(aborted, "abgebrochen")];
-        if (wrong) parts.push(nb(wrong, "falsch"));
-        el("mBadCaption").textContent = parts.join(" · ");
+        const parts = [`${fmt(evaded)} ausgewichen`, `${fmt(aborted)} abgebrochen`];
+        if (wrong) parts.push(`${fmt(wrong)} falsch`);
+        setParts(el("mBadCaption"), parts);
         // Der Anteil ist keine vierte Zahl derselben Art wie die drei Klassen,
         // also steht er nicht in derselben Punktreihe.
         el("mBadShare").textContent = data.total_chats
@@ -687,7 +856,10 @@
           "Gezählt wird je Gespräch, nicht je Nachricht. „Ausgewichen“ heißt: der Bot " +
           "hat freundlich geantwortet, ohne die Frage zu beantworten. „Abgebrochen“: " +
           "der Nutzer hat erkennbar aufgegeben. „Falsch“: die Antwort war inhaltlich " +
-          "unrichtig — die einzige Klasse, in der der Bot etwas Unwahres gesagt hat.";
+          "unrichtig — die einzige Klasse, in der der Bot etwas Unwahres gesagt hat. " +
+          "Die Ursachentabelle unten teilt dieselben Gespräche noch einmal auf, " +
+          "nach dem Grund statt nach der Art — die beiden Aufteilungen lassen sich " +
+          "nicht aufeinander abbilden.";
 
         const previous = new Map(Object.entries(quality.vormonat ?? {}));
         const comparable = previous.size > 0;
@@ -697,29 +869,46 @@
           const [year, month] = data.month.split("-").map(Number);
           const before = new Date(Date.UTC(year, month - 2, 1));
           el("deltaHead").textContent = comparable
-            ? `ggü. ${before.toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" })}`
-            : "ggü. Vormonat";
+            ? `gegenüber ${before.toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" })}`
+            : "gegenüber Vormonat";
         }
+        const classified = quality.classified_chats || 0;
+        const causeTop = Math.max(
+          1,
+          ...(quality.ursachen || []).map((c) => c.count || 0),
+        );
         fillRows(
           el("causeBody"),
           (quality.ursachen || []).map((cause) => {
             let delta = "—";
-            const before = previous.get(cause.ursache_id);
+            let direction = "";
+            const was = previous.get(cause.ursache_id);
             if (
               comparable &&
-              before !== undefined &&
-              before !== null &&
+              was !== undefined &&
+              was !== null &&
               cause.count !== null
             ) {
-              const diff = cause.count - before;
+              const diff = cause.count - was;
               delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${diff}`;
+              // In einer Tabelle ueber Fehler ist mehr schlechter. Ohne Farbe
+              // muss der Leser sich das selbst herleiten.
+              direction = diff > 0 ? " up" : diff < 0 ? " down" : "";
             }
             return [
-              { text: cause.label ?? cause.ursache_id, title: cause.definition },
+              {
+                text: cause.label ?? cause.ursache_id,
+                title: cause.definition,
+                fraction: (cause.count || 0) / causeTop,
+              },
               // null heisst "wird nicht mehr gemessen" und ist nicht 0 — eine
               // stillgelegte Ursache mit einer 0 laese sich als Erfolg lesen.
               { text: cause.count === null ? "—" : fmt(cause.count) },
-              { text: delta },
+              {
+                text: cause.count === null ? "—" : pct(cause.count, bad),
+                className: "share",
+              },
+              { text: delta, className: `num delta${direction}` },
             ];
           }),
         );
@@ -736,7 +925,6 @@
         if (residualCauses > 0) {
           notes.push(`${fmt(residualCauses)} passen in keine davon.`);
         }
-        const classified = quality.classified_chats || 0;
         if (classified && (quality.neu || 0) / classified > 0.05) {
           notes.push("Die Liste braucht eine neue Ursache.");
         }
@@ -748,11 +936,17 @@
         const topics = quality.themen || [];
         if (topics.length) {
           el("topicTable").hidden = false;
+          const topicTop = Math.max(1, ...topics.map((t) => t.count || 0));
           fillRows(
             el("topicBody"),
             topics.map((topic) => [
-              { text: topic.label ?? topic.thema_id, title: topic.definition },
+              {
+                text: topic.label ?? topic.thema_id,
+                title: topic.definition,
+                fraction: (topic.count || 0) / topicTop,
+              },
               { text: fmt(topic.count) },
+              { text: pct(topic.count, classified), className: "share" },
             ]),
           );
           // Die Spalte summiert sich NICHT auf die Chatzahl: gezeigt werden
@@ -767,9 +961,16 @@
           const topicNotes = [
             `Diese zehn decken ${fmt(topicSum)} der ${fmt(classified)} Gespräche.`,
           ];
-          if (rest > 0) topicNotes.push(`${fmt(rest)} entfallen auf seltenere Themen.`);
+          if (rest > 0) {
+            topicNotes.push(
+              `${fmt(rest)} fielen auf weitere Themen der Liste, die es nicht in die Top 10 geschafft haben.`,
+            );
+          }
           if (residual > 0) {
-            topicNotes.push(`${fmt(residual)} passen in kein Thema der Liste.`);
+            topicNotes.push(
+              `${fmt(residual)} (${pct(residual, classified)}) passen in kein Thema der Liste — ` +
+                "für sie fehlt bisher eine Kategorie.",
+            );
           }
           el("topicFootnote").hidden = false;
           el("topicFootnote").textContent = topicNotes.join(" ");
@@ -780,10 +981,11 @@
         }
 
         const countries = quality.laender || [];
+        const countryTop = Math.max(1, ...countries.map((c) => c.count || 0));
         fillRows(
           el("countryBody"),
           countries.map((entry) => [
-            { text: entry.land },
+            { text: entry.land, fraction: (entry.count || 0) / countryTop },
             { text: fmt(entry.count) },
           ]),
         );
@@ -804,19 +1006,14 @@
         }
 
         if (Array.isArray(data.heatmap) && data.heatmap.length === 7) {
-          renderHeatmap(data.heatmap);
-          const days = new Set();
-          // Wie viele Tage der Monat hatte, steht in daily_counts.
-          (data.daily_counts || []).forEach((d) => days.add(d.date));
+          renderHeatmap(data.heatmap, data.weekday_occurrences);
           el("heatSubtitle").textContent =
-            "Startzeit der Gespräche, Berliner Zeit. Jede Zelle ist die Summe des ganzen Monats.";
-          el("heatFootnote").textContent =
-            "Ein Monat hat von manchen Wochentagen fünf und von anderen vier — " +
-            "die Zeilen sind deshalb untereinander nicht direkt vergleichbar.";
+            "Startzeit der Gespräche, Berliner Zeit. Jede Zelle ist der Schnitt " +
+            "über die Vorkommen dieses Wochentags im Monat.";
         }
 
-        renderComparison(data);
-        renderTakeaway(quality, bad);
+        const before = await renderComparison(data);
+        renderTakeaway(data, quality, bad, before);
 
         const stand = data.quality?.computed_at
           ? new Date(data.quality.computed_at).toLocaleDateString("de-DE", {
@@ -827,6 +1024,7 @@
           : null;
         el("provenance").textContent =
           (stand ? `Ausgewertet am ${stand}. ` : "") +
+          "Die Gespräche wurden automatisch von einem Sprachmodell eingeordnet. " +
           "Die einzelnen Gespräche werden nach 90 Tagen gelöscht; dieser Report bleibt.";
         el("printFooter").textContent =
           `Chamäleon Reisen · Chatbot · Monatsreport ${label} · ${window.location.href}`;

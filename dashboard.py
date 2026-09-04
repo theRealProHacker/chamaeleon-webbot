@@ -633,6 +633,11 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
             [select(agg["heatmap"][weekday][hour], segments) for hour in range(24)]
             for weekday in range(7)
         ],
+        # Wie oft jeder Wochentag im Monat vorkam. Ohne diese Zahlen ist eine
+        # Heatmap-Zeile nicht mit der naechsten vergleichbar — ein Monat hat von
+        # manchen Wochentagen fuenf und von anderen vier —, und genau die
+        # Zeilenvergleiche laedt eine Heatmap zum Lesen ein.
+        "weekday_occurrences": occurrences,
         "quality": quality_for(key, segments),
         "chats": chats,
     }
