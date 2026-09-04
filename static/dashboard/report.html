@@ -463,6 +463,14 @@
         #countryTable td.share {
           width: 10rem;
         }
+        /* Vier Kacheln nebeneinander, aber "Ø Nutzernachrichten" bricht
+           hier um: zwei Zeilen Platz fuer jedes Label, damit die Zahlen
+           auf einer Hoehe stehen. */
+        .metric-label {
+          min-height: 2.4em;
+          display: flex;
+          align-items: flex-end;
+        }
       }
 
       @media (max-width: 640px) {
