@@ -615,6 +615,7 @@
               <span class="metric-label">Ø Nutzernachrichten</span>
               <span class="metric-value" id="mUserMsgs">--</span>
               <span class="metric-caption" id="mUserCaption"></span>
+              <span class="metric-caption" id="mUserPrev"></span>
             </div>
             <div class="metric">
               <span class="metric-label">Gesprächsdauer</span>
@@ -625,8 +626,8 @@
             <div class="metric">
               <span class="metric-label">Schlecht beantwortet</span>
               <span class="metric-value" id="mBad">--</span>
-              <span class="metric-caption" id="mBadPrev"></span>
               <span class="metric-caption metric-share" id="mBadShare"></span>
+              <span class="metric-caption" id="mBadPrev"></span>
               <span class="metric-caption metric-parts" id="mBadCaption"></span>
             </div>
           </div>
@@ -968,8 +969,8 @@
           el("mChatsPrev").textContent = `${short}: ${fmt(before.total_chats)}`;
           el("mBadPrev").textContent = `${short}: ${fmt(badBefore)}${share}`;
           if (typeof before.avg_user_messages_per_chat === "number") {
-            el("mUserCaption").textContent =
-              `${short}: ${dec(before.avg_user_messages_per_chat)} je Gespräch`;
+            el("mUserPrev").textContent =
+              `${short}: ${dec(before.avg_user_messages_per_chat)}`;
           }
           if (typeof before.median_duration_seconds === "number") {
             el("mDurationPrev").textContent =
