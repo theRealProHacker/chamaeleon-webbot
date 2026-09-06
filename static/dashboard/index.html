@@ -155,22 +155,19 @@
       }
 
       .left-panel {
-        /* Ein ANTEIL, keine feste Breite: darin stehen drei Diagramme mit 13
-           Monats-, 31 Tages- und 24 Stundenbalken. Mit dem alten
+        /* Ein ANTEIL, keine feste Breite: darin stehen vier Diagramme mit 13
+           Monats-, 7 Wochentag-, 31 Tages- und 24 Stundenbalken. Mit dem alten
            clamp(22rem, 28vw, 28rem) blieb die Spalte ab etwa 1600px stehen,
            waehrend die rechte weiterwuchs — bei 1280px waren es rund 250px
            Zeichenflaeche, die Balken verschmolzen und nur jeder dritte
-           Achsenwert bekam eine Beschriftung. Als Prozentsatz waechst sie mit
-           dem Fenster mit; `min-width` haelt sie am unteren Ende lesbar. */
+           Achsenwert bekam eine Beschriftung. */
         flex: 0 0 36%;
         min-width: 22rem;
-        min-width: 0;
-        /* Sticky rather than left behind: the right column is roughly twice as
-           tall, so this column used to end 800px early and leave a dead strip.
-           Keeping the month picker in view while the cause table and the
-           transcripts scroll turns that into the thing you actually reach for. */
-        position: sticky;
-        top: 4.5rem;
+        /* NICHT angeheftet. Das war richtig, solange hier nur das
+           Monatsdiagramm stand; mit vier Karten ist die Spalte hoeher als das
+           Fenster, und eine angeheftete Spalte, die nicht hineinpasst, laesst
+           sich nicht zu Ende scrollen — das unterste Diagramm war nur
+           erreichbar, indem man rechts durch alle Gespraeche scrollte. */
         align-self: flex-start;
       }
 
@@ -535,6 +532,12 @@
         padding: 0.6rem;
         border-bottom: 1px solid var(--border);
         vertical-align: baseline;
+      }
+
+      /* Keine Linie unter der letzten Zeile: sie trennt dort nichts mehr und
+         liegt als Strich kurz ueber dem Kartenrand. */
+      .cause-table tbody tr:last-child td {
+        border-bottom: none;
       }
 
       .cause-table tbody tr {
