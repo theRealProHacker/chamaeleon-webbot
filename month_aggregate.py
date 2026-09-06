@@ -55,6 +55,21 @@ RETENTION_DAYS = 90
 # and leave the median to interpolation.
 DURATION_EDGES = [2, 3, 5, 8, 15, 30, 60, 120, 300, 600, 1800, 3600, None]
 
+# Second histogram, same chats minus the one-shot questions. 57 % of August had
+# exactly ONE user message; for those the first-to-last span is the bot's reply
+# latency, not a conversation, and it drags the median to 4 s. Counted over
+# chats with at least two user messages the median is 1:46 min — which is what
+# the tile is supposed to say. That range needs resolution DURATION_EDGES does
+# not have: its 60-120 s bucket is 60 seconds wide, so interpolating inside it
+# cannot hold ±5 s. Hence 10-second steps across 30-300 s, coarse below and
+# above, where a dialog median will not land.
+DURATION_EDGES_DIALOG = (
+    [2, 3, 5, 8, 15, 30] + list(range(40, 301, 10)) + [600, 1800, 3600, None]
+)
+
+# A chat counts as a dialog from this many user messages on.
+DIALOG_MIN_USER_MESSAGES = 2
+
 # Stufe 1 der Löschung: Rohtranskripte eines alten Monats werden im Dashboard
 # NICHT MEHR ANGEZEIGT. Gelöscht wird dabei nichts — die Frist ist damit
 # ausdrücklich noch nicht erfüllt, das bleibt Stufe 2 (echtes Löschen in der DB).
@@ -267,6 +282,13 @@ class MonthAggregate(TypedDict):
     # duration_buckets[i] is a segment vector for the range DURATION_EDGES[i].
     duration_buckets: list[list[int]]
     duration_samples: list[int]
+    # Same, restricted to chats with >= DIALOG_MIN_USER_MESSAGES user messages
+    # and bucketed on DURATION_EDGES_DIALOG. Stored rows written before this
+    # field existed simply do not carry it; readers check presence rather than
+    # a schema version (SCHEMA_VERSION is one constant for both aggregates —
+    # bumping it would devalue the other half's version).
+    duration_buckets_dialog: list[list[int]]
+    duration_samples_dialog: list[int]
     # rows whose `messages` column could not be read; their time buckets still count
     unreadable_rows: int
 
@@ -285,6 +307,8 @@ def empty_aggregate(key: MonthKey) -> MonthAggregate:
         "messages": empty_vector(),
         "duration_buckets": [empty_vector() for _ in DURATION_EDGES],
         "duration_samples": empty_vector(),
+        "duration_buckets_dialog": [empty_vector() for _ in DURATION_EDGES_DIALOG],
+        "duration_samples_dialog": empty_vector(),
         "unreadable_rows": 0,
     }
 
@@ -306,11 +330,11 @@ def chat_duration(messages: list) -> float | None:
     return max(stamps) - min(stamps)
 
 
-def duration_bucket(seconds: float) -> int:
-    for index, edge in enumerate(DURATION_EDGES):
+def duration_bucket(seconds: float, edges: list[int | None] = DURATION_EDGES) -> int:
+    for index, edge in enumerate(edges):
         if edge is None or seconds < edge:
             return index
-    return len(DURATION_EDGES) - 1
+    return len(edges) - 1
 
 
 def aggregate_month(
@@ -348,12 +372,17 @@ def aggregate_month(
         if not isinstance(messages, list):
             agg["unreadable_rows"] += 1
             continue
-        add(agg["user_messages"], segment, sum(1 for m in messages if is_user(m)))
+        user_messages = sum(1 for m in messages if is_user(m))
+        add(agg["user_messages"], segment, user_messages)
         add(agg["messages"], segment, len(messages))
         duration = chat_duration(messages)
         if duration is not None:
             add(agg["duration_buckets"][duration_bucket(duration)], segment)
             add(agg["duration_samples"], segment)
+            if user_messages >= DIALOG_MIN_USER_MESSAGES:
+                bucket = duration_bucket(duration, DURATION_EDGES_DIALOG)
+                add(agg["duration_buckets_dialog"][bucket], segment)
+                add(agg["duration_samples_dialog"], segment)
 
     # Fill the gaps so the frontend gets a continuous month, not a sparse dict.
     highest = max((int(d) for d in agg["daily"]), default=0)
@@ -407,7 +436,11 @@ def avg_messages(agg: MonthAggregate, segments: Iterable[Segment] | None = None)
 
 
 def median_duration(
-    agg: MonthAggregate, segments: Iterable[Segment] | None = None
+    agg: MonthAggregate,
+    segments: Iterable[Segment] | None = None,
+    *,
+    buckets: str = "duration_buckets",
+    edges: list[int | None] = DURATION_EDGES,
 ) -> float | None:
     """Median chat duration in seconds, interpolated inside its bucket.
 
@@ -420,7 +453,13 @@ def median_duration(
     carry no per-message timestamps, so they have none — treating them as zero
     would make the figure a function of how much old data a month holds.
     """
-    counts = [select(bucket, segments) for bucket in agg["duration_buckets"]]
+    # A row stored before the dialog histogram existed has no such field. It is
+    # not "zero dialogs", it is "unknown" — say None and let the caller show a
+    # state, rather than answer with the other denominator.
+    histogram = agg.get(buckets)
+    if not histogram:
+        return None
+    counts = [select(bucket, segments) for bucket in histogram]
     total = sum(counts)
     if not total:
         return None
@@ -431,8 +470,8 @@ def median_duration(
         if seen + count < target:
             seen += count
             continue
-        low = 0 if index == 0 else DURATION_EDGES[index - 1]
-        high = DURATION_EDGES[index]
+        low = 0 if index == 0 else edges[index - 1]
+        high = edges[index]
         if high is None:
             # Open-ended top bucket: report its lower edge rather than invent a
             # number for it.
@@ -441,6 +480,28 @@ def median_duration(
             return float(low)
         return low + (high - low) * ((target - seen) / count)
     return None
+
+
+def median_duration_dialog(
+    agg: MonthAggregate, segments: Iterable[Segment] | None = None
+) -> float | None:
+    """Median over chats with a real back-and-forth. See DURATION_EDGES_DIALOG."""
+    return median_duration(
+        agg,
+        segments,
+        buckets="duration_buckets_dialog",
+        edges=DURATION_EDGES_DIALOG,
+    )
+
+
+def dialog_samples(
+    agg: MonthAggregate, segments: Iterable[Segment] | None = None
+) -> int | None:
+    """How many chats the dialog median rests on, or None if the field is absent."""
+    vector = agg.get("duration_samples_dialog")
+    if vector is None:
+        return None
+    return select(vector, segments)
 
 
 def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
@@ -460,6 +521,16 @@ def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
             combined["duration_samples"][i] += agg["duration_samples"][i]
             for bucket in range(len(DURATION_EDGES)):
                 combined["duration_buckets"][bucket][i] += agg["duration_buckets"][bucket][i]
+            # Only months that carry the dialog histogram contribute to it. A
+            # month without it must not be folded in as zeros: that would make
+            # the combined median a statement about the months that happen to
+            # have been re-aggregated.
+            if agg.get("duration_buckets_dialog"):
+                combined["duration_samples_dialog"][i] += agg["duration_samples_dialog"][i]
+                for bucket in range(len(DURATION_EDGES_DIALOG)):
+                    combined["duration_buckets_dialog"][bucket][i] += (
+                        agg["duration_buckets_dialog"][bucket][i]
+                    )
             for hour in range(24):
                 combined["hourly"][hour][i] += agg["hourly"][hour][i]
             for weekday in range(7):

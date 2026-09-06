@@ -48,7 +48,9 @@ from month_aggregate import (
     MonthKey,
     QualityAggregate,
     aggregate_month,
+    dialog_samples,
     median_duration,
+    median_duration_dialog,
     avg_messages,
     avg_user_messages,
     chats_visible,
@@ -160,6 +162,8 @@ class MonthDetail(TypedDict):
     segment_counts: dict[str, int]
     avg_user_messages_per_chat: float
     median_duration_seconds: Optional[float]
+    duration_basis: Optional[str]  # "dialog" | "alle" — which denominator
+    duration_samples: Optional[int]
     daily_counts: list[DailyCount]
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
@@ -582,14 +586,51 @@ def previous_period_comparison(key: MonthKey, segments) -> dict[str, Any] | None
         "chats": select(partial["total_chats"], segments),
         "avg_user_messages": avg_user_messages(partial, segments),
         "avg_messages": avg_messages(partial, segments),
-        "median_duration_seconds": median_duration(partial, segments),
+        **duration_for(partial, segments),
         # Same figures for the running month, so the frontend does no arithmetic.
         "current": {
             "chats": select(current["total_chats"], segments),
             "avg_user_messages": avg_user_messages(current, segments),
             "avg_messages": avg_messages(current, segments),
-            "median_duration_seconds": median_duration(current, segments),
+            **duration_for(current, segments),
         },
+    }
+
+
+def duration_for(
+    agg: MonthAggregate, segments: Iterable[Segment] | None = None
+) -> dict[str, Any]:
+    """The duration figure the tile shows, plus which denominator it rests on.
+
+    Preferred: chats with at least two user messages (A3). 57 % of August had
+    exactly one, and for those the first-to-last span is the bot's reply
+    latency — the old median said 4 s about conversations that run 1:46 min.
+
+    Months aggregated before the dialog histogram existed do not carry it. They
+    fall back to the old median and say so (``basis`` = "alle"), rather than
+    silently answering a different question than the label promises.
+    """
+    seconds = median_duration_dialog(agg, segments)
+    if seconds is not None:
+        return {
+            "median_duration_seconds": seconds,
+            "duration_basis": "dialog",
+            "duration_samples": dialog_samples(agg, segments),
+        }
+    samples = dialog_samples(agg, segments)
+    if samples == 0:
+        # The histogram is there, the selection just holds no dialog. Not a
+        # fallback case: saying "alle" here would answer with the other
+        # denominator instead of admitting there is nothing to show.
+        return {
+            "median_duration_seconds": None,
+            "duration_basis": "dialog",
+            "duration_samples": 0,
+        }
+    return {
+        "median_duration_seconds": median_duration(agg, segments),
+        "duration_basis": "alle",
+        "duration_samples": select(agg["duration_samples"], segments),
     }
 
 
@@ -625,7 +666,7 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
         "segment_counts": segment_counts(agg["total_chats"]),
         "avg_user_messages_per_chat": avg_user_messages(agg, segments),
         "avg_messages_per_chat": avg_messages(agg, segments),
-        "median_duration_seconds": median_duration(agg, segments),
+        **duration_for(agg, segments),
         "daily_counts": [
             build_daily_count(int(day), key, select(vector, segments))
             for day, vector in sorted(agg["daily"].items(), key=lambda kv: int(kv[0]))

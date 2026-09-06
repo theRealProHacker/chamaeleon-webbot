@@ -1143,7 +1143,7 @@
               <div class="metric" id="durationMetric" hidden>
                 <span class="metric-label">Gesprächsdauer</span>
                 <span class="metric-value" id="medianDurationValue">--</span>
-                <span class="metric-caption">Median</span>
+                <span class="metric-caption" id="durationCaption">Median</span>
               </div>
               <div class="metric" id="badMetric" hidden>
                 <span class="metric-label">Schlechte Antworten</span>
@@ -1343,6 +1343,7 @@
         avgUserMessagesEl: document.getElementById("avgUserMessagesValue"),
         medianDurationEl: document.getElementById("medianDurationValue"),
         durationMetric: document.getElementById("durationMetric"),
+        durationCaptionEl: document.getElementById("durationCaption"),
         metricsErrorEl: document.getElementById("metricsError"),
         messagesTitleEl: document.getElementById("messagesTitle"),
         messagesSubtitleEl: document.getElementById("messagesSubtitle"),
@@ -1751,11 +1752,20 @@
         // Median nur die Chats seit Mai 2026 als Basis (davor gibt es keine
         // Zeitstempel je Nachricht) und stuende neben einer Chatzahl, die
         // alle zaehlt. Ein Monat ohne Basis zeigt "—".
+        // Der Nenner steht in der Bildunterschrift, nicht in einer Fussnote
+        // ueber die Datenlage: gezaehlt werden Gespraeche ab zwei
+        // Nutzernachrichten. Bei 57 Prozent Einzelfragen misst der alte Nenner
+        // die Antwortzeit des Bots, nicht ein Gespraech. Monate, die vor dem
+        // zweiten Histogramm aggregiert wurden, tragen es nicht und sagen das.
         const hasDuration = "median_duration_seconds" in (totals || {});
         DOM.durationMetric.hidden = !hasDuration;
         DOM.medianDurationEl.textContent = hasDuration
           ? formatDuration(totals.median_duration_seconds)
           : "--";
+        DOM.durationCaptionEl.textContent =
+          totals?.duration_basis === "alle"
+            ? "Median · alle Gespräche"
+            : "Median · Gespräche mit Rückfrage";
       }
 
       function renderMonthDetail(monthData) {
@@ -1779,6 +1789,8 @@
             total_chats: monthData?.total_chats,
             avg_user_messages_per_chat: monthData?.avg_user_messages_per_chat,
             median_duration_seconds: monthData?.median_duration_seconds,
+            duration_basis: monthData?.duration_basis,
+            duration_samples: monthData?.duration_samples,
           },
           state.currentView.label,
         );

@@ -648,7 +648,7 @@
             <div class="metric">
               <span class="metric-label">Gesprächsdauer</span>
               <span class="metric-value" id="mDuration">--</span>
-              <span class="metric-caption">Median</span>
+              <span class="metric-caption" id="mDurationCaption">Median</span>
               <span class="metric-caption" id="mDurationPrev"></span>
             </div>
             <div class="metric">
@@ -1000,7 +1000,13 @@
             el("mUserPrev").textContent =
               `${short}: ${dec(before.avg_user_messages_per_chat)}`;
           }
-          if (typeof before.median_duration_seconds === "number") {
+          // Nur vergleichen, wenn beide Monate denselben Nenner haben — sonst
+          // steht die Antwortzeit eines Monats neben der Gespraechslaenge des
+          // anderen. Zwei Nenner sind zwei Messgeraete, wie bei den Themen.
+          if (
+            typeof before.median_duration_seconds === "number" &&
+            before.duration_basis === current.duration_basis
+          ) {
             el("mDurationPrev").textContent =
               `${short}: ${formatDuration(before.median_duration_seconds)}`;
           }
@@ -1168,6 +1174,13 @@
         el("mUserMsgs").textContent = dec(data.avg_user_messages_per_chat);
         el("mUserCaption").textContent = "je Gespräch";
         el("mDuration").textContent = formatDuration(data.median_duration_seconds);
+        // Gleicher Wortlaut wie im Dashboard (SC5). Der Nenner ist die Aussage,
+        // nicht eine Fussnote: gezaehlt werden Gespraeche ab zwei
+        // Nutzernachrichten.
+        el("mDurationCaption").textContent =
+          data.duration_basis === "alle"
+            ? "Median · alle Gespräche"
+            : "Median · Gespräche mit Rückfrage";
 
         const evaded = quality.qualitaet?.ausgewichen ?? 0;
         const aborted = quality.qualitaet?.abgebrochen ?? 0;
