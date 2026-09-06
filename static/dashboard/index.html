@@ -1400,10 +1400,7 @@
           <article class="card messages-card">
             <div class="messages-header">
               <h2 id="messagesTitle">Nachrichten</h2>
-              <span id="messagesSubtitle"
-                >Monat auswählen, um Gesprächsdetails anzuzeigen.</span
-              >
-              <!-- REPLACE the single <button id="exportButton"...> with: -->
+              <span id="messagesSubtitle"></span>
               <div class="export-wrapper" id="exportWrapper">
                 <button id="exportButton" class="export-button" type="button">
                   <svg
@@ -1817,13 +1814,10 @@
             state.currentView.heatmap = state.summary.heatmap;
             state.currentView.hourlyCounts = state.summary.hourly;
             renderHeatmap(state.summary.heatmap, "Alle Chats");
-            // Die beiden klassischen Karten sind ausgeblendet, werden aber
-            // weiter befuellt: wer einen Monat ohne Auswertung waehlt, sieht
-            // sie sofort und nicht erst nach einem Neuzeichnen.
             renderWeekdayChart(state.summary.weekday, "Alle Chats");
             renderHourlyChart(state.summary.hourly, "Alle Chats");
             // applyView ZULETZT: renderHourlyChart blendet seine Karte selbst
-            // wieder ein, sonst stuenden Heatmap und Stundenkarte nebeneinander.
+            // wieder ein und wuerde eine Entscheidung von applyView ueberholen.
             applyView({ report: false, monthSelected: false });
             renderComparison(null);
           }
@@ -2350,16 +2344,18 @@
       }
 
       function applyView({ report, monthSelected }) {
-        // Heatmap statt Wochentag- und Stundenkarte: sie sagt dasselbe und
-        // eine Dimension mehr. Im Report, und ebenso im Ruhezustand ohne
-        // Monat — dort gibt es keinen Report, aber die Gesamtzahlen tragen
-        // die Wochentag-x-Stunde-Matrix ohnehin.
-        // Nur beim gewählten Monat OHNE Auswertung bleiben die beiden
-        // klassischen Karten stehen: dort fehlt die Matrix.
-        const heatmap = report || !monthSelected;
-        DOM.heatmapCard.hidden = !heatmap;
-        DOM.weekdayChartCard.hidden = heatmap;
-        DOM.hourlyChartCard.hidden = heatmap;
+        // Im Report ERSETZT die Heatmap die beiden klassischen Karten und
+        // uebernimmt deren Filterrolle — dort ist sie ein Bedienelement.
+        //
+        // Im Ruhezustand kommt sie DAZU: sie steht rechts, die beiden
+        // Diagramme tragen die linke Spalte, und sie beantworten andere
+        // Fragen — "welcher Wochentag" und "welche Uhrzeit" liest man an
+        // einer Achse ab, "wann genau" nur an der Matrix. Blendet man die
+        // beiden hier aus, bleibt links unter dem Monatsdiagramm eine halbe
+        // Seite leer.
+        DOM.heatmapCard.hidden = !(report || !monthSelected);
+        DOM.weekdayChartCard.hidden = report;
+        DOM.hourlyChartCard.hidden = report;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.hilfeCard.hidden = !report;
         DOM.qualityCard.hidden = !report;
@@ -2465,7 +2461,10 @@
         const bounds = heatBounds(max);
         DOM.heatmapLegend.replaceChildren();
         const label = document.createElement("span");
-        label.textContent = "Chats pro Stunde:";
+        // NICHT "Chats pro Stunde": so heisst das Balkendiagramm nebenan, und
+        // dort ist es eine Summe je Tagesstunde ueber alle Wochentage. Eine
+        // Zelle hier ist eine Wochentagsstunde — Montag 9 Uhr, nicht 9 Uhr.
+        label.textContent = "Chats je Zelle:";
         DOM.heatmapLegend.appendChild(label);
 
         // Numbers under the swatches. Six unlabelled squares and "0 bis 42" at
@@ -3512,8 +3511,9 @@
         state.selectedMonthKey = null;
         DOM.dailyChartCard.hidden = true;
         DOM.messagesTitleEl.textContent = "Nachrichten";
-        DOM.messagesSubtitleEl.textContent =
-          "Monat auswählen, um Gesprächsdetails anzuzeigen.";
+        // Nur EINE Aufforderung. Vorher stand derselbe Satz zweimal, 90 Pixel
+        // auseinander, einmal als Unterzeile und einmal im Leerzustand.
+        DOM.messagesSubtitleEl.textContent = "";
         DOM.messagesListEl.innerHTML =
           '<div class="empty-state">Monat auswählen, um Gespräche zu erkunden.</div>';
         state.currentView.chats = [];
