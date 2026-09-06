@@ -155,7 +155,15 @@
       }
 
       .left-panel {
-        flex: 0 0 clamp(22rem, 28vw, 28rem);
+        /* Ein ANTEIL, keine feste Breite: darin stehen drei Diagramme mit 13
+           Monats-, 31 Tages- und 24 Stundenbalken. Mit dem alten
+           clamp(22rem, 28vw, 28rem) blieb die Spalte ab etwa 1600px stehen,
+           waehrend die rechte weiterwuchs — bei 1280px waren es rund 250px
+           Zeichenflaeche, die Balken verschmolzen und nur jeder dritte
+           Achsenwert bekam eine Beschriftung. Als Prozentsatz waechst sie mit
+           dem Fenster mit; `min-width` haelt sie am unteren Ende lesbar. */
+        flex: 0 0 36%;
+        min-width: 22rem;
         min-width: 0;
         /* Sticky rather than left behind: the right column is roughly twice as
            tall, so this column used to end 800px early and leave a dead strip.
@@ -292,51 +300,12 @@
         background: #b4453c;
       }
 
-      /* Nicht gedaempft: 365 von 1.394 "geholfen" sind Uebergaben. Wer das
-         als Fussnote setzt, laesst die 80 Prozent groesser aussehen, als sie
-         gemeint sind. */
-      .hilfe-handover {
-        margin: 0.9rem 0 0;
-        font-size: 0.95rem;
-        color: var(--text);
-      }
 
       /* Dasselbe Klick-Idiom wie der Report-Link der Seite: Akzentfarbe, und
          der Unterstrich kommt erst beim Zeigen. Ein dauerhaft unterstrichener
          Satz sah aus wie ein Darstellungsfehler, nicht wie ein Knopf. */
-      /* Die allgemeine button-Regel oben macht aus jedem Knopf eine Pille mit
-         Rundung und Schatten. Hier soll Text stehen, kein Knopf — also auch
-         `box-shadow` und `border-radius` zuruecknehmen, sonst schwebt eine
-         graue Pille um den halben Satz und der Klammerzusatz steht davor. */
-      .hilfe-handover button {
-        font: inherit;
-        color: var(--accent);
-        font-weight: 600;
-        background: none;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 0;
-        cursor: pointer;
-        text-align: left;
-        display: inline;
-        /* Unterstrichen wie ein Link, weil er einer ist: die blaue Schrift
-           allein waere auf dieser Seite eine Behauptung ohne Deckung — der
-           andere Link daneben traegt einen Pfeil. */
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
 
-      .hilfe-handover button:hover,
-      .hilfe-handover button:focus-visible {
-        background: none;
-        box-shadow: none;
-        text-decoration-thickness: 2px;
-      }
 
-      .hilfe-handover .hilfe-delta {
-        color: var(--text-muted);
-      }
 
       /* A count spanning 3 to 209 is not readable as digits alone. */
       .cause-bar-track {
@@ -415,12 +384,6 @@
         margin-right: 0.25rem;
       }
 
-      .tag-total[disabled] {
-        /* Bis die Zahlen da sind, ist der Ruhezustand nicht behauptbar. */
-        opacity: 0.5;
-        cursor: default;
-      }
-
       .tag {
         /* 44px minimum: this is the primary control on the page and gets used
            on touch screens. */
@@ -469,11 +432,24 @@
         border: 1px solid var(--segment-agentur-stroke);
       }
 
+      /* Gefuellt, nicht umrandet. Vorher war der gewaehlte Knopf weiss auf
+         hellem Grund und las sich als der ausgegraute unter drei aktiven —
+         genau verkehrt herum. */
       .tag[aria-pressed="true"] {
-        background: var(--surface);
-        color: var(--text);
-        border-color: var(--text-muted);
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
         box-shadow: var(--shadow-m);
+      }
+
+      .tag[aria-pressed="true"]:hover {
+        background: var(--accent);
+      }
+
+      /* Der Punkt traegt die Bereichsfarbe; auf dem gefuellten Knopf braucht
+         er einen hellen Rand, sonst verschwindet sein dunkler Strich darin. */
+      .tag[aria-pressed="true"] .tag-dot {
+        border-color: #ffffffaa;
       }
 
       .tag-count {
@@ -483,7 +459,7 @@
       }
 
       .tag[aria-pressed="true"] .tag-count {
-        color: var(--text);
+        color: #fff;
       }
 
       .comparison {
@@ -996,7 +972,7 @@
         }
       }
 
-      @media (max-width: 1080px) {
+      @media (max-width: 1200px) {
         .layout {
           flex-direction: column;
         }
@@ -1186,19 +1162,6 @@
         aria-label="Bereich filtern"
       >
         <span class="tagbar-label" id="tagbarLabel">Bereich</span>
-        <!-- Kein Zaehler an "Gesamt": die drei Bereiche zaehlen ab dem 22. Mai,
-             "Gesamt" ist der Ruhezustand ueber alles. Beide Zahlen
-             nebeneinander laedt genau zu der Subtraktion ein, aus der Punkt 3
-             der Kundenliste entstanden ist. -->
-        <button
-          type="button"
-          class="tag tag-total"
-          data-total="true"
-          aria-pressed="true"
-          disabled
-        >
-          Gesamt
-        </button>
         <button
           type="button"
           class="tag"
@@ -1283,25 +1246,6 @@
           </article>
         </section>
         <section class="panel right-panel">
-          <!-- Zuerst die Karte, die "bleibt der Bot?" beantwortet (D19). Die
-               Kennzahlen darunter sagen, wie viel — nicht, wie gut. -->
-          <article id="hilfeCard" class="card" hidden>
-            <h2>Qualität der Antworten</h2>
-            <p class="card-subtitle" id="hilfeSubtitle">
-              Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
-            </p>
-            <div id="hilfeState" class="card-state" hidden></div>
-            <div id="hilfeBody" hidden>
-              <ul class="hilfe-legend" id="hilfeLegend"></ul>
-              <div
-                class="hilfe-stripe"
-                id="hilfeStripe"
-                role="img"
-                aria-label="Verteilung der Hilfe-Klassen"
-              ></div>
-              <p class="hilfe-handover" id="hilfeHandover" hidden></p>
-            </div>
-          </article>
           <article id="metricsCard" class="card loading-skeleton">
             <h2 id="metricsTitle">Alle Chats</h2>
             <div class="metrics-grid metrics-grid-wide">
@@ -1323,6 +1267,26 @@
             </div>
             <p id="metricsError" class="error-message" hidden></p>
             <div id="comparison" class="comparison" hidden></div>
+          </article>
+          <!-- Unter der Monatsuebersicht (Owner-Ansage 2026-09-06). D19
+               wollte sie als erste Karte rechts; die Uebersicht nennt den
+               Monat, und die Qualitaetskarte liest sich darunter als seine
+               Antwort statt als Zahl ohne Bezug. -->
+          <article id="hilfeCard" class="card" hidden>
+            <h2>Qualität der Antworten</h2>
+            <p class="card-subtitle" id="hilfeSubtitle">
+              Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
+            </p>
+            <div id="hilfeState" class="card-state" hidden></div>
+            <div id="hilfeBody" hidden>
+              <ul class="hilfe-legend" id="hilfeLegend"></ul>
+              <div
+                class="hilfe-stripe"
+                id="hilfeStripe"
+                role="img"
+                aria-label="Verteilung der Hilfe-Klassen"
+              ></div>
+            </div>
           </article>
           <article id="qualityCard" class="card">
             <h2 id="qualityTitle">Wo der Bot danebenliegt</h2>
@@ -1475,7 +1439,6 @@
         hilfeBody: document.getElementById("hilfeBody"),
         hilfeLegend: document.getElementById("hilfeLegend"),
         hilfeStripe: document.getElementById("hilfeStripe"),
-        hilfeHandover: document.getElementById("hilfeHandover"),
         metricsGrid: document.querySelector(".metrics-grid-wide"),
         qualityState: document.getElementById("qualityState"),
         causeTable: document.getElementById("causeTable"),
@@ -1629,16 +1592,7 @@
       }
 
       function renderTagbar() {
-        const none = state.selectedSegments.length === 0;
         DOM.tagbar.querySelectorAll(".tag").forEach((button) => {
-          // "Gesamt" ist gedrueckt genau dann, wenn kein Bereich gewaehlt ist.
-          // Es ist ein Zustand, kein Filter: der Knopf loescht die Auswahl,
-          // er fuegt nichts hinzu.
-          if (button.dataset.total) {
-            button.setAttribute("aria-pressed", none ? "true" : "false");
-            button.disabled = !state.summary.loaded;
-            return;
-          }
           const segment = button.dataset.segment;
           const active = state.selectedSegments.includes(segment);
           button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -1650,18 +1604,6 @@
         // Ohne Datum (Owner-Ansage 2026-09-06, weicht von D27 ab, das das
         // Datum immer an der Leiste sehen wollte).
         DOM.tagbarLabel.textContent = "Bereich";
-      }
-
-      function clearSegments() {
-        if (state.selectedSegments.length === 0) return;
-        state.selectedSegments = [];
-        writeFiltersToUrl();
-        renderTagbar();
-        loadDashboard(true);
-        if (state.selectedMonthKey) {
-          cache.invalidateAll();
-          loadMonth(state.selectedMonthKey, true);
-        }
       }
 
       const api = {
@@ -2327,18 +2269,15 @@
       }
 
       function applyView({ report, monthSelected }) {
-        // Im Report ERSETZT die Heatmap die beiden klassischen Karten und
-        // uebernimmt deren Filterrolle — dort ist sie ein Bedienelement.
-        //
-        // Im Ruhezustand kommt sie DAZU: sie steht rechts, die beiden
-        // Diagramme tragen die linke Spalte, und sie beantworten andere
-        // Fragen — "welcher Wochentag" und "welche Uhrzeit" liest man an
-        // einer Achse ab, "wann genau" nur an der Matrix. Blendet man die
-        // beiden hier aus, bleibt links unter dem Monatsdiagramm eine halbe
-        // Seite leer.
+        // Die Heatmap kommt DAZU, sie ersetzt nichts mehr: sie steht rechts,
+        // ihre beiden Randverteilungen tragen die linke Spalte. Sie
+        // beantworten andere Fragen — "welcher Wochentag" und "welche
+        // Uhrzeit" liest man an einer Achse ab, "wann genau" nur an der
+        // Matrix. Frueher ersetzte sie die beiden im Report; dann stand links
+        // unter dem Monatsdiagramm eine halbe Seite leer.
         DOM.heatmapCard.hidden = !(report || !monthSelected);
-        DOM.weekdayChartCard.hidden = report;
-        DOM.hourlyChartCard.hidden = report;
+        DOM.weekdayChartCard.hidden = false;
+        DOM.hourlyChartCard.hidden = false;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.hilfeCard.hidden = !report;
         DOM.qualityCard.hidden = !report;
@@ -2663,47 +2602,6 @@
         });
         DOM.hilfeLegend.replaceChildren(legend);
         DOM.hilfeStripe.replaceChildren(stripe);
-
-        renderHandover(quality);
-      }
-
-      function renderHandover(quality) {
-        const handovers = quality?.uebergaben;
-        const causeId = quality?.verweis_ursache_id;
-        if (typeof handovers !== "number" || !handovers) {
-          DOM.hilfeHandover.hidden = true;
-          return;
-        }
-        DOM.hilfeHandover.hidden = false;
-
-        // Die Umbuchung ist der erste lesbare Satz, nicht die Fussnote: mehr
-        // als die Haelfte der frueher schlechten Antworten steckt darin.
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent =
-          `${formatNumber(handovers)} Übergaben an die Beratung — zählen als geholfen`;
-        // Klickbar wie eine Ursachenzeile (D26). Eine Zeile, die aussieht wie
-        // die Tabellenzeilen daneben und nichts tut, ist eine Falle.
-        if (causeId) {
-          button.addEventListener("click", () => toggleCause(causeId));
-          button.setAttribute(
-            "aria-pressed",
-            state.selectedCauseId === causeId ? "true" : "false",
-          );
-        } else {
-          button.disabled = true;
-        }
-        DOM.hilfeHandover.replaceChildren(button);
-
-        const previous = quality?.hilfe_vormonat;
-        if (previous && typeof previous.uebergaben === "number") {
-          const delta = handovers - previous.uebergaben;
-          const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
-          const note = document.createElement("span");
-          note.className = "hilfe-delta";
-          note.textContent = ` (${sign}${formatNumber(Math.abs(delta))} zum Vormonat)`;
-          DOM.hilfeHandover.appendChild(note);
-        }
       }
 
       function renderQuality(quality, totalChats, periodLabel) {
@@ -2996,7 +2894,18 @@
 
       function renderMonthlyChart(summary) {
         const normalized = Array.isArray(summary) ? summary : [];
-        const labels = normalized.map((item) => item.short_label ?? item.label);
+        // Jahr in die ZWEITE Zeile, nur am Jahreswechsel und beim ersten
+        // Balken. Chart.js bemisst `autoSkip` an der BREITESTEN Beschriftung:
+        // ein einziges "Sep 25" macht alle dreizehn so breit, und in der
+        // linken Spalte blieb dann jeder zweite Balken unbenannt — darunter
+        // der ausgewaehlte. Zweizeilig ist die breiteste so breit wie "Sep".
+        const labels = normalized.map((item, index) => {
+          const short = item.short_label ?? item.label ?? "";
+          const monat = short.replace(/ \d{2}$/, "");
+          const jahr = (short.match(/ (\d{2})$/) || [])[1];
+          const zeigtJahr = index === 0 || (item.key || "").slice(5, 7) === "01";
+          return zeigtJahr && jahr ? [monat, `'${jahr}`] : monat;
+        });
         const fullLabels = normalized.map((item, index) =>
           normalized[index].key === state.currentMonth
             ? `${item.label} (läuft noch)`
@@ -3044,7 +2953,7 @@
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 },
+                  ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 2 },
                 },
                 y: { beginAtZero: true, ticks: { precision: 0 } },
               },
@@ -3683,10 +3592,6 @@
       DOM.tagbar.addEventListener("click", (event) => {
         const button = event.target.closest(".tag");
         if (!button || button.disabled) return;
-        if (button.dataset.total) {
-          clearSegments();
-          return;
-        }
         toggleSegment(button.dataset.segment);
       });
 

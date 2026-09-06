@@ -629,16 +629,7 @@
         background: #b4453c;
       }
 
-      /* Gleiche Gewichtung wie im Dashboard: die Umbuchung ist Teil der
-         Antwort, nicht ihre Fussnote. */
-      .hilfe-handover {
-        margin: 0.9rem 0 0;
-        color: var(--text);
-      }
 
-      .hilfe-handover .hilfe-delta {
-        color: var(--text-muted);
-      }
 
       @media print {
         body {
@@ -741,7 +732,6 @@
               role="img"
               aria-label="Verteilung der Hilfe-Klassen"
             ></div>
-            <p class="hilfe-handover" id="hilfeHandover" hidden></p>
             <p class="footnote" id="hilfeGlossary"></p>
           </div>
         </article>
@@ -1126,28 +1116,6 @@
         });
         el("hilfeLegend").replaceChildren(legend);
         el("hilfeStripe").replaceChildren(stripe);
-
-        // Wortgleich mit dem Dashboard (SC7): die Umbuchung muss in beiden
-        // Ansichten dieselbe Zahl und denselben Satz ergeben.
-        const handovers = quality?.uebergaben;
-        const line = el("hilfeHandover");
-        if (typeof handovers === "number" && handovers) {
-          const previous = quality?.hilfe_vormonat;
-          let text =
-            `${fmt(handovers)} Übergaben an die Beratung — zählen als geholfen`;
-          line.textContent = text;
-          if (previous && typeof previous.uebergaben === "number") {
-            const delta = handovers - previous.uebergaben;
-            const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
-            const note = document.createElement("span");
-            note.className = "hilfe-delta";
-            note.textContent = ` (${sign}${fmt(Math.abs(delta))} zum Vormonat)`;
-            line.appendChild(note);
-          }
-          line.hidden = false;
-        } else {
-          line.hidden = true;
-        }
 
         el("hilfeGlossary").textContent =
           "Teilweise geholfen: freundlich geantwortet, ohne die Frage zu " +
