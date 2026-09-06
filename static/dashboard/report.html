@@ -903,11 +903,20 @@
         );
       }
 
+      // Wortgleich mit dem Dashboard (SC5). Vorher rundete diese Seite auf
+      // volle Minuten: aus 106 Sekunden wurde "2 min", waehrend das Dashboard
+      // "1 Min. 46 Sek." sagte — dieselbe Messung, zwei Zahlen, und der Leser
+      // kann nicht wissen, welche stimmt.
       function formatDuration(seconds) {
-        if (typeof seconds !== "number") return "--";
-        if (seconds < 60) return `${Math.round(seconds)} s`;
-        if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-        return `${dec(seconds / 3600)} h`;
+        if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "—";
+        const total = Math.max(0, Math.round(seconds));
+        const minutes = Math.floor(total / 60);
+        const secs = total % 60;
+        if (minutes >= 60) {
+          return `${Math.floor(minutes / 60)} Std. ${minutes % 60} Min.`;
+        }
+        if (minutes > 0) return `${minutes} Min. ${secs} Sek.`;
+        return `${secs} Sek.`;
       }
 
       const pct = (part, whole) =>
@@ -1363,10 +1372,13 @@
         // Gleicher Wortlaut wie im Dashboard (SC5). Der Nenner ist die Aussage,
         // nicht eine Fussnote: gezaehlt werden Gespraeche ab zwei
         // Nutzernachrichten.
+        const durationSamples = data.duration_samples;
         el("mDurationCaption").textContent =
           data.duration_basis === "alle"
             ? "Median · alle Gespräche"
-            : "Median · Gespräche mit Rückfrage";
+            : typeof durationSamples === "number"
+              ? `Median · ${fmt(durationSamples)} mit Rückfrage`
+              : "Median · Gespräche mit Rückfrage";
 
         // Keine eigene Rechnung mehr: die Klassen und die Uebergaben kommen
         // fertig vom Server, damit Dashboard und Report dieselbe Zahl nennen
