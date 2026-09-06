@@ -210,10 +210,6 @@
       .metrics-grid-wide .metric-label {
         display: flex;
         align-items: flex-end;
-        /* "NUTZERNACHRICHTEN" ist ein Wort; mit vier Spalten ragte es bei
-           1280px 14px aus seiner Kachel. */
-        font-size: 0.74rem;
-        letter-spacing: 0.04em;
       }
 
       /* Die Spaltenzahl folgt der Kachelzahl, nicht der verfuegbaren Breite.
@@ -416,8 +412,6 @@
       .tagbar-label {
         font-size: 0.85rem;
         color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
         margin-right: 0.25rem;
       }
 
@@ -540,8 +534,6 @@
       .cause-table th {
         text-align: left;
         font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
         color: var(--text-muted);
         font-weight: 600;
         padding: 0 0.6rem 0.6rem;
@@ -799,8 +791,6 @@
       .metric-label {
         font-size: 0.85rem;
         color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
         min-height: 2.4em;
       }
 
@@ -1657,16 +1647,9 @@
           countEl.textContent =
             typeof count === "number" ? formatNumber(count) : "--";
         });
-        // Das Datum steht an der Leiste, solange die Zaehler den ganzen
-        // Zeitraum meinen. Bei gewaehltem Monat zaehlen sie diesen Monat —
-        // dann waere "seit dem 22. Mai 2026" schlicht falsch, und die Summe
-        // der drei Knoepfe (die dann genau die Chatzahl des Monats ergibt)
-        // widerspraeche der Beschriftung darueber. Abweichung von D27, das
-        // den Gesamtzustand im Blick hatte.
-        DOM.tagbarLabel.textContent =
-          state.summary.segmentsLabel && !state.selectedMonthKey
-            ? `Bereich · ${state.summary.segmentsLabel}`
-            : "Bereich";
+        // Ohne Datum (Owner-Ansage 2026-09-06, weicht von D27 ab, das das
+        // Datum immer an der Leiste sehen wollte).
+        DOM.tagbarLabel.textContent = "Bereich";
       }
 
       function clearSegments() {
