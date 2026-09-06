@@ -1471,9 +1471,9 @@
               if (was !== undefined) {
                 const diff = (topic.count || 0) - was;
                 delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
-                // Bei Themen ist mehr weder gut noch schlecht, es ist nur
-                // mehr — deshalb keine Farbe.
-                direction = "";
+                // Umgekehrt gepolt zur Ursachentabelle: dort ist mehr rot,
+                // hier ist mehr gruen.
+                direction = diff === 0 ? "" : diff > 0 ? " down" : " up";
               }
               return [
                 { text: topic.label ?? topic.thema_id, title: topic.definition },
@@ -1527,18 +1527,21 @@
           countries.map((entry) => {
             const was = countryBefore.get(entry.land);
             let delta = "—";
+            let deltaKlasse = "";
             if (countryComparable && was !== undefined) {
               const diff = (entry.count || 0) - was;
               // Wie bei den Themen keine Farbe: mehr Nennungen eines Landes
               // sind weder gut noch schlecht.
               delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
+              // Wie bei den Themen: mehr ist gruen.
+              deltaKlasse = diff === 0 ? "" : diff > 0 ? " down" : " up";
             }
             return [
               { text: entry.land },
               { bar: (entry.count || 0) / countryTop },
               { text: fmt(entry.count) },
               { text: pct(entry.count, countryAll), className: "share" },
-              { text: delta, className: "num" },
+              { text: delta, className: `num delta${deltaKlasse}` },
             ];
           }),
         );

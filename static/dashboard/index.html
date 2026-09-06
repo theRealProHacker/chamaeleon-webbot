@@ -584,11 +584,11 @@
         white-space: nowrap;
       }
 
-      .cause-delta.up {
+      .cause-delta.schlecht {
         color: var(--danger);
       }
 
-      .cause-delta.down {
+      .cause-delta.gut {
         color: #15803d;
       }
 
@@ -2710,7 +2710,12 @@
           countCell.textContent = formatNumber(topic.count);
           row.appendChild(countCell);
           row.appendChild(
-            deltaZelle(topic.count, previousTopics.get(topic.thema_id), topicsComparable),
+            deltaZelle(
+              topic.count,
+              previousTopics.get(topic.thema_id),
+              topicsComparable,
+              true,
+            ),
           );
 
           body.appendChild(row);
@@ -2777,7 +2782,12 @@
           countCell.textContent = formatNumber(entry.count);
           row.appendChild(countCell);
           row.appendChild(
-            deltaZelle(entry.count, previousCountries.get(entry.land), countriesComparable),
+            deltaZelle(
+              entry.count,
+              previousCountries.get(entry.land),
+              countriesComparable,
+              true,
+            ),
           );
 
           body.appendChild(row);
@@ -2805,8 +2815,13 @@
        * Eine Regel an einer Stelle: ohne vergleichbaren Vormonat steht ein
        * Strich, nie eine Null. "Im Vormonat nicht vorhanden" und "im Vormonat
        * gleich oft" sind verschiedene Aussagen, und eine 0 behauptet die
-       * zweite. */
-      function deltaZelle(count, previous, comparable) {
+       * zweite.
+       *
+       * `mehrIstGut` dreht die Farbe. Die beiden Achsen sind entgegengesetzt
+       * gepolt: eine Fehlerursache, die zulegt, ist rot; ein Thema oder ein
+       * Reiseziel, das zulegt, ist gruen. Deshalb heissen die Klassen nach
+       * ihrer Bedeutung und nicht nach der Richtung. */
+      function deltaZelle(count, previous, comparable, mehrIstGut = false) {
         const zelle = document.createElement("td");
         zelle.className = "num";
         if (
@@ -2822,7 +2837,10 @@
         const delta = count - previous;
         zelle.textContent = delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`;
         zelle.title = `Vormonat: ${formatNumber(previous)} Gespräche`;
-        if (delta !== 0) zelle.classList.add("cause-delta", delta > 0 ? "up" : "down");
+        if (delta !== 0) {
+          const gut = delta > 0 === mehrIstGut;
+          zelle.classList.add("cause-delta", gut ? "gut" : "schlecht");
+        }
         return zelle;
       }
 
@@ -3029,7 +3047,10 @@
         }
 
         DOM.dailyChartCard.hidden = false;
-        DOM.dailyChartTitleEl.textContent = "Chats pro Tag";
+        // Mit Monat, wie die drei anderen Diagramme. Es war das einzige ohne.
+        DOM.dailyChartTitleEl.textContent = label
+          ? `Chats pro Tag · ${label}`
+          : "Chats pro Tag";
 
         const labels = dailyCounts.map((item) => item.short_label ?? item.label ?? item.date);
         const dailyFullLabels = dailyCounts.map((item) => item.label ?? item.date);
