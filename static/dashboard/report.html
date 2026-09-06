@@ -618,8 +618,13 @@
         height: 100%;
       }
 
+      /* Eine eigene Skala fuer die Qualitaetsachse, nicht die Bereichsfarben.
+         Vorher war "Geholfen" akzentblau wie der Agentur-Punkt und "Teilweise"
+         goldgelb wie MeinChamaeleon — dieselbe Palette fuer zwei Bedeutungen
+         auf einem Bildschirm, 150px auseinander. Gruen-Bernstein-Rot liest
+         sich als Skala und kommt in der Bereichsleiste nicht vor. */
       .hilfe-seg-geholfen {
-        background: var(--accent);
+        background: #2f7d55;
       }
 
       .hilfe-seg-teilweise {
@@ -730,7 +735,7 @@
 
         <article class="card" id="hilfeCard" hidden>
           <h2>Qualität der Antworten</h2>
-          <p class="card-subtitle">
+          <p class="card-subtitle" id="hilfeSubtitle">
             Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
           </p>
           <div id="hilfeState" class="card-state" hidden></div>
@@ -1073,8 +1078,13 @@
           .reduce((sum, k) => sum + k.count, 0);
       }
 
-      function renderHilfe(quality) {
+      function renderHilfe(quality, period) {
         el("hilfeCard").hidden = false;
+        // Zeitraum in der Unterzeile, gleicher Grund wie im Dashboard: die
+        // Karte steht ueber der Kachelreihe, die den Monat nennt.
+        el("hilfeSubtitle").textContent =
+          (period ? `${period} · ` : "") +
+          "Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.";
         const hilfe = quality?.hilfe;
         const status = hilfe?.status ?? "missing";
         const classes = Array.isArray(hilfe?.klassen) ? hilfe.klassen : [];
@@ -1362,7 +1372,7 @@
         // fertig vom Server, damit Dashboard und Report dieselbe Zahl nennen
         // (SC5). Was hier frueher stand, war eine zweite Implementierung
         // derselben Regel.
-        renderHilfe(quality);
+        renderHilfe(quality, data.label);
         const notFully = incompleteHelp(quality);
 
         el("glossary").textContent =

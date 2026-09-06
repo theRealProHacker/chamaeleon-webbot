@@ -279,8 +279,13 @@
         height: 100%;
       }
 
+      /* Eine eigene Skala fuer die Qualitaetsachse, nicht die Bereichsfarben.
+         Vorher war "Geholfen" akzentblau wie der Agentur-Punkt und "Teilweise"
+         goldgelb wie MeinChamaeleon — dieselbe Palette fuer zwei Bedeutungen
+         auf einem Bildschirm, 150px auseinander. Gruen-Bernstein-Rot liest
+         sich als Skala und kommt in der Bereichsleiste nicht vor. */
       .hilfe-seg-geholfen {
-        background: var(--accent);
+        background: #2f7d55;
       }
 
       .hilfe-seg-teilweise {
@@ -318,16 +323,19 @@
         padding: 0;
         cursor: pointer;
         text-align: left;
-        text-decoration: none;
         display: inline;
+        /* Unterstrichen wie ein Link, weil er einer ist: die blaue Schrift
+           allein waere auf dieser Seite eine Behauptung ohne Deckung — der
+           andere Link daneben traegt einen Pfeil. */
+        text-decoration: underline;
+        text-underline-offset: 3px;
       }
 
       .hilfe-handover button:hover,
       .hilfe-handover button:focus-visible {
         background: none;
         box-shadow: none;
-        text-decoration: underline;
-        text-underline-offset: 3px;
+        text-decoration-thickness: 2px;
       }
 
       .hilfe-handover .hilfe-delta {
@@ -1278,7 +1286,7 @@
                Kennzahlen darunter sagen, wie viel — nicht, wie gut. -->
           <article id="hilfeCard" class="card" hidden>
             <h2>Qualität der Antworten</h2>
-            <p class="card-subtitle">
+            <p class="card-subtitle" id="hilfeSubtitle">
               Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
             </p>
             <div id="hilfeState" class="card-state" hidden></div>
@@ -1464,6 +1472,7 @@
         comparisonEl: document.getElementById("comparison"),
         messagesState: document.getElementById("messagesState"),
         hilfeCard: document.getElementById("hilfeCard"),
+        hilfeSubtitle: document.getElementById("hilfeSubtitle"),
         hilfeState: document.getElementById("hilfeState"),
         hilfeBody: document.getElementById("hilfeBody"),
         hilfeLegend: document.getElementById("hilfeLegend"),
@@ -2584,6 +2593,13 @@
       }
 
       function renderHilfe(quality) {
+        // Die Karte steht UEBER der Kennzahlen-Karte, die den Monat im Titel
+        // traegt — also muss sie ihren Zeitraum selbst nennen, sonst liest sie
+        // sich als Gesamtzahl ueber alle Monate.
+        const period = state.currentView.label;
+        DOM.hilfeSubtitle.textContent =
+          (period ? `${period} · ` : "") +
+          "Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.";
         const hilfe = quality?.hilfe;
         const status = hilfe?.status ?? "missing";
         const classes = Array.isArray(hilfe?.klassen) ? hilfe.klassen : [];
