@@ -47,6 +47,7 @@ from month_aggregate import (
     MonthAggregate,
     MonthKey,
     QualityAggregate,
+    SEGMENTS_FROM_LABEL,
     aggregate_month,
     dialog_samples,
     median_duration,
@@ -175,6 +176,7 @@ class MonthDetail(TypedDict):
 class DashboardPayload(TypedDict):
     total_chats: int
     segment_counts: dict[str, int]
+    segments_label: str  # "seit dem 22. Mai 2026" — der Bezugszeitraum
     avg_user_messages_per_chat: float
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
@@ -499,6 +501,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             "laender": [],
             "qualitaet": {},
             "chat_ids_by_cause": {},
+            "hilfe": {"status": "running", "klassen": [], "uebergaben": None},
+            "uebergaben": None,
         }
 
     row = month_stats.load_month(key)
@@ -511,15 +515,28 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             "laender": [],
             "qualitaet": {},
             "chat_ids_by_cause": {},
+            "hilfe": {"status": "missing", "klassen": [], "uebergaben": None},
+            "uebergaben": None,
         }
 
     # The FAQ gap marker is computed on READ, not stored: `faqs/` changes
     # independently of the classification run, and a cause that got a snippet
     # last week should stop being marked without repaying for the month.
     causes, topics = month_stats.split_taxonomy((row or {}).get("taxonomy"))
-    taxonomy = chat_quality.mark_faq_gaps(causes)
+    # Zwei Marker auf demselben Weg: welche Ursache kein FAQ deckt, und welche
+    # "an die Beratung uebergeben" bedeutet. Beide werden beim Lesen gesetzt,
+    # nicht in der Tabelle — die Taxonomie muss aus der Nachfaltung
+    # byte-identisch zurueckkommen (SC4).
+    taxonomy = chat_quality.mark_referral(
+        chat_quality.mark_faq_gaps(causes), stored.get("taxonomy_version", 0)
+    )
+    hilfe = month_aggregate.hilfe_for(stored, taxonomy, segments)
     return {
         "status": stored.get("status", "ok"),
+        # Die drei Hilfe-Klassen und die Uebergaben werden EINMAL gerechnet,
+        # hier. index.html und report.html lesen sie nur (SC5).
+        "hilfe": hilfe,
+        "uebergaben": hilfe["uebergaben"],
         "computed_at": (row or {}).get("quality_computed_at"),
         "taxonomy_version": stored.get("taxonomy_version", 0),
         "classified_chats": select(stored.get("classified_chats", [0, 0, 0]), segments),
@@ -794,9 +811,25 @@ def DASHBOARD_data():
                     running_agg["weekday"][weekday][index] - value
                 )
 
+    segments_vector, boundary_cached = month_aggregate.segments_since_cutoff(
+        month_cache["aggregates"]
+    )
+    if not boundary_cached:
+        # Der Grenzmonat fehlt im Cache: die Bereichszahlen sind dann zu klein,
+        # nicht falsch verteilt. Sichtbar wird das als Null in einem Bereich,
+        # deshalb steht es im Log statt in der Oberflaeche (Designregel 10).
+        print(
+            "[dashboard] Grenzmonat 2026-05 nicht im Cache — "
+            "Bereichszahlen ohne den Mai-Rest"
+        )
+
     payload: DashboardPayload = {
         "total_chats": select(all_time["total_chats"], segments),
-        "segment_counts": segment_counts(all_time["total_chats"]),
+        # Ohne Monatswahl beziehen sich die Bereichszahlen auf den Zeitraum, in
+        # dem es Bereiche gibt. Die Chatzahl darueber zaehlt weiter alles — das
+        # ist der Ruhezustand "Gesamt", nicht ein Filter.
+        "segment_counts": segment_counts(segments_vector),
+        "segments_label": SEGMENTS_FROM_LABEL,
         "avg_user_messages_per_chat": avg_user_messages(all_time, segments),
         "hourly_counts": [
             build_hourly_count(hour, select(vector, segments))

@@ -285,6 +285,12 @@
         margin-right: 0.25rem;
       }
 
+      .tag-total[disabled] {
+        /* Bis die Zahlen da sind, ist der Ruhezustand nicht behauptbar. */
+        opacity: 0.5;
+        cursor: default;
+      }
+
       .tag {
         /* 44px minimum: this is the primary control on the page and gets used
            on touch screens. */
@@ -1042,7 +1048,20 @@
         role="group"
         aria-label="Bereich filtern"
       >
-        <span class="tagbar-label">Bereich</span>
+        <span class="tagbar-label" id="tagbarLabel">Bereich</span>
+        <!-- Kein Zaehler an "Gesamt": die drei Bereiche zaehlen ab dem 22. Mai,
+             "Gesamt" ist der Ruhezustand ueber alles. Beide Zahlen
+             nebeneinander laedt genau zu der Subtraktion ein, aus der Punkt 3
+             der Kundenliste entstanden ist. -->
+        <button
+          type="button"
+          class="tag tag-total"
+          data-total="true"
+          aria-pressed="true"
+          disabled
+        >
+          Gesamt
+        </button>
         <button
           type="button"
           class="tag"
@@ -1293,6 +1312,7 @@
         hourlyChartCtx: document.getElementById("hourlyChart").getContext("2d"),
         dailyChartCtx: document.getElementById("dailyChart").getContext("2d"),
         tagbar: document.getElementById("tagbar"),
+        tagbarLabel: document.getElementById("tagbarLabel"),
         heatmapEl: document.getElementById("heatmap"),
         heatmapState: document.getElementById("heatmapState"),
         heatmapTitleEl: document.getElementById("heatmapTitle"),
@@ -1373,6 +1393,8 @@
         summary: {
           monthly: [],
           segmentCounts: {},
+          segmentsLabel: "",
+          loaded: false,
           heatmap: [],
           weekday: [],
           hourly: [],
@@ -1453,7 +1475,16 @@
       }
 
       function renderTagbar() {
+        const none = state.selectedSegments.length === 0;
         DOM.tagbar.querySelectorAll(".tag").forEach((button) => {
+          // "Gesamt" ist gedrueckt genau dann, wenn kein Bereich gewaehlt ist.
+          // Es ist ein Zustand, kein Filter: der Knopf loescht die Auswahl,
+          // er fuegt nichts hinzu.
+          if (button.dataset.total) {
+            button.setAttribute("aria-pressed", none ? "true" : "false");
+            button.disabled = !state.summary.loaded;
+            return;
+          }
           const segment = button.dataset.segment;
           const active = state.selectedSegments.includes(segment);
           button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -1462,7 +1493,24 @@
           countEl.textContent =
             typeof count === "number" ? formatNumber(count) : "--";
         });
+        // Die Bereichsleiste traegt den Bezugszeitraum immer (D27): die drei
+        // Zaehler zaehlen erst ab dem Tag, an dem das Widget die Seite
+        // mitschreibt.
+        DOM.tagbarLabel.textContent = state.summary.segmentsLabel
+          ? `Bereich · ${state.summary.segmentsLabel}`
+          : "Bereich";
+      }
 
+      function clearSegments() {
+        if (state.selectedSegments.length === 0) return;
+        state.selectedSegments = [];
+        writeFiltersToUrl();
+        renderTagbar();
+        loadDashboard(true);
+        if (state.selectedMonthKey) {
+          cache.invalidateAll();
+          loadMonth(state.selectedMonthKey, true);
+        }
       }
 
       const api = {
@@ -1579,6 +1627,8 @@
           // The tag counts are always the FULL split, never filtered — a tag
           // showing 0 because it is deselected would be unreadable.
           state.summary.segmentCounts = payload.segment_counts ?? {};
+          state.summary.segmentsLabel = payload.segments_label ?? "";
+          state.summary.loaded = true;
           state.summary.weekday = Array.isArray(payload.weekday_counts)
             ? payload.weekday_counts
             : [];
@@ -1602,12 +1652,19 @@
           }
 
           if (!state.selectedMonthKey) {
+            // EINE Periodenaussage je Bildschirm (D27). Ohne Bereichswahl
+            // zaehlt die Karte den gesamten Zeitraum; mit Bereichswahl zaehlt
+            // sie ab dem 22. Mai, und dann muss der Titel das sagen — sonst
+            // stehen zwei Zeitraeume unkommentiert nebeneinander, und Punkt 3
+            // entsteht an neuer Stelle.
             renderTotals(
               {
                 total_chats: payload.total_chats,
                 avg_user_messages_per_chat: payload.avg_user_messages_per_chat,
               },
-              "Alle Chats",
+              state.selectedSegments.length && payload.segments_label
+                ? `Alle Chats · ${payload.segments_label}`
+                : "Alle Chats · gesamter Zeitraum",
             );
             clearMonthDetail();
           } else if (state.selectedMonthKey === state.currentMonth) {
@@ -1743,8 +1800,9 @@
 
         DOM.metricsTitleEl.textContent = scopeLabel || "Alle Chats";
         DOM.totalChatsValueEl.textContent = formatNumber(totalChats);
-        DOM.totalChatsCaptionEl.textContent =
-          scopeLabel === "Alle Chats" ? "Über den gesamten Zeitraum" : "";
+        // Der Zeitraum steht im Titel (D27), nicht ein zweites Mal unter der
+        // Zahl.
+        DOM.totalChatsCaptionEl.textContent = "Gespräche";
         DOM.avgUserMessagesEl.textContent = formatDecimal(avgUserMessages);
         // Median, nicht Mittel — siehe die Notiz am Vormonatsvergleich: das
         // Mittel beschreibt die paar tagelang offenen Gespraeche, der Median
@@ -3325,7 +3383,12 @@
 
       DOM.tagbar.addEventListener("click", (event) => {
         const button = event.target.closest(".tag");
-        if (button) toggleSegment(button.dataset.segment);
+        if (!button || button.disabled) return;
+        if (button.dataset.total) {
+          clearSegments();
+          return;
+        }
+        toggleSegment(button.dataset.segment);
       });
 
       DOM.refreshButton.addEventListener("click", handleRefresh);

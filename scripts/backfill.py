@@ -1,16 +1,20 @@
-"""Backfill month_stats from an Assignment run (A11 Schritt 3).
+"""Nachfaltung: die Kreuztabelle Qualität × Ursache in month_stats nachtragen.
 
-The Assignment already paid Gemini for July and August and wrote the result to
-data/. This puts those numbers into the table instead of letting the nightly job
-buy the same answers again.
+Juli und August 2026 sind bezahlt und klassifiziert. Was in der Zeile fehlt, ist
+die ZELLE: `qualitaet` und `ursachen` sind zwei Randverteilungen derselben
+Tabelle, und die Verweis-Regel (Punkt 2 der Kundenliste) muss wissen, wie sich
+die Verweis-Ursache auf `ausgewichen` und `abgebrochen` verteilt. Die Verdicts
+selbst hat der Lauf verworfen; sie liegen nur noch in `data/quality_runs/`.
 
-Nothing here calls a model. It re-reads the raw chats, checks the stored
-aggregate against them, scans the payload for personal data, and only then
-writes. A backfill that cannot be checked against source is just a second copy
-of an assumption.
+Kein Modellaufruf. Die Kreuztabelle wird aus den gespeicherten Verdicts
+gefaltet, gegen die Randverteilungen der Tabelle geprüft und nur dann
+geschrieben — und geschrieben wird die BESTEHENDE Zeile plus ein Feld, nicht
+eine neu gerechnete. Damit ist SC4 nicht nachgewiesen, sondern strukturell wahr:
+was nicht angefasst wird, kann nicht abweichen.
 
-    python scripts/backfill.py [month …]      # default: 2026-07 2026-08
-    python scripts/backfill.py --check        # verify what is stored, write nothing
+    python scripts/backfill.py --check           # nur prüfen, nichts schreiben
+    python scripts/backfill.py                   # Juli und August schreiben
+    python scripts/backfill.py --dry-key 2026-07 # Probelauf auf 2026-07-test
 """
 
 import json
@@ -19,157 +23,231 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import chat_segments
 import dashboard
 import month_aggregate
 import month_stats
 import pii_scan
 
 MONTHS = ["2026-07", "2026-08"]
-DATA_DIR = "data"
+RUN_DIR = "data/quality_runs"
+RUN_SUFFIX = "t3-p3"
+
+# Die sieben Felder, die `save_quality` schreibt. `quality_computed_at` ist
+# ausgenommen und das ist keine Nachlässigkeit: der Upsert setzt es bei jedem
+# Schreiben neu, einen Pfad, der einzelne Felder anfasst, gibt es nicht.
+CHECKED_FIELDS = (
+    "quality",
+    "quality_version",
+    "quality_status",
+    "run_id",
+    "taxonomy",
+    "taxonomy_version",
+)
 
 
-def load_assignment(month: str) -> tuple[dict, list[dict]] | None:
-    path = os.path.join(DATA_DIR, f"assignment-{month}.json")
-    taxonomy_path = os.path.join(DATA_DIR, "assignment-taxonomy.json")
+def load_verdicts(month: str) -> list[dict] | None:
+    """Die Verdicts des t3-Laufs. NICHT data/assignment-*.json — das ist v1.
+
+    Der v1-Lauf (t1) steht mit anderen Zahlen in data/ und ist überholt: u01
+    liegt dort bei 209 statt bei 372. Wer ihn hier einliest, schreibt eine
+    Kreuztabelle, die zu den Randverteilungen der Tabelle nicht passt — was der
+    Abgleich unten fängt, aber teurer als ein richtiger Dateiname.
+    """
+    path = os.path.join(RUN_DIR, f"{month}-{RUN_SUFFIX}.jsonl")
     if not os.path.exists(path):
-        print(f"[backfill] {month}: no {path}, skipping")
+        print(f"[nachfaltung] {month}: {path} fehlt — das Verzeichnis ist gitignored")
         return None
+    verdicts = []
     with open(path, encoding="utf-8") as f:
-        quality = json.load(f)["aggregate"]
-    with open(taxonomy_path, encoding="utf-8") as f:
-        taxonomy = json.load(f)["taxonomy"]
-    return quality, taxonomy
+        for line in f:
+            line = line.strip()
+            if line:
+                verdicts.append(json.loads(line))
+    return verdicts
 
 
-def verify(month: str, quality: dict, rows: list) -> list[str]:
-    """Cross-check the stored aggregate against the raw chats. Returns problems."""
+def cross_table(month: str, verdicts: list[dict], rows: list) -> dict:
+    """Nur die Kreuztabelle. Alles andere am Aggregat wird verworfen."""
+    folded = month_aggregate.aggregate_quality(rows, verdicts, month)
+    return folded["qualitaet_ursache"]
+
+
+def check_marginals(cross: dict, stored: dict) -> list[str]:
+    """Die Zelle muss die Randverteilungen der Zeile ergeben, sonst passt sie nicht."""
     problems: list[str] = []
-    counts = month_aggregate.aggregate_month(rows, month)
 
-    # The segment split of the classified chats must match the split the raw
-    # rows produce. It is computed by the same deterministic rule on both sides,
-    # so a mismatch means the run saw a different set of chats than exists now.
-    classified = quality["classified_chats"]
-    if sum(classified) != len(rows):
-        problems.append(
-            f"klassifiziert {sum(classified)} von {len(rows)} Chats "
-            "(unmapped bleibt sichtbar, aber das Aggregat deckt nicht den Monat)"
-        )
-    if classified != counts["total_chats"] and sum(classified) == len(rows):
-        problems.append(
-            f"Segment-Split weicht ab: gespeichert {classified}, "
-            f"aus den Rohdaten {counts['total_chats']}"
-        )
+    by_cause: dict[str, list[int]] = {}
+    for causes in cross.values():
+        for cause, vector in causes.items():
+            target = by_cause.setdefault(cause, month_aggregate.empty_vector())
+            for i, value in enumerate(vector):
+                target[i] += value
 
-    # Every chat id in the drill-down index must be a chat of this month.
-    known = {str(row.get("id")) for row in rows}
-    unknown = {
-        cid
-        for ids in (quality.get("chat_ids_by_cause") or {}).values()
-        for cid in ids
-        if cid not in known
+    stored_causes = {
+        cause: vector
+        for cause, vector in (stored.get("ursachen") or {}).items()
+        if cause != "neu"
     }
-    if unknown:
-        problems.append(f"{len(unknown)} Chat-IDs im Drill-down gehören nicht zu {month}")
-
-    # The cause counts have to add up to the conversations that were not
-    # answered well. This is the number the frontend states, so if it is wrong
-    # the page contradicts itself.
-    bad = sum(
-        quality["qualitaet"].get(key, [0, 0, 0])[i]
-        for key in ("ausgewichen", "abgebrochen", "falsch")
-        for i in range(3)
-    )
-    named = sum(sum(v) for k, v in quality["ursachen"].items() if k != "neu")
-    neu = sum(quality["ursachen"].get("neu", [0, 0, 0]))
-    if named + neu != bad:
+    folded_named = {c: v for c, v in by_cause.items() if c != "neu"}
+    if folded_named != stored_causes:
+        only_folded = set(folded_named) - set(stored_causes)
+        only_stored = set(stored_causes) - set(folded_named)
+        differing = {
+            c for c in set(folded_named) & set(stored_causes)
+            if folded_named[c] != stored_causes[c]
+        }
         problems.append(
-            f"Ursachen addieren sich nicht: {named} benannt + {neu} neu != {bad} schlechte Antworten"
+            "Ursachen-Randverteilung weicht ab: "
+            f"nur gefaltet {sorted(only_folded)}, nur gespeichert {sorted(only_stored)}, "
+            f"verschieden {sorted(differing)}"
         )
 
+    quality = stored.get("qualitaet") or {}
+    for name, causes in cross.items():
+        if name not in quality:
+            problems.append(f"Qualitätsklasse '{name}' steht nicht in der Zeile")
+            continue
+        for i in range(len(month_aggregate.SEGMENTS)):
+            cell = sum(vector[i] for vector in causes.values())
+            if cell > quality[name][i]:
+                problems.append(
+                    f"'{name}' Segment {i}: Kreuztabelle {cell} > Randverteilung "
+                    f"{quality[name][i]}"
+                )
     return problems
 
 
-def main(months: list[str], check_only: bool = False) -> int:
+def diff_untouched(before: dict, after: dict) -> list[str]:
+    """Byte-genauer Vergleich aller geprüften Felder vor und nach dem Schreiben."""
+    problems = []
+    for field in CHECKED_FIELDS:
+        left, right = before.get(field), after.get(field)
+        if field == "quality":
+            # Genau ein Feld darf hinzugekommen sein.
+            left = {k: v for k, v in (left or {}).items() if k != "qualitaet_ursache"}
+            right = {k: v for k, v in (right or {}).items() if k != "qualitaet_ursache"}
+        if json.dumps(left, sort_keys=True, ensure_ascii=False) != json.dumps(
+            right, sort_keys=True, ensure_ascii=False
+        ):
+            problems.append(f"{field} hat sich geändert")
+    return problems
+
+
+def main(months: list[str], check_only: bool, dry_key: str | None) -> int:
     failures = 0
     for month in months:
-        loaded = load_assignment(month)
-        if not loaded:
+        row = month_stats.load_month(month)
+        stored = (row or {}).get("quality")
+        if not stored:
+            print(f"[nachfaltung] {month}: keine Zeile in month_stats")
+            failures += 1
             continue
-        quality, taxonomy = loaded
+        if "qualitaet_ursache" in stored and not check_only:
+            print(f"[nachfaltung] {month}: Kreuztabelle steht schon, nichts zu tun")
+            continue
+
+        verdicts = load_verdicts(month)
+        if verdicts is None:
+            failures += 1
+            continue
 
         rows, count = dashboard.fetch_month_chats(month)
         try:
             month_stats.assert_complete(rows, count, f"chats {month}")
         except month_stats.RowCountMismatch as exc:
-            print(f"[backfill] {month}: {exc}")
+            print(f"[nachfaltung] {month}: {exc}")
             failures += 1
             continue
 
-        problems = verify(month, quality, rows)
-        scan = pii_scan.scan(quality, rows)
-        quality["pii_scan"] = scan
+        cross = cross_table(month, verdicts, rows)
+        problems = check_marginals(cross, stored)
+
+        cells = sum(len(c) for c in cross.values())
+        print(
+            f"[nachfaltung] {month}: {len(verdicts)} Verdicts, {len(rows)} Chats, "
+            f"{len(cross)} Klassen / {cells} Zellen"
+        )
+        if problems:
+            for problem in problems:
+                print(f"              PROBLEM: {problem}")
+            failures += 1
+            continue
+
+        # Die neue Zeile ist die alte plus ein Feld. Nichts wird neu gerechnet.
+        written = dict(stored)
+        written["qualitaet_ursache"] = cross
+
+        # Der Scan laeuft ueber die NEUE Zeile, sein Ergebnis wird aber nicht
+        # zurueckgeschrieben: die Kreuztabelle traegt nur Ursachen-IDs und
+        # Zahlen, kein Freitext, also bleibt der gespeicherte Befund gueltig.
+        # Ihn zu ueberschreiben waere ein siebtes geaendertes Feld fuer nichts.
+        scan = pii_scan.scan(written, rows)
         if not scan["clean"]:
-            problems.append(
-                f"PII-Scan: {len(scan['session_id_hits'])} tokenförmig, "
+            print(
+                f"              PROBLEM: PII-Scan: "
+                f"{len(scan['session_id_hits'])} tokenförmig, "
                 f"{len(scan['booking_number_hits'])} Buchungsnummern, "
                 f"{len(scan['verbatim_hits'])} wörtlich"
             )
-
-        counts = month_aggregate.aggregate_month(rows, month)
-        heatmap_total = sum(sum(sum(c) for c in row) for row in counts["heatmap"])
-        print(
-            f"[backfill] {month}: {len(rows)} Chats (Server zählt {count}), "
-            f"Segmente {counts['total_chats']}, Heatmap-Summe {heatmap_total}, "
-            f"Status {quality['status']}"
-        )
-
-        if problems:
-            for problem in problems:
-                print(f"           PROBLEM: {problem}")
             failures += 1
             continue
 
         if check_only:
-            print("           geprüft, nichts geschrieben (--check)")
+            print("              geprüft, nichts geschrieben (--check)")
             continue
 
-        ok = month_stats.save_counts(month, counts, month_aggregate.SCHEMA_VERSION)
-        ok = (
-            month_stats.save_quality(
-                month,
-                quality,
-                taxonomy,
-                version=month_aggregate.SCHEMA_VERSION,
-                taxonomy_version=quality.get("taxonomy_version", 1),
-                run_id=quality.get("run_id", ""),
-                status=quality.get("status", "ok"),
-            )
-            and ok
+        causes, topics = month_stats.split_taxonomy((row or {}).get("taxonomy"))
+        target = f"{month}-test" if dry_key == month else month
+        ok = month_stats.save_quality(
+            target,
+            written,
+            causes,
+            version=row.get("quality_version") or month_aggregate.SCHEMA_VERSION,
+            taxonomy_version=row.get("taxonomy_version") or 0,
+            run_id=row.get("run_id") or "",
+            status=row.get("quality_status") or stored.get("status", "ok"),
+            topics=topics,
         )
         if not ok:
-            print(f"           SCHREIBEN FEHLGESCHLAGEN für {month}")
+            print(f"              SCHREIBEN FEHLGESCHLAGEN für {target}")
             failures += 1
             continue
 
-        # Read it back rather than trusting the write.
-        stored = month_stats.load_month(month)
-        back = (stored or {}).get("quality") or {}
-        if sum(back.get("classified_chats", [0, 0, 0])) != sum(quality["classified_chats"]):
-            print(f"           RÜCKLESEN weicht ab für {month}")
+        back = month_stats.load_month(target) or {}
+        untouched = diff_untouched(row, back)
+        if untouched:
+            for problem in untouched:
+                print(f"              PROBLEM: {problem}")
+            failures += 1
+            continue
+        stored_cross = (back.get("quality") or {}).get("qualitaet_ursache") or {}
+        if stored_cross != cross:
+            print("              PROBLEM: Kreuztabelle kam anders zurück")
             failures += 1
             continue
         print(
-            f"           geschrieben und zurückgelesen: "
-            f"{len(back.get('ursachen') or {})} Ursachen, "
-            f"{len(back.get('laender') or {})} Länder, "
-            f"Taxonomie v{stored.get('taxonomy_version')}"
+            f"              {target} geschrieben, zurückgelesen, "
+            f"sechs Felder unverändert"
         )
+        if target != month:
+            month_stats.drop_month(target)
+            print(f"              Probelauf-Zeile {target} wieder entfernt")
 
     return failures
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    sys.exit(main(args or MONTHS, check_only="--check" in sys.argv))
+    argv = sys.argv[1:]
+    dry = None
+    args = []
+    skip = False
+    for index, arg in enumerate(argv):
+        if skip:
+            skip = False
+            continue
+        if arg == "--dry-key" and index + 1 < len(argv):
+            dry = argv[index + 1]
+            skip = True
+        elif not arg.startswith("--"):
+            args.append(arg)
+    sys.exit(main(args or ([dry] if dry else MONTHS), "--check" in sys.argv, dry))

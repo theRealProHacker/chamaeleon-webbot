@@ -115,3 +115,134 @@ def test_chats_without_timestamps_stay_out_of_both_denominators():
     assert ma.vector_total(agg["duration_samples_dialog"]) == 0
     assert ma.median_duration(agg) is None
     assert ma.median_duration_dialog(agg) is None
+
+
+# --- Kreuztabelle, Hilfe-Klassen, Rundung, Bereichszahlen ---------------------
+
+
+def verdict(chat_id, quality, cause="", topic="t1"):
+    return {
+        "chat_db_id": chat_id,
+        "qualitaet": quality,
+        "ursache_id": cause,
+        "thema_id": topic,
+        "laender": [],
+    }
+
+
+TAXONOMY = [
+    {"ursache_id": "u01", "label": "Verweis auf die Beratung", "verweis": True},
+    {"ursache_id": "u04", "label": "Keine Buchungsdaten", "verweis": False},
+]
+
+
+def quality_rows(spec):
+    """spec: list of (quality, cause) — one chat each, all in `allgemein`."""
+    rows, verdicts = [], []
+    for index, (quality, cause) in enumerate(spec):
+        chat_id = f"c{index}"
+        rows.append({"id": chat_id, "messages": [{"role": "user", "content": "x"}]})
+        verdicts.append(verdict(chat_id, quality, cause))
+    return rows, verdicts
+
+
+def fold(spec):
+    rows, verdicts = quality_rows(spec)
+    return ma.aggregate_quality(rows, verdicts, "2026-08", taxonomy_version=3)
+
+
+def test_cross_table_is_a_cell_not_two_marginals():
+    """u01 sits in ausgewichen AND in abgebrochen; the marginals cannot say how."""
+    agg = fold(
+        [("ausgewichen", "u01")] * 3
+        + [("abgebrochen", "u01")] * 2
+        + [("ausgewichen", "u04")] * 4
+    )
+    cross = agg["qualitaet_ursache"]
+    assert ma.vector_total(cross["ausgewichen"]["u01"]) == 3
+    assert ma.vector_total(cross["abgebrochen"]["u01"]) == 2
+    assert ma.vector_total(cross["ausgewichen"]["u04"]) == 4
+    # Randverteilung bleibt, was sie war.
+    assert ma.vector_total(agg["ursachen"]["u01"]) == 5
+    assert ma.vector_total(agg["qualitaet"]["ausgewichen"]) == 7
+
+
+def test_hilfe_counts_a_referral_as_helped():
+    """Branch A0a: handing over to the consultancy is correct behaviour."""
+    agg = fold(
+        [("beantwortet", "")] * 10
+        + [("ausgewichen", "u01")] * 3
+        + [("abgebrochen", "u01")] * 2
+        + [("ausgewichen", "u04")] * 4
+        + [("falsch", "u04")] * 1
+    )
+    result = ma.hilfe_for(agg, TAXONOMY)
+    counts = {k["id"]: k["count"] for k in result["klassen"]}
+    assert result["status"] == "ok"
+    assert result["uebergaben"] == 5
+    assert counts == {"geholfen": 15, "teilweise": 4, "nicht": 1}
+    assert sum(counts.values()) == result["classified"] == 20
+
+
+def test_shares_always_sum_to_one_hundred():
+    """August rounds naively to 99 — largest remainder is not cosmetic."""
+    assert ma.largest_remainder([1394, 280, 60], 1734) == [80, 16, 4]
+    assert sum(ma.largest_remainder([1394, 280, 60], 1734)) == 100
+    assert ma.largest_remainder([1, 1, 1], 3) == [34, 33, 33]
+    assert ma.largest_remainder([0, 0, 0], 0) == [0, 0, 0]
+
+
+def test_referral_is_read_from_the_flag_not_from_the_literal_id():
+    """A renamed cause must still be subtracted — SC6."""
+    renamed = [{"ursache_id": "x42", "label": "Verweis", "verweis": True}]
+    rows, verdicts = quality_rows(
+        [("beantwortet", "")] * 5 + [("ausgewichen", "x42")] * 5
+    )
+    agg = ma.aggregate_quality(rows, verdicts, "2026-08")
+    result = ma.hilfe_for(agg, renamed)
+    assert result["uebergaben"] == 5
+    assert {k["id"]: k["count"] for k in result["klassen"]}["geholfen"] == 10
+
+
+def test_guards_say_unknown_instead_of_zero():
+    agg = fold([("beantwortet", "")] * 5 + [("ausgewichen", "u01")] * 5)
+
+    # (1) Kreuztabelle fehlt — eine Zeile von vor der Nachfaltung.
+    without = dict(agg)
+    del without["qualitaet_ursache"]
+    assert ma.hilfe_for(without, TAXONOMY)["status"] == "missing"
+
+    # (2) Taxonomie trägt kein Verweis-Flag.
+    unflagged = [{"ursache_id": "u01", "label": "Verweis", "verweis": False}]
+    assert ma.hilfe_for(agg, unflagged)["status"] == "missing"
+
+    # (3) Auswahl leer.
+    empty = ma.hilfe_for(agg, TAXONOMY, ["agentur"])
+    assert empty["status"] == "empty"
+    assert empty["klassen"] == []
+
+    # (4) Eine Klasse würde negativ: die Kreuztabelle nennt mehr u01 in
+    #     `ausgewichen`, als die Randverteilung dort überhaupt hat.
+    broken = dict(agg)
+    broken["qualitaet_ursache"] = {"ausgewichen": {"u01": [99, 0, 0]}}
+    assert ma.hilfe_for(broken, TAXONOMY)["status"] == "partial"
+
+
+def test_segment_counts_start_where_segments_start():
+    """Ohne Monatswahl zählen die Bereiche ab dem 22. Mai, nicht ab dem 1."""
+    may = ma.empty_aggregate("2026-05")
+    may["daily"] = {"1": [400, 0, 0], "22": [10, 5, 1], "31": [20, 10, 2]}
+    june = ma.empty_aggregate("2026-06")
+    june["total_chats"] = [100, 50, 5]
+
+    vector, boundary_seen = ma.segments_since_cutoff({"2026-05": may, "2026-06": june})
+    assert boundary_seen
+    assert vector == [130, 65, 8]  # der 1. Mai bleibt draußen
+
+
+def test_missing_boundary_month_contributes_nothing_and_says_so():
+    june = ma.empty_aggregate("2026-06")
+    june["total_chats"] = [100, 50, 5]
+    vector, boundary_seen = ma.segments_since_cutoff({"2026-06": june})
+    assert vector == [100, 50, 5]
+    assert boundary_seen is False

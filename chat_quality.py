@@ -1083,6 +1083,36 @@ def _covered(word: str, corpus: set[str]) -> bool:
     return False
 
 
+# Welche Ursache "der Bot hat an die Beratung uebergeben" bedeutet — je
+# Taxonomie-Version, weil die IDs je Lauf vergeben werden. Der Kunde hat dieses
+# Verhalten als richtig bestaetigt (Punkt 2 der Liste), also wird es auf der
+# Leseseite zu "geholfen" gezaehlt.
+#
+# Eine Registry und kein Literal im Rechenpfad: eine neue Taxonomie kann u01
+# anders belegen, und ein hart verdrahtetes "u01" wuerde dann still die falsche
+# Ursache abziehen. Faellt eine Version hier heraus, traegt kein Eintrag das
+# Flag und die Karte sagt das, statt eine Zahl zu erfinden.
+REFERRAL_CAUSE_BY_TAXONOMY = {
+    3: "u01",  # "Bot verweist auf Reisebüro/Erlebnisberatung"
+}
+
+
+def mark_referral(causes: Sequence[dict], taxonomy_version: int) -> list[dict]:
+    """Flag the cause that means "handed over to the consultancy".
+
+    Read side only. The stored taxonomy is NOT rewritten: SC4 requires it to
+    come back byte-identical from the refold, so the flag is applied on every
+    read instead of once in the table.
+    """
+    referral = REFERRAL_CAUSE_BY_TAXONOMY.get(taxonomy_version)
+    marked: list[dict] = []
+    for cause in causes:
+        cause = dict(cause)
+        cause["verweis"] = bool(referral) and cause.get("ursache_id") == referral
+        marked.append(cause)
+    return marked
+
+
 def mark_faq_gaps(causes: Sequence[dict], corpus: set[str] | None = None) -> list[dict]:
     """Flag causes that no FAQ entry addresses yet.
 

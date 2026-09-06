@@ -26,7 +26,7 @@ number a broken column actually makes unknowable.
 import calendar
 import os
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Sequence, TypedDict
+from typing import Any, Iterable, NotRequired, Sequence, TypedDict
 from zoneinfo import ZoneInfo
 
 from dateutil.parser import isoparse
@@ -69,6 +69,15 @@ DURATION_EDGES_DIALOG = (
 
 # A chat counts as a dialog from this many user messages on.
 DIALOG_MIN_USER_MESSAGES = 2
+
+# Ab hier schreibt das Widget eine `url` an den Chat, also gibt es ab hier
+# überhaupt Bereiche. Davor liegen 8.354 Chats ohne jede `url`, die per
+# Owner-Direktive vom 2026-09-01 als "Allgemeine Webseite" zählen — richtig für
+# die ZUORDNUNG, aber als Bezugszeitraum irreführend: ohne Monatswahl liest
+# sich MeinChamäleon dann als 9,3 %, mit Monatswahl als 21,7 %. Genau daran hat
+# sich Punkt 3 der Kundenliste entzündet.
+SEGMENTS_FROM = (2026, 5, 22)
+SEGMENTS_FROM_LABEL = "seit dem 22. Mai 2026"
 
 # Stufe 1 der Löschung: Rohtranskripte eines alten Monats werden im Dashboard
 # NICHT MEHR ANGEZEIGT. Gelöscht wird dabei nichts — die Frist ist damit
@@ -504,6 +513,36 @@ def dialog_samples(
     return select(vector, segments)
 
 
+def segments_since_cutoff(
+    aggregates: dict[MonthKey, MonthAggregate],
+) -> tuple[list[int], bool]:
+    """Segment totals over the period in which segments exist (SEGMENTS_FROM).
+
+    Returns the vector and whether the boundary month itself was available. The
+    partial month is summed from its daily vectors — ``combine`` drops those on
+    purpose (day 3 of July and day 3 of August are not one bucket), so this
+    reads the month aggregate directly instead.
+
+    A missing boundary month contributes nothing rather than everything: the
+    412 chats between the 1st and the 22nd of May are all url-less and all in
+    "allgemein", so folding the whole month in would restore exactly the
+    distortion this exists to remove.
+    """
+    year, month, day = SEGMENTS_FROM
+    boundary = f"{year:04d}-{month:02d}"
+    total = empty_vector()
+    for key, agg in aggregates.items():
+        if key > boundary:
+            for i in range(len(SEGMENTS)):
+                total[i] += agg["total_chats"][i]
+        elif key == boundary:
+            for raw_day, vector in agg["daily"].items():
+                if int(raw_day) >= day:
+                    for i in range(len(SEGMENTS)):
+                        total[i] += vector[i]
+    return total, boundary in aggregates
+
+
 def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:
     """Fold several months into one all-time aggregate (daily buckets dropped).
 
@@ -572,6 +611,12 @@ class QualityAggregate(TypedDict):
     # cause id -> the chats behind it, so a row in the cause table can be
     # opened. Ordinary row uuids, not session tokens.
     chat_ids_by_cause: dict[str, list[str]]
+    # quality class -> cause id -> vector. `qualitaet` and `ursachen` are two
+    # MARGINALS of the same table; the referral rule needs the cell, because it
+    # has to know how u01 splits across `ausgewichen` and `abgebrochen`.
+    # Written from this version on; older rows do not carry it and are detected
+    # by field presence, not by SCHEMA_VERSION (one constant, both aggregates).
+    qualitaet_ursache: NotRequired[dict[str, dict[str, list[int]]]]
 
 
 def aggregate_quality(
@@ -617,6 +662,7 @@ def aggregate_quality(
         "classified_chats": empty_vector(),
         "unmapped_chats": unmapped,
         "chat_ids_by_cause": {},
+        "qualitaet_ursache": {},
     }
 
     for verdict in verdicts:
@@ -630,6 +676,8 @@ def aggregate_quality(
         cause = verdict.get("ursache_id") or ""
         if cause:
             add(agg["ursachen"].setdefault(cause, empty_vector()), segment)
+            cell = agg["qualitaet_ursache"].setdefault(quality, {})
+            add(cell.setdefault(cause, empty_vector()), segment)
             if chat_id:
                 agg["chat_ids_by_cause"].setdefault(cause, []).append(chat_id)
 
@@ -673,6 +721,129 @@ def missing_quality(month: MonthKey) -> QualityAggregate:
         "classified_chats": empty_vector(),
         "unmapped_chats": 0,
         "chat_ids_by_cause": {},
+        "qualitaet_ursache": {},
+    }
+
+
+# Die drei Klassen der A1-Karte. Sie sind ABGELEITET aus der bezahlten
+# Vierteilung, nicht neu klassifiziert: kein zweiter Gemini-Lauf (SC4).
+HILFE_CLASSES = (
+    ("geholfen", "Geholfen"),
+    ("teilweise", "Teilweise geholfen"),
+    ("nicht", "Nicht geholfen"),
+)
+
+
+def largest_remainder(counts: Sequence[int], total: int) -> list[int]:
+    """Whole percentages that sum to exactly 100.
+
+    Naive rounding gives August 80,4 / 16,2 / 3,5 -> 80 / 16 / 3 = 99. Three
+    numbers that do not add up, in front of exactly the reader who wrote
+    "die Zahlen der Bereiche addieren sich nicht richtig".
+    """
+    if total <= 0:
+        return [0 for _ in counts]
+    exact = [100 * c / total for c in counts]
+    floors = [int(e) for e in exact]
+    missing = 100 - sum(floors)
+    order = sorted(
+        range(len(counts)), key=lambda i: (exact[i] - floors[i], counts[i]), reverse=True
+    )
+    for i in order[:missing]:
+        floors[i] += 1
+    return floors
+
+
+def referral_cause_id(taxonomy: Sequence[Any]) -> str | None:
+    """The cause id flagged as "referred to the consultancy", or None.
+
+    Read from a FLAG on the taxonomy entry, never from the literal "u01". The
+    ids are per-run; the next taxonomy can renumber them, and a hard-coded id
+    would then subtract the wrong cause in silence — the worst kind of wrong,
+    because the total still adds up.
+    """
+    for cause in taxonomy:
+        if cause.get("verweis"):
+            return cause.get("ursache_id")
+    return None
+
+
+def hilfe_for(
+    stored: QualityAggregate,
+    taxonomy: Sequence[Any],
+    segments: Iterable[Segment] | None = None,
+) -> dict[str, Any]:
+    """The three help classes plus the handovers, folded on the read side.
+
+    Why here and not in the frontend: `index.html` and `report.html` both show
+    these numbers, and two implementations of one rule drift. They read, they
+    do not compute (SC5).
+
+    The rule (branch A0a, owner-settled): a referral to the consultancy is
+    correct behaviour, so it counts as "helped" wherever it occurs. That needs
+    the CELL, not the marginal — u01 sits in `ausgewichen` and in `abgebrochen`,
+    and subtracting it from a single class would move chats between classes.
+
+    Four ways this can be unanswerable, all of them stated rather than papered
+    over with a zero:
+    - the cross table is missing (a row aggregated before it existed),
+    - the taxonomy carries no referral flag (a renamed cause, see
+      ``referral_cause_id``),
+    - a class would go negative,
+    - the tag selection holds no classified chat.
+    """
+    classified = select(stored.get("classified_chats") or empty_vector(), segments)
+    quality = stored.get("qualitaet") or {}
+
+    def q(name: str) -> int:
+        return select(quality.get(name) or empty_vector(), segments)
+
+    cross = stored.get("qualitaet_ursache")
+    if not cross:
+        return {"status": "missing", "klassen": [], "classified": classified,
+                "uebergaben": None}
+
+    cause_id = referral_cause_id(taxonomy)
+    if not cause_id:
+        return {"status": "missing", "klassen": [], "classified": classified,
+                "uebergaben": None}
+
+    def referral_in(name: str) -> int:
+        return select((cross.get(name) or {}).get(cause_id) or empty_vector(), segments)
+
+    handovers = sum(referral_in(name) for name in quality)
+    counts = {
+        "geholfen": q("beantwortet") + handovers,
+        "teilweise": q("ausgewichen") - referral_in("ausgewichen"),
+        "nicht": q("falsch") + q("abgebrochen") - referral_in("abgebrochen"),
+    }
+
+    if any(value < 0 for value in counts.values()):
+        # u01 counted outside the class it was subtracted from. Do not clamp:
+        # a clamped class silently absorbs the error and still sums to 100.
+        return {"status": "partial", "klassen": [], "classified": classified,
+                "uebergaben": handovers}
+
+    if not classified:
+        return {"status": "empty", "klassen": [], "classified": 0,
+                "uebergaben": handovers}
+
+    values = [counts[key] for key, _ in HILFE_CLASSES]
+    if sum(values) != classified:
+        # The three classes must partition the classified chats. If they do not,
+        # the shares would be percentages of something nobody can name.
+        return {"status": "partial", "klassen": [], "classified": classified,
+                "uebergaben": handovers}
+
+    shares = largest_remainder(values, classified)
+    return {
+        "status": "ok",
+        "classified": classified,
+        "uebergaben": handovers,
+        "klassen": [
+            {"id": key, "label": label, "count": value, "share": share}
+            for (key, label), value, share in zip(HILFE_CLASSES, values, shares)
+        ],
     }
 
 
