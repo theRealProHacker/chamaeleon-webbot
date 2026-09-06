@@ -1968,8 +1968,17 @@
         );
         const report = hasReport(monthData);
         state.currentView.hasReport = report;
-        applyView({ report, monthSelected: true });
 
+        // Wochentag und Stunde IMMER zeichnen, nicht nur ohne Auswertung: seit
+        // die Heatmap sie nicht mehr ersetzt, stehen ihre Karten auch im
+        // Report — und standen dann leer da, weil hier nur der else-Zweig sie
+        // fuellte.
+        renderWeekdayChart(
+          monthData?.weekday_counts || [],
+          state.currentView.label,
+          monthData?.state === "laufend",
+        );
+        renderHourlyChart(state.currentView.hourlyCounts, state.currentView.label);
         if (report) {
           renderHeatmap(state.currentView.heatmap, state.currentView.label);
           renderQuality(
@@ -1977,14 +1986,10 @@
             monthData?.total_chats,
             state.currentView.label,
           );
-        } else {
-          renderWeekdayChart(
-            monthData?.weekday_counts || [],
-            state.currentView.label,
-            monthData?.state === "laufend",
-          );
-          renderHourlyChart(state.currentView.hourlyCounts, state.currentView.label);
         }
+        // applyView ZULETZT: renderHourlyChart blendet seine Karte selbst
+        // wieder ein und wuerde eine Entscheidung von applyView ueberholen.
+        applyView({ report, monthSelected: true });
 
         renderComparison(monthData?.comparison);
         renderMessagesWithCurrentFilter();
