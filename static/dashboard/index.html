@@ -659,6 +659,10 @@
         text-align: center;
       }
 
+      /* Gilt fuer beide Auspraegungen: als <button> im Monat, als <div> ohne.
+         `box-shadow` und `display` muessen ausdruecklich stehen, sonst zieht
+         die allgemeine button-Regel oben den Schatten nur auf die eine
+         Variante und die Heatmap sieht je nach Ansicht anders aus. */
       .heatmap-cell {
         aspect-ratio: 1;
         border-radius: 3px;
@@ -666,10 +670,17 @@
         border: 1px solid transparent;
         padding: 0;
         min-height: 0;
+        display: block;
+        box-shadow: none;
+        cursor: default;
+      }
+
+      /* Zeigefinger und Hover-Rahmen nur, wo der Klick auch etwas tut. */
+      button.heatmap-cell {
         cursor: pointer;
       }
 
-      .heatmap-cell:hover {
+      button.heatmap-cell:hover {
         border-color: var(--text);
       }
 
@@ -1374,8 +1385,8 @@
           </article>
           <article id="heatmapCard" class="card">
             <h2 id="heatmapTitle">Wochentag und Uhrzeit</h2>
-            <p class="card-subtitle">
-              Startzeit, Berliner Zeit. Zelle anklicken filtert die Gespräche.
+            <p class="card-subtitle" id="heatmapSubtitle">
+              Startzeit, Berliner Zeit.
             </p>
             <div id="heatmapState" class="card-state" hidden></div>
             <div
@@ -1512,6 +1523,7 @@
         hourlyChartWrapper: document.getElementById("hourlyChartWrapper"),
         hourlyChartTitleEl: document.getElementById("hourlyChartTitle"),
         heatmapCard: document.getElementById("heatmapCard"),
+        heatmapSubtitle: document.getElementById("heatmapSubtitle"),
         metricsTitleEl: document.getElementById("metricsTitle"),
         totalChatsValueEl: document.getElementById("totalChatsValue"),
         totalChatsCaptionEl: document.getElementById("totalChatsCaption"),
@@ -1804,9 +1816,15 @@
             state.currentView.hasReport = false;
             state.currentView.heatmap = state.summary.heatmap;
             state.currentView.hourlyCounts = state.summary.hourly;
-            applyView({ report: false, monthSelected: false });
+            renderHeatmap(state.summary.heatmap, "Alle Chats");
+            // Die beiden klassischen Karten sind ausgeblendet, werden aber
+            // weiter befuellt: wer einen Monat ohne Auswertung waehlt, sieht
+            // sie sofort und nicht erst nach einem Neuzeichnen.
             renderWeekdayChart(state.summary.weekday, "Alle Chats");
             renderHourlyChart(state.summary.hourly, "Alle Chats");
+            // applyView ZULETZT: renderHourlyChart blendet seine Karte selbst
+            // wieder ein, sonst stuenden Heatmap und Stundenkarte nebeneinander.
+            applyView({ report: false, monthSelected: false });
             renderComparison(null);
           }
 
@@ -1820,6 +1838,9 @@
               {
                 total_chats: payload.total_chats,
                 avg_user_messages_per_chat: payload.avg_user_messages_per_chat,
+                median_duration_seconds: payload.median_duration_seconds,
+                duration_basis: payload.duration_basis,
+                duration_samples: payload.duration_samples,
               },
               state.selectedSegments.length && payload.segments_label
                 ? `Alle Chats · ${payload.segments_label}`
@@ -2329,11 +2350,16 @@
       }
 
       function applyView({ report, monthSelected }) {
-        // Report-Ansicht: Heatmap ersetzt die beiden klassischen Karten und
-        // übernimmt deren Filterrolle.
-        DOM.heatmapCard.hidden = !report;
-        DOM.weekdayChartCard.hidden = report;
-        DOM.hourlyChartCard.hidden = report;
+        // Heatmap statt Wochentag- und Stundenkarte: sie sagt dasselbe und
+        // eine Dimension mehr. Im Report, und ebenso im Ruhezustand ohne
+        // Monat — dort gibt es keinen Report, aber die Gesamtzahlen tragen
+        // die Wochentag-x-Stunde-Matrix ohnehin.
+        // Nur beim gewählten Monat OHNE Auswertung bleiben die beiden
+        // klassischen Karten stehen: dort fehlt die Matrix.
+        const heatmap = report || !monthSelected;
+        DOM.heatmapCard.hidden = !heatmap;
+        DOM.weekdayChartCard.hidden = heatmap;
+        DOM.hourlyChartCard.hidden = heatmap;
         DOM.dailyChartCard.hidden = !monthSelected;
         DOM.hilfeCard.hidden = !report;
         DOM.qualityCard.hidden = !report;
@@ -2349,6 +2375,11 @@
 
       function renderHeatmap(matrix, label) {
         const rows = Array.isArray(matrix) && matrix.length === 7 ? matrix : null;
+        // Den Klick nur versprechen, wo es ihn gibt: ohne gewaehlten Monat
+        // gibt es keine Gespraechsliste, die eine Zelle filtern koennte.
+        DOM.heatmapSubtitle.textContent = state.selectedMonthKey
+          ? "Startzeit, Berliner Zeit. Zelle anklicken filtert die Gespräche."
+          : "Startzeit, Berliner Zeit. Über den gesamten Zeitraum.";
         // No month in this title: the card above already names the period, and
         // it appeared in five headings with three different separators.
         DOM.heatmapTitleEl.textContent = "Wochentag und Uhrzeit";
@@ -2380,22 +2411,29 @@
           dayLabel.textContent = WEEKDAY_FULL_NAMES[weekday].slice(0, 2);
           cells.appendChild(dayLabel);
 
+          // Eine Zelle filtert die Gespraechsliste. Ohne gewaehlten Monat gibt
+          // es keine Liste, also gibt es auch nichts zu filtern: dort ist die
+          // Heatmap eine Abbildung, kein Bedienelement. Ein Knopf, der sich
+          // druecken laesst und nichts tut, ist eine Falle.
+          const clickable = Boolean(state.selectedMonthKey);
           row.forEach((count, hour) => {
-            const cell = document.createElement("button");
-            cell.type = "button";
+            const cell = document.createElement(clickable ? "button" : "div");
+            if (clickable) cell.type = "button";
             cell.className = "heatmap-cell";
             cell.style.background = heatColor(count, max);
-            const selected =
-              state.selectedCell &&
-              state.selectedCell[0] === weekday &&
-              state.selectedCell[1] === hour;
-            cell.setAttribute("aria-pressed", selected ? "true" : "false");
+            if (clickable) {
+              const selected =
+                state.selectedCell &&
+                state.selectedCell[0] === weekday &&
+                state.selectedCell[1] === hour;
+              cell.setAttribute("aria-pressed", selected ? "true" : "false");
+              cell.addEventListener("click", () => toggleCell(weekday, hour));
+            }
             cell.setAttribute(
               "aria-label",
               `${WEEKDAY_FULL_NAMES[weekday]} ${String(hour).padStart(2, "0")}:00 — ${count} Chats`,
             );
             cell.title = `${WEEKDAY_FULL_NAMES[weekday]}, ${String(hour).padStart(2, "0")}:00 — ${count} Chats`;
-            cell.addEventListener("click", () => toggleCell(weekday, hour));
             cells.appendChild(cell);
           });
         });

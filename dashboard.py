@@ -178,6 +178,9 @@ class DashboardPayload(TypedDict):
     segment_counts: dict[str, int]
     segments_label: str  # "seit dem 22. Mai 2026" — der Bezugszeitraum
     avg_user_messages_per_chat: float
+    median_duration_seconds: Optional[float]
+    duration_basis: Optional[str]
+    duration_samples: Optional[int]
     hourly_counts: list[HourlyCount]
     weekday_counts: list[WeekdayCount]
     heatmap: list[list[int]]
@@ -875,6 +878,12 @@ def DASHBOARD_data():
         "segment_counts": segment_counts(segments_vector),
         "segments_label": SEGMENTS_FROM_LABEL,
         "avg_user_messages_per_chat": avg_user_messages(all_time, segments),
+        # Auch im Gesamtzustand. Die Kachel steht neben einer Chatzahl, die
+        # ALLES zaehlt, waehrend sie selbst nur die Gespraeche mit
+        # Zeitstempeln je Nachricht kennt (ab 2026-05-22) und davon nur die
+        # mit Rueckfrage. Deshalb nennt ihre Bildunterschrift die
+        # Grundgesamtheit — ohne die waere die Zahl hier irrefuehrend.
+        **duration_for(all_time, segments),
         "hourly_counts": [
             build_hourly_count(hour, select(vector, segments))
             for hour, vector in enumerate(all_time["hourly"])
