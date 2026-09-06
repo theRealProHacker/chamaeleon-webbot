@@ -783,6 +783,7 @@
                 <th scope="col" class="bar-col"></th>
                 <th scope="col" class="num">Nennungen</th>
                 <th scope="col" class="share">Anteil der Nennungen</th>
+                <th scope="col" class="num delta-col" id="countryDeltaHead">Δ Vormonat</th>
               </tr>
             </thead>
             <tbody id="countryBody"></tbody>
@@ -1512,14 +1513,34 @@
         const countries = quality.laender || [];
         const countryTop = Math.max(1, ...countries.map((c) => c.count || 0));
         const countryAll = data.quality?.laender_gesamt || 0;
+        // Derselbe Guard wie bei Ursachen und Themen: ueber eine
+        // Taxonomiegrenze hinweg liefert der Server nichts, dann steht ueberall
+        // ein Strich statt einer erfundenen Null.
+        const countryBefore = new Map(Object.entries(quality.laender_vormonat ?? {}));
+        const countryComparable = countryBefore.size > 0;
+        el("countryTable").classList.toggle("no-delta", !countryComparable);
+        if (countryComparable) {
+          el("countryDeltaHead").textContent = el("deltaHead").textContent;
+        }
         fillRows(
           el("countryBody"),
-          countries.map((entry) => [
-            { text: entry.land },
-            { bar: (entry.count || 0) / countryTop },
-            { text: fmt(entry.count) },
-            { text: pct(entry.count, countryAll), className: "share" },
-          ]),
+          countries.map((entry) => {
+            const was = countryBefore.get(entry.land);
+            let delta = "—";
+            if (countryComparable && was !== undefined) {
+              const diff = (entry.count || 0) - was;
+              // Wie bei den Themen keine Farbe: mehr Nennungen eines Landes
+              // sind weder gut noch schlecht.
+              delta = diff === 0 ? "±0" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)}`;
+            }
+            return [
+              { text: entry.land },
+              { bar: (entry.count || 0) / countryTop },
+              { text: fmt(entry.count) },
+              { text: pct(entry.count, countryAll), className: "share" },
+              { text: delta, className: "num" },
+            ];
+          }),
         );
         // Immer erklaeren, nicht nur wenn die Spalte die Chatzahl uebersteigt:
         // dass hier eine ZEHNERLISTE steht und dass viele Gespraeche gar kein

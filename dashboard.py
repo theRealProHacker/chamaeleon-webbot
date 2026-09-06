@@ -473,25 +473,36 @@ def previous_month(key: MonthKey) -> MonthKey:
     return month_key(start - timedelta(days=1))
 
 
-def previous_cause_counts(
-    key: MonthKey, taxonomy_version: int, segments: Iterable[Segment] | None
-) -> dict[str, int]:
-    """Last month's count per cause, for the delta column.
-
-    Read on the server, not assembled in the browser out of whatever months the
-    user happened to click on — that made the delta column show a dash almost
-    always, which quietly removed the one thing SC6 is measured on.
+def previous_quality(key: MonthKey, taxonomy_version: int) -> QualityAggregate | None:
+    """Last month's stored aggregate, or None if it is not comparable.
 
     Returns nothing across a taxonomy change: two versions are two different
     measuring devices, and a delta between them is a number with no meaning.
+
+    EINE Lesung fuer alle Delta-Spalten. Ursachen, Themen und Laender holten
+    sich die Zeile sonst je einzeln aus `month_stats`.
     """
     row = month_stats.load_month(previous_month(key))
     stored = (row or {}).get("quality")
     if not stored or stored.get("taxonomy_version") != taxonomy_version:
+        return None
+    return stored
+
+
+def previous_counts(
+    stored: QualityAggregate | None, axis: str, segments: Iterable[Segment] | None
+) -> dict[str, int]:
+    """Last month's count per entry on one axis, for a delta column.
+
+    Read on the server, not assembled in the browser out of whatever months the
+    user happened to click on — that made the delta column show a dash almost
+    always, which quietly removed the one thing SC6 is measured on.
+    """
+    if not stored:
         return {}
     return {
-        cause_id: select(vector, segments)
-        for cause_id, vector in (stored.get("ursachen") or {}).items()
+        entry: select(vector, segments)
+        for entry, vector in (stored.get(axis) or {}).items()
     }
 
 
@@ -534,6 +545,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             "chat_ids_by_cause": {},
             "hilfe": {"status": "running", "klassen": [], "uebergaben": None},
             "uebergaben": None,
+            "themen_vormonat": {},
+            "laender_vormonat": {},
         }
 
     row = month_stats.load_month(key)
@@ -548,6 +561,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             "chat_ids_by_cause": {},
             "hilfe": {"status": "missing", "klassen": [], "uebergaben": None},
             "uebergaben": None,
+            "themen_vormonat": {},
+            "laender_vormonat": {},
         }
 
     # The FAQ gap marker is computed on READ, not stored: `faqs/` changes
@@ -561,6 +576,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
     taxonomy = chat_quality.mark_referral(
         chat_quality.mark_faq_gaps(causes), stored.get("taxonomy_version", 0)
     )
+    version = stored.get("taxonomy_version", 0)
+    vormonat = previous_quality(key, version)
     hilfe = month_aggregate.hilfe_for(stored, taxonomy, segments)
     referral = month_aggregate.referral_cause_id(taxonomy)
     causes_shown = month_aggregate.top_causes(stored, taxonomy, segments)
@@ -580,9 +597,7 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
         # hier. index.html und report.html lesen sie nur (SC5).
         "hilfe": hilfe,
         "uebergaben": hilfe["uebergaben"],
-        "hilfe_vormonat": previous_hilfe(
-            key, stored.get("taxonomy_version", 0), segments
-        ),
+        "hilfe_vormonat": previous_hilfe(key, version, segments),
         "computed_at": (row or {}).get("quality_computed_at"),
         "taxonomy_version": stored.get("taxonomy_version", 0),
         "classified_chats": select(stored.get("classified_chats", [0, 0, 0]), segments),
@@ -593,9 +608,12 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
         },
         "ursachen": causes_shown,
         "verweis_ursache_id": referral if hilfe["status"] == "ok" else None,
-        "vormonat": previous_cause_counts(
-            key, stored.get("taxonomy_version", 0), segments
-        ),
+        "vormonat": previous_counts(vormonat, "ursachen", segments),
+        # Dieselbe Delta-Spalte fuer die beiden anderen Achsen. Der Guard
+        # haengt an derselben Zeile: faellt der Vormonat wegen einer neuen
+        # Taxonomie heraus, faellt er fuer alle drei heraus.
+        "themen_vormonat": previous_counts(vormonat, "themen", segments),
+        "laender_vormonat": previous_counts(vormonat, "laender", segments),
         "chat_ids_by_cause": stored.get("chat_ids_by_cause") or {},
         "neu": select((stored.get("ursachen") or {}).get("neu", [0, 0, 0]), segments),
         "themen": month_aggregate.top_topics(stored, topics, segments),

@@ -1319,6 +1319,7 @@
                 <tr>
                   <th scope="col">Thema</th>
                   <th scope="col" class="num">Gespräche</th>
+                  <th scope="col" class="num delta-col">Δ Vormonat</th>
                 </tr>
               </thead>
               <tbody id="topicTableBody"></tbody>
@@ -1334,6 +1335,7 @@
                 <tr>
                   <th scope="col">Land</th>
                   <th scope="col" class="num">Gespräche</th>
+                  <th scope="col" class="num delta-col">Δ Vormonat</th>
                 </tr>
               </thead>
               <tbody id="countryTableBody"></tbody>
@@ -2688,6 +2690,9 @@
         }
         clearCardState(DOM.topicState);
 
+        const previousTopics = new Map(Object.entries(quality.themen_vormonat ?? {}));
+        const topicsComparable = previousTopics.size > 0;
+
         const body = document.createDocumentFragment();
         topics.forEach((topic) => {
           const row = document.createElement("tr");
@@ -2704,6 +2709,9 @@
           countCell.className = "num";
           countCell.textContent = formatNumber(topic.count);
           row.appendChild(countCell);
+          row.appendChild(
+            deltaZelle(topic.count, previousTopics.get(topic.thema_id), topicsComparable),
+          );
 
           body.appendChild(row);
         });
@@ -2747,6 +2755,11 @@
           return;
         }
 
+        const previousCountries = new Map(
+          Object.entries(quality.laender_vormonat ?? {}),
+        );
+        const countriesComparable = previousCountries.size > 0;
+
         const body = document.createDocumentFragment();
         countries.forEach((entry) => {
           const row = document.createElement("tr");
@@ -2763,6 +2776,9 @@
           countCell.className = "num";
           countCell.textContent = formatNumber(entry.count);
           row.appendChild(countCell);
+          row.appendChild(
+            deltaZelle(entry.count, previousCountries.get(entry.land), countriesComparable),
+          );
 
           body.appendChild(row);
         });
@@ -2782,6 +2798,32 @@
         } else {
           DOM.countryFootnote.hidden = true;
         }
+      }
+
+      /** Die Δ-Zelle für alle drei Tabellen — Ursachen, Themen, Reiseziele.
+       *
+       * Eine Regel an einer Stelle: ohne vergleichbaren Vormonat steht ein
+       * Strich, nie eine Null. "Im Vormonat nicht vorhanden" und "im Vormonat
+       * gleich oft" sind verschiedene Aussagen, und eine 0 behauptet die
+       * zweite. */
+      function deltaZelle(count, previous, comparable) {
+        const zelle = document.createElement("td");
+        zelle.className = "num";
+        if (
+          !comparable ||
+          previous === undefined ||
+          previous === null ||
+          count === null ||
+          count === undefined
+        ) {
+          zelle.textContent = "—";
+          return zelle;
+        }
+        const delta = count - previous;
+        zelle.textContent = delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`;
+        zelle.title = `Vormonat: ${formatNumber(previous)} Gespräche`;
+        if (delta !== 0) zelle.classList.add("cause-delta", delta > 0 ? "up" : "down");
+        return zelle;
       }
 
       function renderCauseTable(quality) {
@@ -2838,18 +2880,9 @@
             cause.count === null ? "—" : formatNumber(cause.count);
           row.appendChild(countCell);
 
-          const deltaCell = document.createElement("td");
-          deltaCell.className = "num";
-          const previous = previousCounts.get(cause.ursache_id);
-          if (!comparable || previous === undefined || previous === null || cause.count === null) {
-            deltaCell.textContent = "—";
-          } else {
-            const delta = cause.count - previous;
-            deltaCell.textContent = delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`;
-            deltaCell.title = `Vormonat: ${formatNumber(previous)} Gespräche`;
-            deltaCell.classList.add("cause-delta", delta > 0 ? "up" : "down");
-          }
-          row.appendChild(deltaCell);
+          row.appendChild(
+            deltaZelle(cause.count, previousCounts.get(cause.ursache_id), comparable),
+          );
           body.appendChild(row);
         });
 
