@@ -212,7 +212,10 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       statt einer Seite — Admin-URL, tippt niemand von Hand. (c) Die Kachel
       „Gesprächsdauer 4 s“ ist rechnerisch richtig (Median, viele
       Ein-Satz-Chats), liest sich aber wie ein Fehler; ob sie als Schlagzahl
-      auf den Report gehört, ist eine Produktfrage. Beleg:
+      auf den Report gehört, ist eine Produktfrage. **(c) erledigt 2026-09-06
+      mit A3:** die Kachel zählt jetzt Gespräche ab zwei Nutzernachrichten und
+      nennt den Nenner ("Median · Gespräche mit Rückfrage"), August 1:46 Min
+      statt 4 Sek. Beleg:
       `.gstack/qa-reports/qa-report-localhost-2026-09-04.md`.
 - [ ] **Dashboard unter 1024px: das Monatsdiagramm liegt HINTER dem rechten
       Panel.** Zwischen der Kennzahlen-Karte und „Wo der Bot danebenliegt"
@@ -222,3 +225,31 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       verursacht. Dazu scrollt die Seite auf dem Telefon seitlich (Bereichs-
       leiste, Ursachentabelle). Belege: `.gstack/qa-reports/screenshots/qa2-old-1024.png`,
       `qa2-mobile-aug.png`.
+
+## Dashboard-Kundenfeedback September 2026 (übernommen aus dem Plan, 2026-09-06)
+
+Plan: `docs/designs/dashboard-kundenfeedback-2026-09.md`.
+
+- [ ] **T-A — „Gesamt" aus `month_stats.counts` statt aus dem Live-Cache.**
+      Hängt an Löschstufe 2: solange die Rohzeilen da sind, rechnet der Cache
+      den Gesamtzustand ohnehin. `counts` hat bis heute keinen Leser.
+- [ ] **T-B — Auftrag-3-Seite: Übergabequote und Entlastung über Monate.**
+      Die erste Zahl dafür steht seit 2026-09-06 in der Zeile (`uebergaben`);
+      die Seite braucht zusätzlich einen zweiten echten Monatslauf. Bis dahin
+      ist „Gesamt" ausdrücklich die Volumenseite und zeigt keine Qualität (D21).
+- [ ] **T-C — Eval-Suite für den Kurzreport-Prompt**, sobald der Kunde ihn
+      schickt. A5 ist bis dahin nicht gebaut.
+- [ ] **Dashboard bei 375px: die Seite scrollt seitlich (57px).** Zwei
+      Verursacher, beide vorbestehend: die Kopfzeile (`.controls` mit
+      `#lastUpdated` ragt 57px hinaus) und `#causeTable` (412px breit in einem
+      375px-Fenster). Gemessen 2026-09-06 am Stand nach A0-A4. Gehört zum
+      offenen Mobil-Punkt weiter oben, ist aber die konkrete Ursache.
+- [ ] **Zwei unabhaengige Bildbefunde vom 2026-09-06, beide vorbestehend.**
+      (a) Bei 1280px sind die beiden Diagramme in der linken Spalte zu schmal:
+      13 Monatsbalken ohne Zwischenraum, und ausgerechnet der ausgewaehlte
+      Monat traegt keine Beschriftung, weil nur jeder dritte Tick gesetzt ist.
+      Bei 1024px (einspaltig) sind dieselben Diagramme gut lesbar. (b) Der
+      schraffierte letzte Balken (laufender Monat) hat keine Legende; er liest
+      sich als Darstellungsfehler. (c) In der Spalte „Δ Vormonat" steht das
+      Minus mit Abstand („- 4"), das Plus ohne („+16") — die negativen Zeilen
+      wirken versetzt.

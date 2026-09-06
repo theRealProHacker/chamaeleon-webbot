@@ -1056,7 +1056,7 @@ T-D „Bestehender TODOS-Eintrag Report (c) `Gesprächsdauer 4 s`" — mit A3 er
 
 - [x] **C1 (P1, Mensch ~1 h / CC ~10 min)** — Plan-Text — P4 korrigieren: Leseregel ist dauerhaft, Satz zu `chat_quality.py:441` streichen; Reihenfolge auf A4 → A3 → A0 → A1 → A2 → A5; SC2 ohne Zweig-Klausel; SC4-Nachweis; SC6/SC7 neu; A3-Satz zu gespeicherten counts streichen; SCHEMA_VERSION-Widerspruch auflösen (kein Bump). Files: dieses Dokument. Verify: Lesen.
 - [x] **C2 (P1, Mensch ~2 h / CC ~20 min)** — `dashboard.py`/`month_aggregate.py` — `hilfe_for()` + `uebergaben` serverseitig (E3, E1), Rundung größter Rest, Guards (D6–D9), Verweis-Ursache über Taxonomie-Flag (E5). Verify: `/api/dashboard/2026-08` summiert 1.734 / 100 %.
-- [ ] **C3 (P1, Mensch ~1 h / CC ~10 min)** — `report.html` — `hilfe`/`uebergaben` rendern, `bad`-Eigenrechnung entfernen, Takeaway/Vormonat auf die neuen Felder. Verify: Report August nennt dieselben Zahlen wie das Dashboard.
+- [x] **C3 (P1, Mensch ~1 h / CC ~10 min)** — `report.html` — `hilfe`/`uebergaben` rendern, `bad`-Eigenrechnung entfernen, Takeaway/Vormonat auf die neuen Felder. Verify: Report August nennt dieselben Zahlen wie das Dashboard.
 - [x] **C4 (P2, Mensch ~1 h / CC ~10 min)** — `scripts/backfill.py` — auf `data/quality_runs/*-t3-p3.jsonl` umstellen, `--check`-Diff, Logs, E4-Fixture schreiben. Verify: `--check 2026-07 2026-08` ohne Diff in run_id/taxonomy/prompt/themen.
 - [ ] **C5 (P1, Datum)** — Deploy — Push 2 vor 2026-10-01 04:00 Berlin. Verify: Kalender.
 - [ ] **C6 (P2, Mensch ~30 min / CC ~5 min)** — `quality_job.py` — Summary nach `save_quality`, eigener Upsert, leere/kurze Antwort = Fehler; `sql/month_stats.sql` Kommentar. Blockiert auf Prompt.
@@ -1369,10 +1369,10 @@ Qualitäts-Gesamt existiert" (P3, S) — in Phase 3 gesammelt.
 
 ### Implementation Tasks (Design)
 
-- [ ] **D1 (P1, Mensch ~2 h / CC ~20 min)** — `index.html` — A1-Karte als erste Karte rechts (D19), geteilter Streifen (D24), Übergaben-Satz mit Δ, klickbar (D20/D26), Caption „davon falsch" (E2), Zustände nach Pass-2-Tabelle. Verify: Screenshot-Loop 1280/1024/375 mit unabhängigem Zweitblick.
+- [x] **D1 (P1, Mensch ~2 h / CC ~20 min)** — `index.html` — A1-Karte als erste Karte rechts (D19), geteilter Streifen (D24), Übergaben-Satz mit Δ, klickbar (D20/D26), Caption „davon falsch" (E2), Zustände nach Pass-2-Tabelle. Verify: Screenshot-Loop 1280/1024/375 mit unabhängigem Zweitblick.
 - [x] **D2 (P1, Mensch ~1 h / CC ~10 min)** — `index.html` — Gesamt-Knopf (disabled bis geladen, `aria-pressed`), Periodenaussage nach D27, Bereichsleiste „seit dem 22. Mai 2026". Verify: vier Klickfolgen + Ladephase.
-- [ ] **D3 (P1, Mensch ~1 h / CC ~10 min)** — `index.html` — Kennzahlen-Reihe 3 Kacheln / 2 im Gesamtzustand, D25 für ≤1024px, `badMetric` raus. Verify: Screenshot-Loop; keine 2+1-Anordnung.
-- [ ] **D4 (P2, Mensch ~1 h / CC ~10 min)** — `report.html` — Hilfe-Klassen + Übergaben mit demselben Wortlaut, Druck-Seitenumbruch. Verify: Druckvorschau vier Seiten.
+- [x] **D3 (P1, Mensch ~1 h / CC ~10 min)** — `index.html` — Kennzahlen-Reihe 3 Kacheln / 2 im Gesamtzustand, D25 für ≤1024px, `badMetric` raus. Verify: Screenshot-Loop; keine 2+1-Anordnung.
+- [x] **D4 (P2, Mensch ~1 h / CC ~10 min)** — `report.html` — Hilfe-Klassen + Übergaben mit demselben Wortlaut, Druck-Seitenumbruch. Verify: Druckvorschau vier Seiten.
 - [ ] **D5 (P2, Mensch ~30 min / CC ~5 min)** — `index.html` — A5-Karte: unsichtbar ohne Text, „Stand"-Zeile (D28), `textContent`. Blockiert auf Prompt.
 
 ### Design Completion Summary
@@ -1614,8 +1614,8 @@ Einträge stehen hier zur Übernahme):
 - [x] **E1 (P1, Mensch ~1 h / CC ~10 min)** — `month_aggregate.py` — `DURATION_EDGES_DIALOG` (10-s-Schritte 30–300 s), `median_duration`/`combine` mit Kantenparameter, Regressionstest alter Median. Verify: August dialog ≈ 106 s ± 5; alter Median 3,8 s unverändert.
 - [ ] **E2 (P1, Mensch ~30 min / CC ~5 min)** — `quality_job.py` — `pii_scan` über Summary-Text, Längenkappe, eigener Upsert nach `save_quality`. Blockiert auf Prompt.
 - [x] **E3 (P1, Mensch ~30 min / CC ~5 min)** — `scripts/backfill.py` — `--check` vergleicht alle sieben `save_quality`-Felder byte-genau; Probelauf gegen Test-Key. Verify: Diff leer.
-- [ ] **E4 (P1, Mensch ~1 h / CC ~10 min)** — `dashboard.py` — `vormonat.hilfe`/`uebergaben` geguardet auf `taxonomy_version` für den Report; `report.html` liest sie. Verify: Report August zeigt Δ zu Juli; Report Juli keinen.
-- [ ] **E5 (P2, Mensch ~2 h / CC ~20 min)** — `tests/test_month_aggregate.py` — 17 Unit-Tests aus dem Diagramm (Fixtures aus E4-Phase-1). Verify: `pytest tests/test_month_aggregate.py`.
+- [x] **E4 (P1, Mensch ~1 h / CC ~10 min)** — `dashboard.py` — `vormonat.hilfe`/`uebergaben` geguardet auf `taxonomy_version` für den Report; `report.html` liest sie. Verify: Report August zeigt Δ zu Juli; Report Juli keinen.
+- [x] **E5 (P2, Mensch ~2 h / CC ~20 min)** — `tests/test_month_aggregate.py` — 17 Unit-Tests aus dem Diagramm (Fixtures aus E4-Phase-1). Verify: `pytest tests/test_month_aggregate.py`.
 
 ### Eng Completion Summary
 
@@ -1792,16 +1792,16 @@ T-C Eval für Kurzreport-Prompt · T-D Report-Rest (c) abhaken · T-E Öffnungsz
 - [x] **C2 (P1, human: ~2h / CC: ~20min) — quality-read-side** — hilfe_for() + uebergaben serverseitig in quality_for, Rundung groesster Rest, Guards, Verweis-Ursache per Taxonomie-Flag
   - Surfaced by: ceo-review — 0B/E1/E3/E5, Section 2 GAPs, Section 5 Zyklomatik
   - Files: dashboard.py, month_aggregate.py
-- [ ] **C3 (P1, human: ~1h / CC: ~10min) — report-page** — report.html liest hilfe/uebergaben, eigene bad-Rechnung und Vormonats-Rechnung entfernen
+- [x] **C3 (P1, human: ~1h / CC: ~10min) — report-page** — report.html liest hilfe/uebergaben, eigene bad-Rechnung und Vormonats-Rechnung entfernen
   - Surfaced by: ceo-review — Section 4/5: report.html fehlte im Plan, SC5
   - Files: static/dashboard/report.html
-- [ ] **D1 (P1, human: ~2h / CC: ~20min) — dashboard-ui** — A1-Karte erste Karte rechts, geteilter Streifen, Uebergaben-Satz mit Delta klickbar, Caption davon falsch, Zustaende
+- [x] **D1 (P1, human: ~2h / CC: ~20min) — dashboard-ui** — A1-Karte erste Karte rechts, geteilter Streifen, Uebergaben-Satz mit Delta klickbar, Caption davon falsch, Zustaende
   - Surfaced by: design-review — Pass 1/2/4/7: D19, D20, D24, D26, E2
   - Files: static/dashboard/index.html
 - [x] **D2 (P1, human: ~1h / CC: ~10min) — dashboard-ui** — Gesamt-Knopf (disabled bis geladen, aria-pressed), eine Periodenaussage (D27), Bereichsleiste seit 22. Mai
   - Surfaced by: design-review — Pass 2/7: D11, D27, A4
   - Files: static/dashboard/index.html
-- [ ] **D3 (P1, human: ~1h / CC: ~10min) — dashboard-ui** — Kennzahlen-Reihe 3 Kacheln / 2 ohne Monat, nie 2+1 bei <=1024px, badMetric raus
+- [x] **D3 (P1, human: ~1h / CC: ~10min) — dashboard-ui** — Kennzahlen-Reihe 3 Kacheln / 2 ohne Monat, nie 2+1 bei <=1024px, badMetric raus
   - Surfaced by: design-review — Pass 6: D25, A2
   - Files: static/dashboard/index.html
 - [x] **E3 (P1, human: ~30min / CC: ~5min) — backfill-script** — --check vergleicht alle sieben save_quality-Felder byte-genau, Probelauf gegen Test-Key
@@ -1810,7 +1810,7 @@ T-C Eval für Kurzreport-Prompt · T-D Report-Rest (c) abhaken · T-E Öffnungsz
 - [x] **E1 (P1, human: ~1h / CC: ~10min) — duration-histogram** — DURATION_EDGES_DIALOG (10-s-Schritte 30-300 s), median_duration/combine mit Kantenparameter, Regressionstest alter Median
   - Surfaced by: eng-review — Section 1/3: SC3 +-5 s haengt an 60-s-Bucket; IRON RULE Regression
   - Files: month_aggregate.py, tests/test_month_aggregate.py
-- [ ] **E4 (P1, human: ~1h / CC: ~10min) — report-vormonat** — vormonat.hilfe/uebergaben serverseitig mit taxonomy_version-Guard; report.html liest statt rechnet
+- [x] **E4 (P1, human: ~1h / CC: ~10min) — report-vormonat** — vormonat.hilfe/uebergaben serverseitig mit taxonomy_version-Guard; report.html liest statt rechnet
   - Surfaced by: eng-review — Section 2: report.html:987 loadPrevious ohne Guard
   - Files: dashboard.py, static/dashboard/report.html
 - [ ] **E2 (P1, human: ~30min / CC: ~5min) — summary-job** — pii_scan ueber Summary-Text, Laengenkappe, eigener Upsert nach save_quality
@@ -1828,10 +1828,10 @@ T-C Eval für Kurzreport-Prompt · T-D Report-Rest (c) abhaken · T-E Öffnungsz
 - [ ] **D5 (P2, human: ~30min / CC: ~5min) — dashboard-ui** — A5-Karte unsichtbar ohne Text, Stand-Zeile, textContent
   - Surfaced by: design-review — Pass 2/7: D22, D28
   - Files: static/dashboard/index.html
-- [ ] **D4 (P2, human: ~1h / CC: ~10min) — report-page** — Report: Hilfe-Klassen + Uebergaben gleicher Wortlaut, Druck-Seitenumbruch
+- [x] **D4 (P2, human: ~1h / CC: ~10min) — report-page** — Report: Hilfe-Klassen + Uebergaben gleicher Wortlaut, Druck-Seitenumbruch
   - Surfaced by: design-review — Pass 6: SC5, ISSUE-006
   - Files: static/dashboard/report.html
-- [ ] **E5 (P2, human: ~2h / CC: ~20min) — tests** — 17 Unit-Tests aus dem Coverage-Diagramm
+- [x] **E5 (P2, human: ~2h / CC: ~20min) — tests** — 17 Unit-Tests aus dem Coverage-Diagramm
   - Surfaced by: eng-review — Section 3
   - Files: tests/test_month_aggregate.py
 

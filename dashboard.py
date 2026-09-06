@@ -492,6 +492,34 @@ def previous_cause_counts(
     }
 
 
+def previous_hilfe(
+    key: MonthKey, taxonomy_version: int, segments: Iterable[Segment] | None
+) -> dict[str, Any] | None:
+    """Last month's help classes and handovers, for the delta in the A1 card.
+
+    Same guard as the cause table: across a taxonomy change there is no delta,
+    because the two months were measured with different instruments. A month
+    that predates the cross table returns nothing rather than a zero — "no
+    handovers last month" and "we cannot say" are different statements.
+    """
+    previous = previous_month(key)
+    row = month_stats.load_month(previous)
+    stored = (row or {}).get("quality")
+    if not stored or stored.get("taxonomy_version") != taxonomy_version:
+        return None
+    causes, _topics = month_stats.split_taxonomy((row or {}).get("taxonomy"))
+    taxonomy = chat_quality.mark_referral(causes, taxonomy_version)
+    hilfe = month_aggregate.hilfe_for(stored, taxonomy, segments)
+    if hilfe["status"] != "ok":
+        return None
+    return {
+        "month": previous,
+        "label": month_label(previous),
+        "uebergaben": hilfe["uebergaben"],
+        "klassen": {k["id"]: k["count"] for k in hilfe["klassen"]},
+    }
+
+
 def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, Any]:
     """The paid half of a month, shaped for the frontend. Never triggers a run."""
     if quality_job.is_running(key):
@@ -531,12 +559,27 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
         chat_quality.mark_faq_gaps(causes), stored.get("taxonomy_version", 0)
     )
     hilfe = month_aggregate.hilfe_for(stored, taxonomy, segments)
+    referral = month_aggregate.referral_cause_id(taxonomy)
+    causes_shown = month_aggregate.top_causes(stored, taxonomy, segments)
+    if hilfe["status"] == "ok" and referral:
+        # Die Verweis-Ursache zieht aus der Fehlertabelle heraus und steht als
+        # Uebergaben-Satz in der Qualitaetskarte (D20). Nur die Kennzahl zu
+        # bereinigen und die Zeile stehen zu lassen, erzeugt genau den
+        # Widerspruch, wegen dem Punkt 3 geschrieben wurde: "80 % geholfen"
+        # ueber "groesste Fehlerursache: Verweis auf Reisebuero, 365".
+        #
+        # Nur wenn die Umbuchung wirklich stattgefunden hat: bei einem Guard
+        # bliebe die Zahl sonst nirgends stehen.
+        causes_shown = [c for c in causes_shown if c.get("ursache_id") != referral]
     return {
         "status": stored.get("status", "ok"),
         # Die drei Hilfe-Klassen und die Uebergaben werden EINMAL gerechnet,
         # hier. index.html und report.html lesen sie nur (SC5).
         "hilfe": hilfe,
         "uebergaben": hilfe["uebergaben"],
+        "hilfe_vormonat": previous_hilfe(
+            key, stored.get("taxonomy_version", 0), segments
+        ),
         "computed_at": (row or {}).get("quality_computed_at"),
         "taxonomy_version": stored.get("taxonomy_version", 0),
         "classified_chats": select(stored.get("classified_chats", [0, 0, 0]), segments),
@@ -545,7 +588,8 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
             quality: select(vector, segments)
             for quality, vector in (stored.get("qualitaet") or {}).items()
         },
-        "ursachen": month_aggregate.top_causes(stored, taxonomy, segments),
+        "ursachen": causes_shown,
+        "verweis_ursache_id": referral if hilfe["status"] == "ok" else None,
         "vormonat": previous_cause_counts(
             key, stored.get("taxonomy_version", 0), segments
         ),

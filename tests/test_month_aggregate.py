@@ -246,3 +246,65 @@ def test_missing_boundary_month_contributes_nothing_and_says_so():
     vector, boundary_seen = ma.segments_since_cutoff({"2026-06": june})
     assert vector == [100, 50, 5]
     assert boundary_seen is False
+
+
+# --- die restlichen Pfade aus dem Coverage-Diagramm --------------------------
+
+
+def test_verdict_without_a_cause_touches_only_the_quality_axis():
+    """Ein beantwortetes Gespräch trägt keine Ursache und keine Zelle."""
+    agg = fold([("beantwortet", "")] * 3 + [("ausgewichen", "u04")] * 2)
+    assert ma.vector_total(agg["qualitaet"]["beantwortet"]) == 3
+    assert "beantwortet" not in agg["qualitaet_ursache"]
+    assert set(agg["ursachen"]) == {"u04"}
+
+
+def test_cross_table_marginals_reproduce_both_axes():
+    """Die Zelle muss beide Randverteilungen ergeben — das prüft der Backfill."""
+    agg = fold(
+        [("ausgewichen", "u01")] * 5
+        + [("ausgewichen", "u04")] * 2
+        + [("abgebrochen", "u01")] * 3
+        + [("falsch", "u04")] * 1
+    )
+    cross = agg["qualitaet_ursache"]
+    for name, causes in cross.items():
+        cell = sum(ma.vector_total(v) for v in causes.values())
+        assert cell == ma.vector_total(agg["qualitaet"][name]), name
+    for cause in agg["ursachen"]:
+        folded = sum(
+            ma.vector_total(causes.get(cause) or ma.empty_vector())
+            for causes in cross.values()
+        )
+        assert folded == ma.vector_total(agg["ursachen"][cause]), cause
+
+
+def test_open_top_bucket_reports_its_lower_edge():
+    """Kein erfundener Wert für den offenen Eimer — die untere Kante."""
+    agg = aggregate([chat(20000, user_messages=3) for _ in range(5)])
+    assert ma.median_duration(agg) == float(ma.DURATION_EDGES[-2])
+    assert ma.median_duration_dialog(agg) == float(ma.DURATION_EDGES_DIALOG[-2])
+
+
+def test_combine_round_trip_keeps_both_histograms():
+    a = aggregate([chat(106, user_messages=3) for _ in range(10)])
+    b = aggregate([chat(106, user_messages=3) for _ in range(10)])
+    combined = ma.combine([a, b])
+
+    assert ma.vector_total(combined["duration_samples"]) == 20
+    assert ma.vector_total(combined["duration_samples_dialog"]) == 20
+    for name, edges in (
+        ("duration_buckets", ma.DURATION_EDGES),
+        ("duration_buckets_dialog", ma.DURATION_EDGES_DIALOG),
+    ):
+        assert len(combined[name]) == len(edges)
+        assert sum(ma.vector_total(v) for v in combined[name]) == 20
+    assert ma.median_duration(combined) == ma.median_duration(a)
+    assert ma.median_duration_dialog(combined) == ma.median_duration_dialog(a)
+
+
+def test_median_over_an_empty_month_is_none():
+    empty = ma.empty_aggregate("2026-08")
+    assert ma.median_duration(empty) is None
+    assert ma.median_duration_dialog(empty) is None
+    assert ma.dialog_samples(empty) == 0

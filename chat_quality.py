@@ -924,6 +924,13 @@ def promote_new_causes(
     ``new_bucket`` entries are ``{label, definition, count}`` as named by the
     naming step. Promotion happens for month N+1, never retroactively: a month
     is always classified against the taxonomy it was run with.
+
+    A promoted cause gets a fresh id, which is why the referral rule must never
+    key off a literal id: whichever entry means "handed over to the
+    consultancy" is declared in ``REFERRAL_CAUSE_BY_TAXONOMY`` per taxonomy
+    version and flagged on read by ``mark_referral``. Bump that map whenever a
+    new taxonomy version renumbers the causes, or the dashboard will subtract
+    nothing and say so.
     """
     promoted = list(causes)
     for candidate in sorted(new_bucket, key=lambda c: -c.get("count", 0)):

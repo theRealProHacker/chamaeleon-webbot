@@ -199,7 +199,6 @@
       }
 
       #mChatsPrev,
-      #mBadPrev,
       #mUserCaption {
         color: var(--text-muted);
       }
@@ -571,6 +570,77 @@
         margin: 12mm 14mm;
       }
 
+      /* Gleiche Darstellung wie im Dashboard: ein geteilter Streifen, keine
+         Torte. Zwei Vokabulare fuer eine Achse waeren ein Fehler (SC5). */
+      .hilfe-legend {
+        list-style: none;
+        margin: 0 0 0.9rem;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 1.4rem;
+      }
+
+      .hilfe-legend li {
+        display: flex;
+        align-items: baseline;
+        gap: 0.45rem;
+      }
+
+      .hilfe-legend .hilfe-dot {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .hilfe-legend .hilfe-share {
+        font-weight: 700;
+        font-size: 1.15rem;
+        letter-spacing: -0.02em;
+      }
+
+      .hilfe-legend .hilfe-count {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .hilfe-stripe {
+        display: flex;
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--surface-muted);
+      }
+
+      .hilfe-stripe span {
+        display: block;
+        height: 100%;
+      }
+
+      .hilfe-seg-geholfen {
+        background: var(--accent);
+      }
+
+      .hilfe-seg-teilweise {
+        background: #b58a2b;
+      }
+
+      .hilfe-seg-nicht {
+        background: #b4453c;
+      }
+
+      /* Gleiche Gewichtung wie im Dashboard: die Umbuchung ist Teil der
+         Antwort, nicht ihre Fussnote. */
+      .hilfe-handover {
+        margin: 0.9rem 0 0;
+        color: var(--text);
+      }
+
+      .hilfe-handover .hilfe-delta {
+        color: var(--text-muted);
+      }
+
       @media print {
         body {
           background: #fff;
@@ -580,6 +650,9 @@
            standardmaessig weg. */
         .heat-cell,
         .heat-swatch,
+        .hilfe-stripe,
+        .hilfe-stripe > span,
+        .hilfe-legend .hilfe-dot,
         .bar,
         .bar > span {
           -webkit-print-color-adjust: exact;
@@ -651,15 +724,27 @@
               <span class="metric-caption" id="mDurationCaption">Median</span>
               <span class="metric-caption" id="mDurationPrev"></span>
             </div>
-            <div class="metric">
-              <span class="metric-label">Schlecht beantwortet</span>
-              <span class="metric-value" id="mBad">--</span>
-              <span class="metric-caption metric-share" id="mBadShare"></span>
-              <span class="metric-caption" id="mBadPrev"></span>
-              <span class="metric-caption metric-parts" id="mBadCaption"></span>
-            </div>
           </div>
           <p class="footnote" id="glossary"></p>
+        </article>
+
+        <article class="card" id="hilfeCard" hidden>
+          <h2>Qualität der Antworten</h2>
+          <p class="card-subtitle">
+            Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
+          </p>
+          <div id="hilfeState" class="card-state" hidden></div>
+          <div id="hilfeBody" hidden>
+            <ul class="hilfe-legend" id="hilfeLegend"></ul>
+            <div
+              class="hilfe-stripe"
+              id="hilfeStripe"
+              role="img"
+              aria-label="Verteilung der Hilfe-Klassen"
+            ></div>
+            <p class="hilfe-handover" id="hilfeHandover" hidden></p>
+            <p class="footnote" id="hilfeGlossary"></p>
+          </div>
         </article>
 
         <article class="card">
@@ -965,6 +1050,98 @@
         legend.replaceChildren(frag);
       }
 
+      const HILFE_STATE_TEXT = {
+        missing:
+          "Die Einteilung nach Hilfe liegt für diesen Monat noch nicht vor.",
+        running: "Die Auswertung läuft gerade.",
+        partial:
+          "Die Einteilung nach Hilfe geht für diesen Monat nicht auf; die Zahlen darunter stimmen.",
+        empty: "Keine Gespräche in dieser Auswahl.",
+      };
+
+      /** Gespräche, in denen der Bot nicht vollständig geholfen hat.
+       *
+       * Das ist die Zahl, die frueher "schlecht beantwortet" hiess, minus die
+       * Uebergaben an die Beratung — die zaehlen als richtig (Punkt 2). Sie ist
+       * der Nenner der Ursachentabelle, aus der die Verweis-Ursache serverseitig
+       * herausgezogen wurde; beide muessen dieselbe Menge meinen. */
+      function incompleteHelp(quality) {
+        const classes = quality?.hilfe?.klassen;
+        if (!Array.isArray(classes) || !classes.length) return null;
+        return classes
+          .filter((k) => k.id !== "geholfen")
+          .reduce((sum, k) => sum + k.count, 0);
+      }
+
+      function renderHilfe(quality) {
+        el("hilfeCard").hidden = false;
+        const hilfe = quality?.hilfe;
+        const status = hilfe?.status ?? "missing";
+        const classes = Array.isArray(hilfe?.klassen) ? hilfe.klassen : [];
+
+        if (status !== "ok" || !classes.length) {
+          el("hilfeBody").hidden = true;
+          const state = el("hilfeState");
+          state.textContent = HILFE_STATE_TEXT[status] ?? HILFE_STATE_TEXT.missing;
+          state.hidden = false;
+          return;
+        }
+        el("hilfeState").hidden = true;
+        el("hilfeBody").hidden = false;
+
+        const legend = document.createDocumentFragment();
+        const stripe = document.createDocumentFragment();
+        classes.forEach((klass) => {
+          const item = document.createElement("li");
+          const dot = document.createElement("span");
+          dot.className = `hilfe-dot hilfe-seg-${klass.id}`;
+          const share = document.createElement("span");
+          share.className = "hilfe-share";
+          share.textContent = `${klass.share} %`;
+          const label = document.createElement("span");
+          label.textContent = klass.label;
+          const count = document.createElement("span");
+          count.className = "hilfe-count";
+          count.textContent = fmt(klass.count);
+          item.append(dot, share, label, count);
+          legend.appendChild(item);
+
+          const segment = document.createElement("span");
+          segment.className = `hilfe-seg-${klass.id}`;
+          segment.style.width = `${klass.share}%`;
+          stripe.appendChild(segment);
+        });
+        el("hilfeLegend").replaceChildren(legend);
+        el("hilfeStripe").replaceChildren(stripe);
+
+        // Wortgleich mit dem Dashboard (SC7): die Umbuchung muss in beiden
+        // Ansichten dieselbe Zahl und denselben Satz ergeben.
+        const handovers = quality?.uebergaben;
+        const line = el("hilfeHandover");
+        if (typeof handovers === "number" && handovers) {
+          const previous = quality?.hilfe_vormonat;
+          let text =
+            `${fmt(handovers)} Übergaben an die Beratung — zählen als geholfen`;
+          line.textContent = text;
+          if (previous && typeof previous.uebergaben === "number") {
+            const delta = handovers - previous.uebergaben;
+            const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+            const note = document.createElement("span");
+            note.className = "hilfe-delta";
+            note.textContent = ` (${sign}${fmt(Math.abs(delta))} zum Vormonat)`;
+            line.appendChild(note);
+          }
+          line.hidden = false;
+        } else {
+          line.hidden = true;
+        }
+
+        el("hilfeGlossary").textContent =
+          "Teilweise geholfen: freundlich geantwortet, ohne die Frage zu " +
+          "beantworten. Nicht geholfen: die Antwort war unrichtig, oder der " +
+          "Nutzer hat aufgegeben.";
+      }
+
       async function renderComparison(current) {
         // Gibt {total, bad, topics} des Vormonats zurueck, oder null.
         const data = current;
@@ -983,19 +1160,15 @@
           const before = await response.json();
           const q = before.quality || {};
           if (q.status !== "ok" && q.status !== "partial") return null;
-          const badBefore =
-            (q.qualitaet?.ausgewichen ?? 0) +
-            (q.qualitaet?.abgebrochen ?? 0) +
-            (q.qualitaet?.falsch ?? 0);
-          const share = before.total_chats
-            ? ` (${Math.round((badBefore / before.total_chats) * 100)} %)`
-            : "";
+          // Der Vormonat rechnet nicht selbst: seine Hilfe-Klassen kommen aus
+          // demselben Serverhelfer wie die des laufenden Monats, und ueber eine
+          // Taxonomiegrenze hinweg liefert er gar nichts.
+          const badBefore = incompleteHelp(q);
           // Der Vormonat gehoert IN die Kacheln, nicht als eigener Absatz
           // davor: der Leser bekam sonst die Referenz vor dem Messwert, und
           // von drei Kacheln trug nur eine ueberhaupt einen Vergleich.
           const short = before.label.replace(/ \d{4}$/, "");
           el("mChatsPrev").textContent = `${short}: ${fmt(before.total_chats)}`;
-          el("mBadPrev").textContent = `${short}: ${fmt(badBefore)}${share}`;
           if (typeof before.avg_user_messages_per_chat === "number") {
             el("mUserPrev").textContent =
               `${short}: ${dec(before.avg_user_messages_per_chat)}`;
@@ -1024,13 +1197,16 @@
         }
       }
 
+      // `bad` heisst hier ab jetzt: Gespraeche ohne vollstaendige Hilfe. Die
+      // Uebergaben an die Beratung sind heraus, in der Ursachentabelle ebenso —
+      // beide Seiten meinen dieselbe Menge.
       function renderTakeaway(data, quality, bad, before) {
         // Fuenf Ranglisten ohne einen Satz dazu lassen den Leser die Aussage
         // selbst suchen. Der Satz muss aber die richtige sein: die Quote ueber
         // den ganzen Monat schlaegt jede einzelne Ursachenzeile.
         const sentences = [];
 
-        if (before && before.total && before.bad !== null) {
+        if (before && before.total && before.bad !== null && bad !== null) {
           const now = data.total_chats || 0;
           const rateNow = now ? (bad / now) * 100 : 0;
           const rateBefore = before.total ? (before.bad / before.total) * 100 : 0;
@@ -1044,8 +1220,8 @@
           const badDelta = bad - before.bad;
           const badText =
             Math.abs(badDelta) <= Math.max(3, before.bad * 0.02)
-              ? `${fmt(bad)} schlecht beantwortete Gespräche, praktisch so viele wie im Vormonat (${fmt(before.bad)})`
-              : `${fmt(bad)} schlecht beantwortete Gespräche, ${fmt(Math.abs(badDelta))} ` +
+              ? `${fmt(bad)} Gespräche ohne vollständige Hilfe, praktisch so viele wie im Vormonat (${fmt(before.bad)})`
+              : `${fmt(bad)} Gespräche ohne vollständige Hilfe, ${fmt(Math.abs(badDelta))} ` +
                 `${badDelta > 0 ? "mehr" : "weniger"} als im Vormonat (${fmt(before.bad)})`;
           sentences.push(`${volumeText}. ${badText}.`);
           // Die Quote nur dann, wenn sie sich anders bewegt als die absolute
@@ -1096,7 +1272,7 @@
           // Immer mit Subjekt: "davon" haengt sich sonst an den Satz davor,
           // und der handelt von der Quote, nicht von den Gespraechen.
           sentences.push(
-            `${portion} der ${fmt(bad)} schlecht beantworteten Gespräche — ` +
+            `${portion} der ${fmt(bad)} Gespräche ohne vollständige Hilfe — ` +
               `${fmt(top.count)} — ${topShare >= 0.85 ? "entfallen" : "entfällt"} auf „${top.label}“.`,
           );
         }
@@ -1182,32 +1358,15 @@
             ? "Median · alle Gespräche"
             : "Median · Gespräche mit Rückfrage";
 
-        const evaded = quality.qualitaet?.ausgewichen ?? 0;
-        const aborted = quality.qualitaet?.abgebrochen ?? 0;
-        const wrong = quality.qualitaet?.falsch ?? 0;
-        const bad = evaded + aborted + wrong;
-        el("mBad").textContent = fmt(bad);
-        // Die Bildunterschrift muss ALLE drei Klassen nennen. Ohne `falsch`
-        // standen hier zwei Zahlen, die nicht auf die Zahl darueber addierten,
-        // und der Leser hatte keine Moeglichkeit zu sehen, welche stimmt.
-        // Geschuetzte Leerzeichen zwischen Zahl und Wort: sonst bricht die
-        // Zeile als "… 20 / falsch" und die Zahl steht ohne ihr Label da.
-        const parts = [`${fmt(evaded)} ausgewichen`, `${fmt(aborted)} abgebrochen`];
-        if (wrong) parts.push(`${fmt(wrong)} falsch`);
-        setParts(el("mBadCaption"), parts);
-        // Der Anteil ist keine vierte Zahl derselben Art wie die drei Klassen,
-        // also steht er nicht in derselben Punktreihe.
-        el("mBadShare").textContent = data.total_chats
-          ? `${Math.round((bad / data.total_chats) * 100)} % aller Gespräche`
-          : "";
+        // Keine eigene Rechnung mehr: die Klassen und die Uebergaben kommen
+        // fertig vom Server, damit Dashboard und Report dieselbe Zahl nennen
+        // (SC5). Was hier frueher stand, war eine zweite Implementierung
+        // derselben Regel.
+        renderHilfe(quality);
+        const notFully = incompleteHelp(quality);
 
-        // Zaehleinheit und Vokabular einmal erklaeren. Diese Seite ist das,
-        // was von einem Monat bleibt — sie kann sich nicht darauf verlassen,
-        // dass jemand daneben sitzt und die Begriffe kennt.
         el("glossary").textContent =
-          "Ausgewichen: freundlich geantwortet, ohne die Frage zu beantworten. " +
-          "Abgebrochen: der Nutzer hat aufgegeben. Falsch: die Antwort war " +
-          "inhaltlich unrichtig.";
+          "Gezählt wird das Gespräch, nicht die einzelne Nachricht.";
 
         // Vor den Tabellen, nicht danach: Ursachen UND Themen brauchen die
         // Vormonatszahlen fuer ihre Delta-Spalten.
@@ -1228,7 +1387,12 @@
           (sum, c) => sum + (c.count || 0),
           0,
         );
-        const residualCauses = bad - causeSum;
+        // Nenner der Tabelle ist dieselbe Menge, aus der die Verweis-Ursache
+        // serverseitig herausgezogen wurde. Fehlt die Einteilung, gibt es
+        // keinen Rest zu benennen — dann steht die Tabelle ohne Restzeile da,
+        // statt einen aus einer anderen Menge zu erfinden.
+        const causeBase = notFully === null ? causeSum : notFully;
+        const residualCauses = causeBase - causeSum;
         const causeTop = Math.max(
           1,
           ...(quality.ursachen || []).map((c) => c.count || 0),
@@ -1256,7 +1420,7 @@
               // stillgelegte Ursache mit einer 0 laese sich als Erfolg lesen.
               { text: cause.count === null ? "—" : fmt(cause.count) },
               {
-                text: cause.count === null ? "—" : pct(cause.count, bad),
+                text: cause.count === null ? "—" : pct(cause.count, causeBase),
                 className: "share",
               },
               { text: delta, className: `num delta${direction}` },
@@ -1280,7 +1444,7 @@
             { text: "Ohne zugeordnete Ursache" },
             { bar: residualCauses / causeTop },
             { text: fmt(residualCauses) },
-            { text: pct(residualCauses, bad), className: "share" },
+            { text: pct(residualCauses, causeBase), className: "share" },
             { text: residualDelta, className: `num delta${residualDirection}` },
           ]);
         }
@@ -1297,7 +1461,10 @@
           notes.push("Die Liste braucht eine neue Ursache.");
         }
         el("causeSubtitle").textContent =
-          "Woran es lag, wenn eine Antwort nicht getragen hat. Je Gespräch gezählt.";
+          notFully === null
+            ? "Woran es lag, wenn eine Antwort nicht getragen hat. Je Gespräch gezählt."
+            : `Woran es lag in den ${fmt(notFully)} Gesprächen ohne vollständige ` +
+              "Hilfe. Je Gespräch gezählt.";
         el("causeFootnote").hidden = false;
         el("causeFootnote").textContent = notes.join(" ");
 
@@ -1391,7 +1558,7 @@
             "über die Vorkommen dieses Wochentags im Monat.";
         }
 
-        renderTakeaway(data, quality, bad, before);
+        renderTakeaway(data, quality, notFully, before);
 
         const stand = data.quality?.computed_at
           ? new Date(data.quality.computed_at).toLocaleDateString("de-DE", {

@@ -199,6 +199,14 @@
          Labels enden jetzt auf derselben Grundlinie — bei drei wie bei vier
          Kacheln, denn ob ein Label umbricht, entscheidet die Spaltenbreite,
          nicht die Kachelzahl. */
+      /* Zwei Zeilen fuer jede Bildunterschrift reserviert. "Median ·
+         Gespraeche mit Rueckfrage" braucht sie, die beiden Nachbarn nicht —
+         ohne die Reserve stand eine Kachel zweizeilig neben zwei einzeiligen
+         und die Reihe sah schief aus, obwohl die Kacheln gleich hoch sind. */
+      .metrics-grid-wide .metric-caption {
+        min-height: 2.6em;
+      }
+
       .metrics-grid-wide .metric-label {
         display: flex;
         align-items: flex-end;
@@ -208,13 +216,113 @@
         letter-spacing: 0.04em;
       }
 
-      /* Zwischen 641 und 1300px fallen vier Kacheln sonst auf 3 + 1.
-         Doppelte Klasse: die allgemeine .metrics-grid-Regel steht weiter
-         unten und gewann sonst bei gleicher Spezifitaet. */
-      @media (min-width: 641px) and (max-width: 1300px) {
-        .metrics-grid.metrics-grid-wide {
+      /* Die Spaltenzahl folgt der Kachelzahl, nicht der verfuegbaren Breite.
+         Mit auto-fit fielen drei Kacheln irgendwo zwischen 641 und 1300px auf
+         2 + 1 — eine volle Reihe und eine halbe, die wie ein Rendering-Fehler
+         aussieht (D25). Unter 641px stapeln sie ohnehin. */
+      @media (min-width: 641px) {
+        .metrics-grid.metrics-grid-wide.cols-3 {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .metrics-grid.metrics-grid-wide.cols-2 {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+      }
+
+      /* Ein geteilter Streifen, keine Torte: drei Anteile, die sich zu 100
+         addieren, liest man an einer Kante ab, nicht an Winkeln. */
+      .hilfe-legend {
+        list-style: none;
+        margin: 0 0 0.9rem;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 1.4rem;
+      }
+
+      .hilfe-legend li {
+        display: flex;
+        align-items: baseline;
+        gap: 0.45rem;
+        font-size: 0.95rem;
+      }
+
+      .hilfe-legend .hilfe-dot {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .hilfe-legend .hilfe-share {
+        font-weight: 700;
+        font-size: 1.15rem;
+        letter-spacing: -0.02em;
+      }
+
+      .hilfe-legend .hilfe-count {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .hilfe-stripe {
+        display: flex;
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--surface-muted);
+      }
+
+      .hilfe-stripe span {
+        display: block;
+        height: 100%;
+      }
+
+      .hilfe-seg-geholfen {
+        background: var(--accent);
+      }
+
+      .hilfe-seg-teilweise {
+        background: #b58a2b;
+      }
+
+      .hilfe-seg-nicht {
+        background: #b4453c;
+      }
+
+      /* Nicht gedaempft: 365 von 1.394 "geholfen" sind Uebergaben. Wer das
+         als Fussnote setzt, laesst die 80 Prozent groesser aussehen, als sie
+         gemeint sind. */
+      .hilfe-handover {
+        margin: 0.9rem 0 0;
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+
+      /* Dasselbe Klick-Idiom wie der Report-Link der Seite: Akzentfarbe, und
+         der Unterstrich kommt erst beim Zeigen. Ein dauerhaft unterstrichener
+         Satz sah aus wie ein Darstellungsfehler, nicht wie ein Knopf. */
+      .hilfe-handover button {
+        font: inherit;
+        color: var(--accent);
+        font-weight: 600;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        text-align: left;
+        text-decoration: none;
+      }
+
+      .hilfe-handover button:hover,
+      .hilfe-handover button:focus-visible {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .hilfe-handover .hilfe-delta {
+        color: var(--text-muted);
       }
 
       /* A count spanning 3 to 209 is not readable as digits alone. */
@@ -275,6 +383,17 @@
         background: var(--surface);
         border-bottom: 1px solid var(--border);
         box-shadow: var(--shadow-s);
+      }
+
+      /* Unterhalb von 1200px passen Ueberschrift und vier Knoepfe nicht mehr
+         in eine Zeile — sechs Pixel fehlten bei 1024px, und der letzte Knopf
+         stand allein in der zweiten. Dann bricht die Ueberschrift als Ganzes
+         um und die vier Knoepfe bleiben zusammen: eine Ueberschrift ueber
+         ihrer Gruppe statt einer Waise darunter. */
+      @media (max-width: 1200px) {
+        .tagbar-label {
+          flex-basis: 100%;
+        }
       }
 
       .tagbar-label {
@@ -1146,6 +1265,25 @@
           </article>
         </section>
         <section class="panel right-panel">
+          <!-- Zuerst die Karte, die "bleibt der Bot?" beantwortet (D19). Die
+               Kennzahlen darunter sagen, wie viel — nicht, wie gut. -->
+          <article id="hilfeCard" class="card" hidden>
+            <h2>Qualität der Antworten</h2>
+            <p class="card-subtitle">
+              Aus der Bewertung jedes Gesprächs, nicht aus Nutzerfeedback.
+            </p>
+            <div id="hilfeState" class="card-state" hidden></div>
+            <div id="hilfeBody" hidden>
+              <ul class="hilfe-legend" id="hilfeLegend"></ul>
+              <div
+                class="hilfe-stripe"
+                id="hilfeStripe"
+                role="img"
+                aria-label="Verteilung der Hilfe-Klassen"
+              ></div>
+              <p class="hilfe-handover" id="hilfeHandover" hidden></p>
+            </div>
+          </article>
           <article id="metricsCard" class="card loading-skeleton">
             <h2 id="metricsTitle">Alle Chats</h2>
             <div class="metrics-grid metrics-grid-wide">
@@ -1163,11 +1301,6 @@
                 <span class="metric-label">Gesprächsdauer</span>
                 <span class="metric-value" id="medianDurationValue">--</span>
                 <span class="metric-caption" id="durationCaption">Median</span>
-              </div>
-              <div class="metric" id="badMetric" hidden>
-                <span class="metric-label">Schlechte Antworten</span>
-                <span class="metric-value" id="qualityBadValue">--</span>
-                <span class="metric-caption" id="qualityBadCaption"></span>
               </div>
             </div>
             <p id="metricsError" class="error-message" hidden></p>
@@ -1321,9 +1454,13 @@
         heatmapLegend: document.getElementById("heatmapLegend"),
         comparisonEl: document.getElementById("comparison"),
         messagesState: document.getElementById("messagesState"),
-        badMetric: document.getElementById("badMetric"),
-        qualityBadValue: document.getElementById("qualityBadValue"),
-        qualityBadCaption: document.getElementById("qualityBadCaption"),
+        hilfeCard: document.getElementById("hilfeCard"),
+        hilfeState: document.getElementById("hilfeState"),
+        hilfeBody: document.getElementById("hilfeBody"),
+        hilfeLegend: document.getElementById("hilfeLegend"),
+        hilfeStripe: document.getElementById("hilfeStripe"),
+        hilfeHandover: document.getElementById("hilfeHandover"),
+        metricsGrid: document.querySelector(".metrics-grid-wide"),
         qualityState: document.getElementById("qualityState"),
         causeTable: document.getElementById("causeTable"),
         causeTableBody: document.getElementById("causeTableBody"),
@@ -1493,12 +1630,16 @@
           countEl.textContent =
             typeof count === "number" ? formatNumber(count) : "--";
         });
-        // Die Bereichsleiste traegt den Bezugszeitraum immer (D27): die drei
-        // Zaehler zaehlen erst ab dem Tag, an dem das Widget die Seite
-        // mitschreibt.
-        DOM.tagbarLabel.textContent = state.summary.segmentsLabel
-          ? `Bereich · ${state.summary.segmentsLabel}`
-          : "Bereich";
+        // Das Datum steht an der Leiste, solange die Zaehler den ganzen
+        // Zeitraum meinen. Bei gewaehltem Monat zaehlen sie diesen Monat —
+        // dann waere "seit dem 22. Mai 2026" schlicht falsch, und die Summe
+        // der drei Knoepfe (die dann genau die Chatzahl des Monats ergibt)
+        // widerspraeche der Beschriftung darueber. Abweichung von D27, das
+        // den Gesamtzustand im Blick hatte.
+        DOM.tagbarLabel.textContent =
+          state.summary.segmentsLabel && !state.selectedMonthKey
+            ? `Bereich · ${state.summary.segmentsLabel}`
+            : "Bereich";
       }
 
       function clearSegments() {
@@ -1820,10 +1961,20 @@
         DOM.medianDurationEl.textContent = hasDuration
           ? formatDuration(totals.median_duration_seconds)
           : "--";
+        // Nie 2 + 1: die Spaltenzahl folgt der Zahl sichtbarer Kacheln (D25).
+        const tiles = hasDuration ? 3 : 2;
+        DOM.metricsGrid.classList.toggle("cols-3", tiles === 3);
+        DOM.metricsGrid.classList.toggle("cols-2", tiles === 2);
+        // Mit der Zahl davor, weil die Kachel neben zwei Kacheln steht, die
+        // ALLE Gespraeche zaehlen. Ohne sie liest sich der Median, als gaelte
+        // er fuer dieselbe Menge.
+        const samples = totals?.duration_samples;
         DOM.durationCaptionEl.textContent =
           totals?.duration_basis === "alle"
             ? "Median · alle Gespräche"
-            : "Median · Gespräche mit Rückfrage";
+            : typeof samples === "number"
+              ? `Median · ${formatNumber(samples)} mit Rückfrage`
+              : "Median · Gespräche mit Rückfrage";
       }
 
       function renderMonthDetail(monthData) {
@@ -2166,6 +2317,7 @@
         DOM.weekdayChartCard.hidden = report;
         DOM.hourlyChartCard.hidden = report;
         DOM.dailyChartCard.hidden = !monthSelected;
+        DOM.hilfeCard.hidden = !report;
         DOM.qualityCard.hidden = !report;
         DOM.topicCard.hidden = !report;
         DOM.countryCard.hidden = !report;
@@ -2400,12 +2552,121 @@
           "Die Auswertung ist unvollständig — ein Teil der Gespräche wurde nicht eingeordnet.",
       };
 
+      const HILFE_STATE_TEXT = {
+        missing:
+          "Die Einteilung nach Hilfe liegt für diesen Monat noch nicht vor.",
+        running: "Die Auswertung läuft gerade. Nachher noch einmal schauen.",
+        partial:
+          "Die Einteilung nach Hilfe geht für diesen Monat nicht auf; die Zahlen darunter stimmen.",
+        empty: "Keine Gespräche in dieser Auswahl.",
+      };
+
+      /** Gespräche, in denen der Bot nicht vollständig geholfen hat.
+       *
+       * Teilweise + Nicht geholfen. Das ist die Menge, welche die
+       * Ursachentabelle erklärt — die Übergaben an die Beratung sind aus
+       * beiden heraus. */
+      function incompleteHelp(quality) {
+        const classes = quality?.hilfe?.klassen;
+        if (!Array.isArray(classes) || !classes.length) return null;
+        return classes
+          .filter((k) => k.id !== "geholfen")
+          .reduce((sum, k) => sum + k.count, 0);
+      }
+
+      function renderHilfe(quality) {
+        const hilfe = quality?.hilfe;
+        const status = hilfe?.status ?? "missing";
+        const classes = Array.isArray(hilfe?.klassen) ? hilfe.klassen : [];
+
+        if (status !== "ok" || !classes.length) {
+          DOM.hilfeBody.hidden = true;
+          setCardState(
+            DOM.hilfeState,
+            HILFE_STATE_TEXT[status] ?? HILFE_STATE_TEXT.missing,
+          );
+          return;
+        }
+        clearCardState(DOM.hilfeState);
+        DOM.hilfeBody.hidden = false;
+
+        const legend = document.createDocumentFragment();
+        const stripe = document.createDocumentFragment();
+        classes.forEach((klass) => {
+          const item = document.createElement("li");
+          const dot = document.createElement("span");
+          dot.className = `hilfe-dot hilfe-seg-${klass.id}`;
+          const share = document.createElement("span");
+          share.className = "hilfe-share";
+          share.textContent = `${klass.share} %`;
+          const label = document.createElement("span");
+          // textContent, nie innerHTML: die Beschriftung kommt aus dem
+          // Server, aber die Regel gilt fuer die ganze Karte.
+          label.textContent = klass.label;
+          const count = document.createElement("span");
+          count.className = "hilfe-count";
+          count.textContent = formatNumber(klass.count);
+          item.append(dot, share, label, count);
+          legend.appendChild(item);
+
+          const segment = document.createElement("span");
+          segment.className = `hilfe-seg-${klass.id}`;
+          // Der Streifen folgt den Anteilen, die der Server gerundet hat —
+          // nicht einer zweiten Rechnung im Browser.
+          segment.style.width = `${klass.share}%`;
+          stripe.appendChild(segment);
+        });
+        DOM.hilfeLegend.replaceChildren(legend);
+        DOM.hilfeStripe.replaceChildren(stripe);
+
+        renderHandover(quality);
+      }
+
+      function renderHandover(quality) {
+        const handovers = quality?.uebergaben;
+        const causeId = quality?.verweis_ursache_id;
+        if (typeof handovers !== "number" || !handovers) {
+          DOM.hilfeHandover.hidden = true;
+          return;
+        }
+        DOM.hilfeHandover.hidden = false;
+
+        // Die Umbuchung ist der erste lesbare Satz, nicht die Fussnote: mehr
+        // als die Haelfte der frueher schlechten Antworten steckt darin.
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent =
+          `${formatNumber(handovers)} Übergaben an die Beratung — zählen als geholfen`;
+        // Klickbar wie eine Ursachenzeile (D26). Eine Zeile, die aussieht wie
+        // die Tabellenzeilen daneben und nichts tut, ist eine Falle.
+        if (causeId) {
+          button.addEventListener("click", () => toggleCause(causeId));
+          button.setAttribute(
+            "aria-pressed",
+            state.selectedCauseId === causeId ? "true" : "false",
+          );
+        } else {
+          button.disabled = true;
+        }
+        DOM.hilfeHandover.replaceChildren(button);
+
+        const previous = quality?.hilfe_vormonat;
+        if (previous && typeof previous.uebergaben === "number") {
+          const delta = handovers - previous.uebergaben;
+          const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+          const note = document.createElement("span");
+          note.className = "hilfe-delta";
+          note.textContent = ` (${sign}${formatNumber(Math.abs(delta))} zum Vormonat)`;
+          DOM.hilfeHandover.appendChild(note);
+        }
+      }
+
       function renderQuality(quality, totalChats, periodLabel) {
         state.currentView.quality = quality ?? null;
         const status = quality?.status ?? "missing";
 
+        renderHilfe(quality);
         if (status !== "ok" && status !== "partial") {
-          DOM.badMetric.hidden = true;
           DOM.causeTable.hidden = true;
           DOM.causeFootnote.hidden = true;
           DOM.reportLink.hidden = true;
@@ -2420,28 +2681,20 @@
           clearCardState(DOM.qualityState);
         }
 
-        const evaded = quality.qualitaet?.ausgewichen ?? 0;
-        const aborted = quality.qualitaet?.abgebrochen ?? 0;
-        const wrong = quality.qualitaet?.falsch ?? 0;
-        const bad = evaded + aborted + wrong;
-
-        // ONE total, and the cause column adds up to it. The tile used to show
-        // "Ausgewichen 665" beside a card headed "736 Gespräche mit einer
-        // schlechten Antwort": two authoritative counts of the same idea, 71
-        // apart, with nothing saying that `falsch` also carries a cause.
-        DOM.badMetric.hidden = false;
-        DOM.qualityBadValue.textContent = formatNumber(bad);
-        // Alle drei Teile, sonst rechnet der Leser 631 + 57 und landet 17
-        // unter der Schlagzeile.
-        DOM.qualityBadCaption.textContent =
-          `${formatNumber(evaded)} ausgewichen · ${formatNumber(aborted)} abgebrochen` +
-          (wrong ? ` · ${formatNumber(wrong)} falsch` : "");
-
         // The card says what its rows are and that they can be opened. It does
         // not repeat the month (the card above it already carries it) and it
         // does not print a "Stand" — that is provenance, not product.
+        // Die Tabelle muss ihre Grundgesamtheit nennen. Ohne sie steht eine
+        // Ursache mit 64 Gespraechen unter einer Karte, die "Nicht geholfen
+        // 60" sagt, und der Leser kann die beiden nicht zusammenbringen: die
+        // Tabelle erklaert BEIDE unvollstaendigen Klassen, nicht nur die
+        // schlechteste, und die Uebergaben stehen nicht mehr darin.
+        const base = incompleteHelp(quality);
         DOM.qualitySubtitle.textContent =
-          "Zeile anklicken zeigt die Gespräche dahinter.";
+          base === null
+            ? "Zeile anklicken zeigt die Gespräche dahinter."
+            : `${formatNumber(base)} Gespräche ohne vollständige Hilfe. ` +
+              "Zeile anklicken zeigt die Gespräche dahinter.";
 
         // Der Report ist das, was von einem Monat bleibt, wenn seine
         // Transkripte weg sind — also muss er eine eigene, verschickbare
