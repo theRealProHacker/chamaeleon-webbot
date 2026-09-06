@@ -303,20 +303,29 @@
       /* Dasselbe Klick-Idiom wie der Report-Link der Seite: Akzentfarbe, und
          der Unterstrich kommt erst beim Zeigen. Ein dauerhaft unterstrichener
          Satz sah aus wie ein Darstellungsfehler, nicht wie ein Knopf. */
+      /* Die allgemeine button-Regel oben macht aus jedem Knopf eine Pille mit
+         Rundung und Schatten. Hier soll Text stehen, kein Knopf — also auch
+         `box-shadow` und `border-radius` zuruecknehmen, sonst schwebt eine
+         graue Pille um den halben Satz und der Klammerzusatz steht davor. */
       .hilfe-handover button {
         font: inherit;
         color: var(--accent);
         font-weight: 600;
         background: none;
         border: none;
+        border-radius: 0;
+        box-shadow: none;
         padding: 0;
         cursor: pointer;
         text-align: left;
         text-decoration: none;
+        display: inline;
       }
 
       .hilfe-handover button:hover,
       .hilfe-handover button:focus-visible {
+        background: none;
+        box-shadow: none;
         text-decoration: underline;
         text-underline-offset: 3px;
       }
