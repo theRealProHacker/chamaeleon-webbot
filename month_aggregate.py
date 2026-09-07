@@ -70,15 +70,6 @@ DURATION_EDGES_DIALOG = (
 # A chat counts as a dialog from this many user messages on.
 DIALOG_MIN_USER_MESSAGES = 2
 
-# Ab hier schreibt das Widget eine `url` an den Chat, also gibt es ab hier
-# überhaupt Bereiche. Davor liegen 8.354 Chats ohne jede `url`, die per
-# Owner-Direktive vom 2026-09-01 als "Allgemeine Webseite" zählen — richtig für
-# die ZUORDNUNG, aber als Bezugszeitraum irreführend: ohne Monatswahl liest
-# sich MeinChamäleon dann als 9,3 %, mit Monatswahl als 21,7 %. Genau daran hat
-# sich Punkt 3 der Kundenliste entzündet.
-SEGMENTS_FROM = (2026, 5, 22)
-SEGMENTS_FROM_LABEL = "seit dem 22. Mai 2026"
-
 # Stufe 1 der Löschung: Rohtranskripte eines alten Monats werden im Dashboard
 # NICHT MEHR ANGEZEIGT. Gelöscht wird dabei nichts — die Frist ist damit
 # ausdrücklich noch nicht erfüllt, das bleibt Stufe 2 (echtes Löschen in der DB).
@@ -511,36 +502,6 @@ def dialog_samples(
     if vector is None:
         return None
     return select(vector, segments)
-
-
-def segments_since_cutoff(
-    aggregates: dict[MonthKey, MonthAggregate],
-) -> tuple[list[int], bool]:
-    """Segment totals over the period in which segments exist (SEGMENTS_FROM).
-
-    Returns the vector and whether the boundary month itself was available. The
-    partial month is summed from its daily vectors — ``combine`` drops those on
-    purpose (day 3 of July and day 3 of August are not one bucket), so this
-    reads the month aggregate directly instead.
-
-    A missing boundary month contributes nothing rather than everything: the
-    412 chats between the 1st and the 22nd of May are all url-less and all in
-    "allgemein", so folding the whole month in would restore exactly the
-    distortion this exists to remove.
-    """
-    year, month, day = SEGMENTS_FROM
-    boundary = f"{year:04d}-{month:02d}"
-    total = empty_vector()
-    for key, agg in aggregates.items():
-        if key > boundary:
-            for i in range(len(SEGMENTS)):
-                total[i] += agg["total_chats"][i]
-        elif key == boundary:
-            for raw_day, vector in agg["daily"].items():
-                if int(raw_day) >= day:
-                    for i in range(len(SEGMENTS)):
-                        total[i] += vector[i]
-    return total, boundary in aggregates
 
 
 def combine(aggregates: Iterable[MonthAggregate]) -> MonthAggregate:

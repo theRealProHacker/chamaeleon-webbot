@@ -1515,7 +1515,6 @@
         summary: {
           monthly: [],
           segmentCounts: {},
-          segmentsLabel: "",
           loaded: false,
           heatmap: [],
           weekday: [],
@@ -1725,7 +1724,6 @@
           // The tag counts are always the FULL split, never filtered — a tag
           // showing 0 because it is deselected would be unreadable.
           state.summary.segmentCounts = payload.segment_counts ?? {};
-          state.summary.segmentsLabel = payload.segments_label ?? "";
           state.summary.loaded = true;
           state.summary.weekday = Array.isArray(payload.weekday_counts)
             ? payload.weekday_counts
@@ -1743,6 +1741,8 @@
             state.currentView.hasReport = false;
             state.currentView.heatmap = state.summary.heatmap;
             state.currentView.hourlyCounts = state.summary.hourly;
+            // Im Ruhezustand gibt es keinen Vormonat — es ist kein Monat.
+            state.currentView.vormonat = null;
             renderHeatmap(state.summary.heatmap, "Alle Chats");
             renderWeekdayChart(state.summary.weekday, "Alle Chats");
             renderHourlyChart(state.summary.hourly, "Alle Chats");
@@ -1766,9 +1766,7 @@
                 duration_basis: payload.duration_basis,
                 duration_samples: payload.duration_samples,
               },
-              state.selectedSegments.length && payload.segments_label
-                ? `Alle Chats · ${payload.segments_label}`
-                : "Alle Chats · gesamter Zeitraum",
+              "Alle Chats · gesamter Zeitraum",
             );
             clearMonthDetail();
           } else if (state.selectedMonthKey === state.currentMonth) {
@@ -1952,6 +1950,7 @@
         state.currentView.hourlyCounts = Array.isArray(monthData?.hourly_counts)
           ? monthData.hourly_counts
           : [];
+        state.currentView.vormonat = monthData?.vormonat_charts ?? null;
         state.currentView.label = monthData?.label || "Ausgewählter Monat";
         state.summary.segmentCounts = monthData?.segment_counts ?? state.summary.segmentCounts;
         renderTagbar();
@@ -2005,6 +2004,45 @@
       }
 
       // Chart.js kennt keine Wertelabels; das ist das ganze Plugin dafuer.
+      /** Geisterbalken: der Vormonat als heller Balken HINTER dem aktuellen.
+       *
+       * Als Plugin und nicht als zweiter Datensatz, weil alle drei
+       * Monatsdiagramme ihn brauchen und ihre Balken sonst schmaler,
+       * andersfarbig oder gestapelt werden muessten — der aktuelle Monat soll
+       * aussehen wie vorher.
+       *
+       * Die Werte haengen als `chart.$vormonat` am Diagramm. `null` an einer
+       * Stelle heisst "diesen Tag gab es im Vormonat nicht" (der 31. in einem
+       * 30-Tage-Monat) und zeichnet nichts — eine Null waere die Aussage
+       * "damals hat niemand geschrieben".
+       */
+      const ghostBars = {
+        id: "ghostBars",
+        beforeDatasetsDraw(chart) {
+          const werte = chart.$vormonat;
+          if (!Array.isArray(werte) || !werte.length) return;
+          const { ctx } = chart;
+          const meta = chart.getDatasetMeta(0);
+          const boden = chart.scales.y.getPixelForValue(0);
+          ctx.save();
+          ctx.fillStyle = "#dbe3ec";
+          meta.data.forEach((el, i) => {
+            const wert = werte[i];
+            if (wert === null || wert === undefined) return;
+            const oben = chart.scales.y.getPixelForValue(wert);
+            // Breiter als der echte Balken, damit links und rechts eine
+            // Schulter stehen bleibt — sonst ist der Vormonat unsichtbar,
+            // sobald er kleiner ist als der aktuelle Monat.
+            const breite = (el.width || 20) + 10;
+            ctx.beginPath();
+            ctx.roundRect(el.x - breite / 2, Math.min(oben, boden), breite,
+                          Math.max(1, Math.abs(boden - oben)), 3);
+            ctx.fill();
+          });
+          ctx.restore();
+        },
+      };
+
       const barValueLabels = {
         id: "barValueLabels",
         afterDatasetsDraw(chart) {
@@ -2041,6 +2079,12 @@
         return `${average} Chats im Schnitt (${item.count} an ${times})`;
       }
 
+      /** Setzt die Geisterwerte und zeichnet neu. */
+      function setGhost(chart, werte) {
+        if (!chart) return;
+        chart.$vormonat = Array.isArray(werte) && werte.length ? werte : null;
+      }
+
       function renderWeekdayChart(weekdayData, label, running = false) {
         const normalized = Array.isArray(weekdayData) ? weekdayData : [];
         const labels = normalized.map(
@@ -2062,6 +2106,9 @@
         );
 
         state.currentWeekdayData = normalized;
+        const ghostWeekday = (state.currentView.vormonat?.weekday_counts || []).map(
+          (item) => (item?.average ?? null),
+        );
 
         DOM.weekdayChartTitleEl.textContent = label
           ? `Chats pro Wochentag im Schnitt · ${label}`
@@ -2120,7 +2167,7 @@
                 },
               ],
             },
-            plugins: [barValueLabels],
+            plugins: [ghostBars, barValueLabels],
             options: {
               responsive: true,
               maintainAspectRatio: false,
@@ -2158,6 +2205,8 @@
             handleWeekdaySelection(elements);
           updateWeekdayChartColors();
         }
+        setGhost(state.charts.weekday, ghostWeekday);
+        state.charts.weekday.update();
 
         if (DOM.weekdayChartWrapper.classList.contains("loading-skeleton")) {
           DOM.weekdayChartWrapper.classList.remove("loading-skeleton");
@@ -2220,6 +2269,7 @@
 
         if (!state.charts.hourly) {
           state.charts.hourly = new Chart(DOM.hourlyChartCtx, {
+            plugins: [ghostBars],
             type: "bar",
             data: {
               labels,
@@ -2256,6 +2306,11 @@
           state.charts.hourly.data.datasets[0].data = counts;
           state.charts.hourly.update("none");
         }
+        setGhost(
+          state.charts.hourly,
+          (state.currentView.vormonat?.hourly_counts || []).map((h) => h?.count ?? null),
+        );
+        state.charts.hourly.update("none");
 
         if (DOM.hourlyChartWrapper.classList.contains("loading-skeleton")) {
           DOM.hourlyChartWrapper.classList.remove("loading-skeleton");
@@ -3058,6 +3113,7 @@
 
         if (!state.charts.daily) {
           state.charts.daily = new Chart(DOM.dailyChartCtx, {
+            plugins: [ghostBars],
             type: "bar",
             data: {
               labels,
@@ -3100,6 +3156,20 @@
           state.charts.daily.resize();
           state.charts.daily.update("none");
         }
+        // Nach dem TAG IM MONAT ausgerichtet, nicht nach der Position: hat der
+        // Vormonat keinen 31., steht dort kein Geisterbalken.
+        const vortage = state.currentView.vormonat?.daily_counts || null;
+        setGhost(
+          state.charts.daily,
+          vortage
+            ? dailyCounts.map((item) => {
+                const tag = String(item.day ?? item.short_label ?? "");
+                const wert = vortage[tag];
+                return wert === undefined ? null : wert;
+              })
+            : null,
+        );
+        state.charts.daily.update("none");
 
         if (DOM.dailyChartWrapper.classList.contains("loading-skeleton")) {
           DOM.dailyChartWrapper.classList.remove("loading-skeleton");

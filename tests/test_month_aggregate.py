@@ -228,26 +228,6 @@ def test_guards_say_unknown_instead_of_zero():
     assert ma.hilfe_for(broken, TAXONOMY)["status"] == "partial"
 
 
-def test_segment_counts_start_where_segments_start():
-    """Ohne Monatswahl zählen die Bereiche ab dem 22. Mai, nicht ab dem 1."""
-    may = ma.empty_aggregate("2026-05")
-    may["daily"] = {"1": [400, 0, 0], "22": [10, 5, 1], "31": [20, 10, 2]}
-    june = ma.empty_aggregate("2026-06")
-    june["total_chats"] = [100, 50, 5]
-
-    vector, boundary_seen = ma.segments_since_cutoff({"2026-05": may, "2026-06": june})
-    assert boundary_seen
-    assert vector == [130, 65, 8]  # der 1. Mai bleibt draußen
-
-
-def test_missing_boundary_month_contributes_nothing_and_says_so():
-    june = ma.empty_aggregate("2026-06")
-    june["total_chats"] = [100, 50, 5]
-    vector, boundary_seen = ma.segments_since_cutoff({"2026-06": june})
-    assert vector == [100, 50, 5]
-    assert boundary_seen is False
-
-
 # --- die restlichen Pfade aus dem Coverage-Diagramm --------------------------
 
 

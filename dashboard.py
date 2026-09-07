@@ -47,7 +47,6 @@ from month_aggregate import (
     MonthAggregate,
     MonthKey,
     QualityAggregate,
-    SEGMENTS_FROM_LABEL,
     aggregate_month,
     dialog_samples,
     median_duration,
@@ -176,7 +175,6 @@ class MonthDetail(TypedDict):
 class DashboardPayload(TypedDict):
     total_chats: int
     segment_counts: dict[str, int]
-    segments_label: str  # "seit dem 22. Mai 2026" — der Bezugszeitraum
     avg_user_messages_per_chat: float
     median_duration_seconds: Optional[float]
     duration_basis: Optional[str]
@@ -716,6 +714,36 @@ def duration_for(
     }
 
 
+def previous_month_charts(key: MonthKey, segments) -> dict[str, Any] | None:
+    """Die drei Monatsdiagramme des Vormonats, fuer den Geisterbalken.
+
+    Aus dem Cache, kein zusaetzlicher Abruf. Der Tagesverlauf wird nach dem
+    Tag im Monat ausgerichtet: hat der Vormonat den 31. nicht, steht dort kein
+    Geisterbalken statt einer Null. Ein fehlender Tag ist keine Null.
+    """
+    previous = previous_month(key)
+    agg = month_cache["aggregates"].get(previous)
+    if agg is None:
+        return None
+    occurrences = weekday_occurrences(previous)
+    vectors = weekday_vectors(agg, previous)
+    return {
+        "month": previous,
+        "label": month_label(previous),
+        "weekday_counts": [
+            build_weekday_count(weekday, select(vector, segments), occurrences[weekday])
+            for weekday, vector in enumerate(vectors)
+        ],
+        "hourly_counts": [
+            build_hourly_count(hour, select(vector, segments))
+            for hour, vector in enumerate(agg["hourly"])
+        ],
+        "daily_counts": {
+            day: select(vector, segments) for day, vector in agg["daily"].items()
+        },
+    }
+
+
 def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | None:
     agg = cached_aggregate(month_cache, key)
     if agg is None:
@@ -749,6 +777,7 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
         "avg_user_messages_per_chat": avg_user_messages(agg, segments),
         "avg_messages_per_chat": avg_messages(agg, segments),
         **duration_for(agg, segments),
+        "vormonat_charts": previous_month_charts(key, segments),
         "daily_counts": [
             build_daily_count(int(day), key, select(vector, segments))
             for day, vector in sorted(agg["daily"].items(), key=lambda kv: int(kv[0]))
@@ -876,25 +905,14 @@ def DASHBOARD_data():
                     running_agg["weekday"][weekday][index] - value
                 )
 
-    segments_vector, boundary_cached = month_aggregate.segments_since_cutoff(
-        month_cache["aggregates"]
-    )
-    if not boundary_cached:
-        # Der Grenzmonat fehlt im Cache: die Bereichszahlen sind dann zu klein,
-        # nicht falsch verteilt. Sichtbar wird das als Null in einem Bereich,
-        # deshalb steht es im Log statt in der Oberflaeche (Designregel 10).
-        print(
-            "[dashboard] Grenzmonat 2026-05 nicht im Cache — "
-            "Bereichszahlen ohne den Mai-Rest"
-        )
-
     payload: DashboardPayload = {
         "total_chats": select(all_time["total_chats"], segments),
-        # Ohne Monatswahl beziehen sich die Bereichszahlen auf den Zeitraum, in
-        # dem es Bereiche gibt. Die Chatzahl darueber zaehlt weiter alles — das
-        # ist der Ruhezustand "Gesamt", nicht ein Filter.
-        "segment_counts": segment_counts(segments_vector),
-        "segments_label": SEGMENTS_FROM_LABEL,
+        # Ueber ALLES, auch die Chats vor dem 22. Mai 2026, die keine `url`
+        # tragen und per Owner-Direktive als "Allgemeine Webseite" zaehlen.
+        # Dann summieren sich die drei Knoepfe auf die Chatzahl daneben
+        # (Owner-Ansage 2026-09-07); der frueher engere Bezugszeitraum liess
+        # 6.243 gegen 14.553 stehen.
+        "segment_counts": segment_counts(all_time["total_chats"]),
         "avg_user_messages_per_chat": avg_user_messages(all_time, segments),
         # Auch im Gesamtzustand. Die Kachel steht neben einer Chatzahl, die
         # ALLES zaehlt, waehrend sie selbst nur die Gespraeche mit
