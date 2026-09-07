@@ -2158,8 +2158,10 @@
               {
                 label: state.currentView.vormonat?.label || "Vormonat",
                 data: ghostWeekday,
-                backgroundColor: "#e2e8f0",
-                hoverBackgroundColor: "#cbd5e1",
+                // Neutrales Grau, kein Slate: slate hat einen Blaustich und
+                // stand damit zu nah am aktuellen Monat.
+                backgroundColor: "#d4d4d4",
+                hoverBackgroundColor: "#bdbdbd",
                 borderRadius: 3,
               },
               {
