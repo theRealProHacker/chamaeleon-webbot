@@ -2148,18 +2148,18 @@
         // Geisterbalken, 31 bzw. 24 Paare nebeneinander waeren nicht lesbar.
         const hatVormonat = ghostWeekday.some((v) => v !== null && v !== undefined);
         const colors = normalized.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#2563eb" : "#93c5fd",
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
         );
         const hoverColors = normalized.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
+          idx === state.selectedWeekdayIndex ? "#1e40af" : "#3b82f6",
         );
         const datensaetze = hatVormonat
           ? [
               {
                 label: state.currentView.vormonat?.label || "Vormonat",
                 data: ghostWeekday,
-                backgroundColor: "#94a3b8",
-                hoverBackgroundColor: "#64748b",
+                backgroundColor: "#e2e8f0",
+                hoverBackgroundColor: "#cbd5e1",
                 borderRadius: 3,
               },
               {
@@ -2258,10 +2258,10 @@
         if (!dataset) return;
 
         dataset.backgroundColor = state.currentWeekdayData.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#2563eb" : "#93c5fd",
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
         );
         dataset.hoverBackgroundColor = state.currentWeekdayData.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
+          idx === state.selectedWeekdayIndex ? "#1e40af" : "#3b82f6",
         );
         state.charts.weekday.update("none");
       }
