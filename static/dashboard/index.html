@@ -2047,7 +2047,8 @@
         id: "barValueLabels",
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
-          const meta = chart.getDatasetMeta(0);
+          const letzter = chart.data.datasets.length - 1;
+          const meta = chart.getDatasetMeta(letzter);
           ctx.save();
           ctx.font =
             "600 11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -2055,7 +2056,7 @@
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
           meta.data.forEach((bar, index) => {
-            const value = chart.data.datasets[0].data[index];
+            const value = chart.data.datasets[letzter].data[index];
             if (value === null || value === undefined) return;
             const text = value.toLocaleString("de-DE", {
               maximumFractionDigits: value < 10 ? 1 : 0,
@@ -2142,37 +2143,71 @@
         }
         DOM.weekdayChartHintEl.hidden = notes.length === 0;
         DOM.weekdayChartHintEl.textContent = notes.join(" ");
+        // Nebeneinander statt Geisterbalken (Owner-Wahl): Vormonat grau,
+        // aktueller Monat hellblau. Nur hier — Tag und Stunde behalten den
+        // Geisterbalken, 31 bzw. 24 Paare nebeneinander waeren nicht lesbar.
+        const hatVormonat = ghostWeekday.some((v) => v !== null && v !== undefined);
         const colors = normalized.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#2563eb" : "#94a3b8",
+          idx === state.selectedWeekdayIndex ? "#2563eb" : "#93c5fd",
         );
         const hoverColors = normalized.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#2563eb",
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
         );
+        const datensaetze = hatVormonat
+          ? [
+              {
+                label: state.currentView.vormonat?.label || "Vormonat",
+                data: ghostWeekday,
+                backgroundColor: "#94a3b8",
+                hoverBackgroundColor: "#64748b",
+                borderRadius: 3,
+              },
+              {
+                label: label || "Aktueller Monat",
+                data: counts,
+                backgroundColor: colors,
+                hoverBackgroundColor: hoverColors,
+                borderRadius: 3,
+              },
+            ]
+          : [
+              {
+                label: "Chats",
+                data: counts,
+                backgroundColor: colors,
+                hoverBackgroundColor: hoverColors,
+                borderRadius: 3,
+              },
+            ];
+        // Die Zahl der Datensaetze aendert die Balkenbreite, und Chart.js
+        // rechnet die nur beim Bauen. Wechselt sie, wird neu gebaut.
+        if (
+          state.charts.weekday &&
+          state.charts.weekday.data.datasets.length !== datensaetze.length
+        ) {
+          state.charts.weekday.destroy();
+          state.charts.weekday = null;
+        }
 
         if (!state.charts.weekday) {
           state.charts.weekday = new Chart(DOM.weekdayChartCtx, {
             type: "bar",
-            data: {
-              labels,
-              datasets: [
-                {
-                  label: "Chats",
-                  data: counts,
-                  backgroundColor: colors,
-                  hoverBackgroundColor: hoverColors,
-                  // Klein halten: bei 8px auf einem 6px hohen Balken ist die
-                  // Rundung hoeher als der Wert, und die Oberkante sitzt nicht
-                  // mehr dort, wo die Zahl steht.
-                  borderRadius: 3,
-                },
-              ],
-            },
-            plugins: [ghostBars, barValueLabels],
+            // borderRadius klein halten: bei 8px auf einem 6px hohen Balken
+            // ist die Rundung hoeher als der Wert, und die Oberkante sitzt
+            // nicht mehr dort, wo die Zahl steht.
+            data: { labels, datasets: datensaetze },
+            plugins: [barValueLabels],
             options: {
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
-                legend: { display: false },
+                // Legende nur, wenn zwei Monate nebeneinander stehen.
+                legend: {
+                  display: datensaetze.length > 1,
+                  position: "bottom",
+                  labels: { boxWidth: 10, boxHeight: 10, usePointStyle: false,
+                            font: { size: 11 }, color: "#64748b" },
+                },
                 tooltip: {
                   callbacks: {
                     title: (items) =>
@@ -2195,7 +2230,7 @@
           });
         } else {
           state.charts.weekday.data.labels = labels;
-          state.charts.weekday.data.datasets[0].data = counts;
+          state.charts.weekday.data.datasets = datensaetze;
           state.charts.weekday.options.plugins.tooltip.callbacks.title = (
             items,
           ) => titleLabels?.[items?.[0]?.dataIndex ?? 0] ?? "";
@@ -2205,7 +2240,6 @@
             handleWeekdaySelection(elements);
           updateWeekdayChartColors();
         }
-        setGhost(state.charts.weekday, ghostWeekday);
         state.charts.weekday.update();
 
         if (DOM.weekdayChartWrapper.classList.contains("loading-skeleton")) {
@@ -2217,14 +2251,17 @@
         if (!state.charts.weekday || !Array.isArray(state.currentWeekdayData)) {
           return;
         }
-        const dataset = state.charts.weekday.data?.datasets?.[0];
+        // Der LETZTE Datensatz ist der aktuelle Monat; steht der Vormonat
+        // daneben, ist er der erste und behaelt sein Grau.
+        const datasets = state.charts.weekday.data?.datasets || [];
+        const dataset = datasets[datasets.length - 1];
         if (!dataset) return;
 
         dataset.backgroundColor = state.currentWeekdayData.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#2563eb" : "#94a3b8",
+          idx === state.selectedWeekdayIndex ? "#2563eb" : "#93c5fd",
         );
         dataset.hoverBackgroundColor = state.currentWeekdayData.map((_, idx) =>
-          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#2563eb",
+          idx === state.selectedWeekdayIndex ? "#1d4ed8" : "#60a5fa",
         );
         state.charts.weekday.update("none");
       }
