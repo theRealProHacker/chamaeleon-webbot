@@ -28,6 +28,9 @@ A: Sende uns am besten per Mail die Gutscheinnummer und den dazugehörigen Vorga
 **F: Ich muss meine Reise stornieren wie mache ich das?**
 A: Bitte sende eine E-Mail mit der Vorgangsnummer im Betreff an erlebnisberatung@chamaeleon-reisen.de
 
+**F: Kann ich die Buchung bei Chamäleon auch einsehen, wenn ich nicht der Hauptbucher bin?**
+A: Nur der Hauptbucher kann die Reise in MeinCham anzeigen.
+
 ## Reiseunterlagen & Flüge
 
 **F: Wann erhalte ich meine Reiseunterlagen?**
