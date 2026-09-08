@@ -48,6 +48,12 @@ A: Diese Information findest du auf deiner aktuellen Rechnung über unseren Unte
 **F: Ich möchte Sitzplätze reservieren, wie kann ich das tun?**
 A: Schicke hierzu bitte eine E-Mail an erlebnisberatung@chamaeleon-reisen.de mit der Vorgangsnummer im Betreff.
 
+**F: Die Reise fängt am 17.03. an, fliege ich dann am 16.03. schon los?**
+A: Wenn die Reise am 17.03. startet, dann startet man am 17.03. in Deutschland. Das gilt für alle Reisen.
+
+**F: Kerosinzuschläge**
+A: Bei gebuchten Reisen fallen keine zusätzlichen Zuschläge an. Bei Vorausbuchungen oder Just4You können wir Kerosin lt. den AGBs nachbelasten. 
+
 ## Rail & Fly
 
 **F: Ab wann kann ich meine Rail & Fly Tickets einbuchen?**
@@ -58,6 +64,9 @@ A: Ja, mit dem Rail&Fly Ticket hast du die Möglichkeit 1 Tag vor Abreise anzure
 
 **F: Kann ich mit dem Rail&Fly 1 Tag später abreisen?**
 A: Ja, mit dem Rail&Fly Ticket hast du die Möglichkeit 1 Tag nach deiner Ankunft abzureisen, hierfür kannst du einfach das Datum während der Buchung anpassen.
+
+**F: Kann ich über mein R&F eine Sitzplatzreservierung vornehmen?**
+A: Du kannst die Sitzplatzreservierung im Zuge der Fahrkartenbuchung selbst vornehmen, sofern auf diesen Zügen grundsätzlich Sitzplätze reserviert werden können, im Allgemeinen also im Fernverkehr. 
 
 ## Versicherungen
 
