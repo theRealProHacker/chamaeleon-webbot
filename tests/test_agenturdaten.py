@@ -5,6 +5,8 @@ landen: eine Agentursession trägt Passwort-Hash, Salt, IBAN, USt-IdNr und ein
 Klartextpasswort.
 """
 
+import pytest
+
 import common as _  # noqa: F401
 
 import agenturdaten
@@ -520,6 +522,17 @@ def test_hop2_status_xx_storniert_auch_gegen_hop1(monkeypatch):
     # Zahlstand und Flüge einer stornierten Reise sind irreführend.
     assert "Offener Betrag" not in text
     assert "LH576" not in text
+
+
+@pytest.mark.parametrize("status", ["AN", "OP", "RQ"])
+def test_unbestaetigter_status_storniert_nicht(monkeypatch, status):
+    """AN/OP/RQ sind lebende Buchungen, kein Storno — mit Zahlstand und Flügen."""
+    monkeypatch.setattr(
+        agenturdaten, "_tourone_get", _api([_row()], _detail(status=status))
+    )
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "storniert" not in text
+    assert "LH576" in text
 
 
 def test_fehlender_hop2_status_storniert_nicht(monkeypatch):

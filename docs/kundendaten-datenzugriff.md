@@ -71,7 +71,7 @@ booking context a confidently wrong trip name is worse than an unresolved code.
 
 | Field | Use |
 | --- | --- |
-| `status` | `"OK"` → "gebucht"; anything else (e.g. `"XX"`) → "storniert", detail stops there |
+| `status` | **only `"XX"` → "storniert"**, and the detail stops there. `"OK"` → "gebucht"; `"OP"`/`"AN"`/`"RQ"` are live but unconfirmed bookings and keep their Zahlstand/flights (measured 2026-09-09: 1200 consecutive bookings = OK 836, XX 217, AN 102, RQ 32, OP 9, absent 4; 1500 random ones over the whole history yielded no further code). The earlier `!= "OK"` test reported one booking in eight as cancelled — mostly the freshly booked ones. |
 | `beschreibungen[].titel` | trip title for the header |
 | `persAdult` / `persChild` / `persBaby` / `personen` | output — Reisende |
 | `preis` | output — Gesamtpreis (Zahlstand) |

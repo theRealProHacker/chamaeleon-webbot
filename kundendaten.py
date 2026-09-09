@@ -206,6 +206,52 @@ def zeit_marker(von: str, bis: str, heute: str) -> str:
     return ""
 
 
+STORNO_STATUS = "XX"
+
+# Der Buchungsstatus ist NICHT binär. GEMESSEN 2026-09-09 über /get/buchung:
+# 1200 fortlaufende Buchungen aus drei aktuellen Nummernbereichen ergaben
+# OK 836, XX 217, AN 102, RQ 32, OP 9, ohne Statusfeld 4; 1500 zufällige
+# Nummern über die ganze Historie ergaben dieselbe Menge (OK/XX/AN/OP/RQ) und
+# keinen weiteren Code. AN/RQ/OP sind LEBENDE Buchungen — Preis, Anzahlungs-
+# forderung und Reisedatum in der Zukunft, nur noch nicht bestätigt (kein
+# Zahlungseingang bei 71/71 AN, Flüge bei RQ zur Hälfte schon drin).
+#
+# Bis hierher stand an beiden Stellen ein `status != "OK"`-Test. Der meldete
+# jede achte Buchung — und weil AN/OP/RQ vor allem die FRISCH gebuchten sind,
+# beim einzelnen Kunden schnell ALLE — als „storniert" und unterschlug dazu
+# Zahlstand und Flüge. Storniert ist ausschließlich XX.
+_STATUS_TEXT = {
+    "OK": "gebucht",
+    "OP": "Option (unverbindlich reserviert)",
+    "AN": "angefragt (noch nicht bestätigt)",
+    "RQ": "auf Anfrage (noch nicht bestätigt)",
+    STORNO_STATUS: "storniert",
+}
+_unbekannte_stati: set = set()  # einmal je Status je Prozess
+
+
+def ist_storniert(status: object) -> bool:
+    """Nur ``XX`` ist storniert — alles andere ist eine lebende Buchung."""
+    return isinstance(status, str) and status.strip() == STORNO_STATUS
+
+
+def status_text(status: object) -> str:
+    """Statuscode → deutscher Klartext für die Status-Zeile.
+
+    Ein unbekannter Code fällt auf „gebucht" zurück (nicht auf „storniert":
+    eine echte Reise fälschlich als storniert zu melden ist der teurere Fehler)
+    und wird einmal je Prozess laut geloggt — ein neuer Code darf nicht still
+    als „gebucht" durchrutschen.
+    """
+    code = status.strip() if isinstance(status, str) else ""
+    if code in _STATUS_TEXT:
+        return _STATUS_TEXT[code]
+    if code and code not in _unbekannte_stati:
+        _unbekannte_stati.add(code)
+        print(f"[kundendaten] unbekannter Buchungsstatus {code!r} — als gebucht gewertet")
+    return "gebucht"
+
+
 def personen_text(buchung: dict) -> str:
     """``2 (2 Erwachsene)`` aus persAdult/persChild/persBaby; "" wenn leer."""
     a = buchung.get("persAdult") or 0
@@ -308,11 +354,12 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
     if von and bis:
         kopf += f" ({fmt_datum(von)} – {fmt_datum(bis)})"
     zeilen = [kopf + ":", f"- Buchungsnummer: {buchung.get('vorgang') or emb.get('vorgang')}"]
-    # status XX = storniert; dann keine Zahlstand-/Flugdaten zeigen.
-    if buchung.get("status") != "OK":
-        zeilen.append("- Status: storniert")
+    # Nur XX = storniert; dann keine Zahlstand-/Flugdaten zeigen. AN/OP/RQ sind
+    # gebucht-aber-unbestätigt und behalten ihren Zahlstand (s. _STATUS_TEXT).
+    status = buchung.get("status")
+    zeilen.append(f"- Status: {status_text(status)}")
+    if ist_storniert(status):
         return "\n".join(zeilen)
-    zeilen.append("- Status: gebucht")
     pers = personen_text(buchung)
     if pers:
         zeilen.append(f"- Reisende: {pers}")

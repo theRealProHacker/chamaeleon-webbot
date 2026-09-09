@@ -5,6 +5,8 @@ requests here. Deliberately never imports ``app`` (importing it triggers
 live Supabase reads).
 """
 
+import pytest
+
 import common as _  # noqa: F401  (adds repo root to sys.path)
 
 import agent_base
@@ -359,6 +361,42 @@ def test_detail_stornierte_buchung_ohne_zahlstand(monkeypatch):
     text = kd.fetch_buchungen_text("999999999", details=True)
     assert "storniert" in text
     assert "8.198,00 €" not in text  # kein Zahlstand bei storniert
+
+
+@pytest.mark.parametrize(
+    "status,klartext",
+    [("AN", "angefragt"), ("OP", "Option"), ("RQ", "auf Anfrage")],
+)
+def test_unbestaetigte_buchung_ist_nicht_storniert(monkeypatch, status, klartext):
+    """AN/OP/RQ sind lebende Buchungen — gemessen 143 von 1200 (2026-09-09).
+
+    Der frühere ``status != "OK"``-Test meldete sie als „storniert" und
+    unterschlug Zahlstand und Flüge. Gerade frisch gebuchte Reisen stehen so.
+    """
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung()]),
+            "/get/buchung": volle_buchung(status=status),
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "storniert" not in text
+    assert klartext in text
+    assert "8.198,00 €" in text  # Zahlstand bleibt
+
+
+def test_unbekannter_status_gilt_als_gebucht(monkeypatch):
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung()]),
+            "/get/buchung": volle_buchung(status="ZZ"),
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "- Status: gebucht" in text
+    assert "storniert" not in text
 
 
 def test_detail_ohne_flugdaten(monkeypatch):

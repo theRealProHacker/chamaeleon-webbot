@@ -61,7 +61,9 @@ from kundendaten import (
     fmt_datum,
     fmt_euro,
     heute_berlin,
+    ist_storniert,
     personen_text,
+    status_text,
     select,
     zahlstand_zeilen,
     zeit_marker,
@@ -270,10 +272,10 @@ def _normalise_row(row: dict, agentur_id: str) -> dict | None:
     # der Status nie ab (0 von 65 Mehrfach-P-Buchungen), `all` ist also
     # gleichbedeutend mit der alten Erste-P-Regel und die konservativere Form.
     if reisen:
-        storniert = all(e.get("LeistungsStatus") == "XX" for e in reisen)
+        storniert = all(ist_storniert(e.get("LeistungsStatus")) for e in reisen)
     else:
         stati = [e.get("LeistungsStatus") for e in leistungen]
-        storniert = bool(stati) and all(s == "XX" for s in stati)
+        storniert = bool(stati) and all(ist_storniert(s) for s in stati)
 
     kunde = bl.get("KUNDE") if isinstance(bl.get("KUNDE"), dict) else {}
     teilnehmer = [t for t in (bl.get("TEILNEHMERS") or []) if isinstance(t, dict)]
@@ -309,7 +311,7 @@ def _normalise_row(row: dict, agentur_id: str) -> dict | None:
                 "bezeichnung": _text(e.get("LeistungsBezeichnung")),
                 "von": _tag(e.get("leistungVonDat")),
                 "bis": _tag(e.get("leistungBisDat")),
-                "storniert": e.get("LeistungsStatus") == "XX",
+                "storniert": ist_storniert(e.get("LeistungsStatus")),
             }
             for e in leistungen
         ],
@@ -407,13 +409,23 @@ def _detail_block(b: dict, detail: dict | None) -> str:
     zeilen = [kopf + ":"]
     # Hop 1 leitet den Status aus dem P-Eintrag ab (gemessene Regel 4), Hop 2
     # trägt ihn auf Buchungsebene. Storniert ist storniert, sobald eine der
-    # beiden Quellen das sagt — aber nur, wenn Hop 2 wirklich einen Status
-    # geliefert hat: ein fehlendes Feld darf keine Buchung stornieren.
+    # beiden Quellen das sagt — aber nur bei XX: AN/OP/RQ sind lebende, nur noch
+    # nicht bestätigte Buchungen (siehe kundendaten._STATUS_TEXT), und ein
+    # fehlendes Hop-2-Feld darf ohnehin keine Buchung stornieren.
     storniert = b["storniert"]
     status = detail.get("status")
-    if isinstance(status, str) and status.strip():
-        storniert = storniert or status.strip() != "OK"
-    zeilen.append("- Status: " + ("storniert" if storniert else "gebucht"))
+    hat_status = isinstance(status, str) and status.strip()
+    if hat_status:
+        storniert = storniert or ist_storniert(status)
+    # Den Klartext nur aus Hop 2 ziehen, wo der Code auf Buchungsebene steht;
+    # ohne ihn bleibt es bei der binären Hop-1-Aussage.
+    if storniert:
+        text = "storniert"
+    elif hat_status:
+        text = status_text(status)
+    else:
+        text = "gebucht"
+    zeilen.append("- Status: " + text)
     if b["kunde"]:
         zeilen.append(f"- Besteller: {b['kunde']}")
     if b["teilnehmer"]:

@@ -281,7 +281,7 @@ the old first-`P` rule and is the more conservative form.
 `GET /get/buchung?vorgangsNummer=<vorgangsNummer>` — the **same endpoint
 Kunden-Modus already uses**, so its contract is already documented in
 `docs/kundendaten-datenzugriff.md`. Adds over hop 1: the authoritative trip title
-(`beschreibungen[].titel`), `status` (`OK` / `XX`), `flugdaten[]`, the full
+(`beschreibungen[].titel`), `status` (`OK` / `XX` / `OP` / `AN` / `RQ` — only `XX` is cancelled, measured 2026-09-09, see `docs/kundendaten-datenzugriff.md`), `flugdaten[]`, the full
 Zahlstand, and `agtNr` / `mandantAgtNr` for the ownership cross-check.
 
 Latency ~0.13s each; 6 sequential calls measured 0.8s, 3-parallel 0.3s.
