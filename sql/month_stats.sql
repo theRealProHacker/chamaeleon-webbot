@@ -43,3 +43,9 @@ alter table month_stats enable row level security;
 -- The service-role key bypasses RLS; no public policies on purpose. The payload
 -- is anonymous by construction (SC3), but "anonymous" is an argument for
 -- keeping it indefinitely, not for exposing it.
+
+-- KI-Kurzreport (A5): ein Gemini-Aufruf je Monat ueber das fertige Aggregat.
+-- Eigene Spalten, weil der Text auf einem dritten Zeitplan entsteht. Auch
+-- dieser Schritt ist manuell; bis dahin fehlt die Karte im Report, sonst nichts.
+alter table month_stats add column if not exists summary jsonb;
+alter table month_stats add column if not exists summary_computed_at timestamptz;

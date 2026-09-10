@@ -631,6 +631,55 @@
 
 
 
+      /* KI-Kurzreport: vier Abschnitte, jeweils eine kurze Liste. Dieselbe
+         Karte wie alles andere — Prosa ist hier eine Achse, kein Fremdkoerper. */
+      .summary h3 {
+        margin: 1.7rem 0 0.45rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+      .summary h3:first-child {
+        margin-top: 0;
+      }
+      .summary ul {
+        margin: 0;
+        padding-left: 1.15rem;
+        line-height: 1.5;
+        font-size: 0.95rem;
+      }
+      .summary li + li {
+        margin-top: 0.3rem;
+      }
+      #summaryFootnote {
+        margin-top: 1.3rem;
+        padding-top: 0.7rem;
+        border-top: 1px solid var(--border);
+      }
+      .summary-button {
+        margin-top: 0.9rem;
+        padding: 0.5rem 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        box-shadow: var(--shadow-s);
+      }
+      .summary-button:hover {
+        background: var(--surface-muted);
+        box-shadow: var(--shadow-m);
+      }
+      .summary-button:disabled {
+        cursor: default;
+        opacity: 0.6;
+        box-shadow: none;
+      }
+
       @media print {
         body {
           background: #fff;
@@ -652,7 +701,8 @@
           padding: 0;
           max-width: none;
         }
-        .back {
+        .back,
+        .summary-button {
           display: none;
         }
         /* Eine Karte bleibt beisammen: Chromium haelt eine Ueberschrift
@@ -800,6 +850,17 @@
           </div>
           <div class="heat-legend" id="heatLegend"></div>
           <p class="footnote" id="heatFootnote"></p>
+        </article>
+
+        <article class="card" id="summaryCard">
+          <h2>KI-Kurzreport</h2>
+          <p class="card-subtitle" id="summarySubtitle"></p>
+          <div class="state" id="summaryState" hidden></div>
+          <div class="summary" id="summaryBody" hidden></div>
+          <button class="summary-button" id="summaryButton" type="button" hidden>
+            Kurzreport erstellen
+          </button>
+          <p class="footnote" id="summaryFootnote" hidden></p>
         </article>
       </div>
 
@@ -1272,6 +1333,96 @@
         el("takeaway").textContent = sentences.join(" ");
       }
 
+      // Der Kurzreport ist ein Text ueber alle Segmente, einmal je Monat
+      // geschrieben (A5). Die Seite zeigt ihn nur; erzeugt wird er nach dem
+      // Lauf, oder auf Knopfdruck fuer Monate, die vorher ausgewertet wurden.
+      function renderSummary(summary, label) {
+        const state = el("summaryState");
+        const body = el("summaryBody");
+        const button = el("summaryButton");
+        const footnote = el("summaryFootnote");
+        state.hidden = true;
+        body.hidden = true;
+        button.hidden = true;
+        footnote.hidden = true;
+        body.replaceChildren();
+        el("summarySubtitle").textContent =
+          "Was sich gegenüber dem Vormonat verändert hat, in Worten.";
+
+        if (summary.status === "ok") {
+          (summary.abschnitte || []).forEach((section) => {
+            if (!section.punkte?.length) return;
+            const h3 = document.createElement("h3");
+            h3.textContent = section.titel;
+            const ul = document.createElement("ul");
+            section.punkte.forEach((point) => {
+              const li = document.createElement("li");
+              li.textContent = point;
+              ul.appendChild(li);
+            });
+            body.append(h3, ul);
+          });
+          body.hidden = false;
+          footnote.textContent =
+            "Der Text wurde von einem Sprachmodell aus den Zahlen dieses Reports geschrieben" +
+            (summary.vormonat ? `, verglichen mit ${summary.vormonat}` : "") +
+            ". Maßgeblich sind die Zahlen in den Karten oben.";
+          footnote.hidden = false;
+          return;
+        }
+
+        state.hidden = false;
+        if (summary.status === "running") {
+          state.textContent = "Der Kurzreport wird gerade erstellt.";
+          return;
+        }
+        if (summary.quality_status && summary.quality_status !== "ok") {
+          state.textContent =
+            "Für eine unvollständige Auswertung wird kein Kurzreport geschrieben.";
+          return;
+        }
+        state.textContent = "Für diesen Monat liegt noch kein Kurzreport vor.";
+        button.hidden = false;
+      }
+
+      async function requestSummary() {
+        const button = el("summaryButton");
+        button.disabled = true;
+        try {
+          const response = await fetch(`/api/dashboard/${MONTH}/summary`, {
+            method: "POST",
+          });
+          if (!response.ok) throw new Error(String(response.status));
+          renderSummary({ status: "running" }, "");
+          pollSummary();
+        } catch (error) {
+          button.disabled = false;
+        }
+      }
+
+      // Ein Aufruf dauert einige Sekunden; die Seite fragt nach, bis der
+      // Text da ist, und hoert nach einer Minute von selbst auf.
+      async function pollSummary(attempt = 0) {
+        if (attempt > 20) {
+          renderSummary({ status: "missing" }, el("title").textContent.replace("Monatsreport ", ""));
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        try {
+          const response = await fetch(`/api/dashboard/${MONTH}/summary`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(String(response.status));
+          const summary = await response.json();
+          if (summary.status === "running") return pollSummary(attempt + 1);
+          renderSummary(summary, el("title").textContent.replace("Monatsreport ", ""));
+        } catch (error) {
+          pollSummary(attempt + 1);
+        }
+      }
+
+      el("summaryButton").addEventListener("click", requestSummary);
+
       async function load() {
         let data;
         try {
@@ -1567,6 +1718,7 @@
         }
 
         renderTakeaway(data, quality, notFully, before);
+        renderSummary(data.summary || { status: "missing" }, label);
 
         const stand = data.quality?.computed_at
           ? new Date(data.quality.computed_at).toLocaleDateString("de-DE", {

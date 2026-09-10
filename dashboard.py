@@ -169,6 +169,7 @@ class MonthDetail(TypedDict):
     weekday_counts: list[WeekdayCount]
     heatmap: list[list[int]]
     quality: dict[str, Any]
+    summary: dict[str, Any]
     chats: Optional[list[ChatDetail]]
 
 
@@ -638,6 +639,38 @@ def quality_for(key: MonthKey, segments: Iterable[Segment] | None) -> dict[str, 
     }
 
 
+def summary_for(key: MonthKey) -> dict[str, Any]:
+    """Der KI-Kurzreport eines Monats, wie der Report ihn zeigt. Loest nie
+    einen Aufruf aus.
+
+    Ueber alle Segmente, ohne Tag-Auswahl: der Text ist einmal geschrieben und
+    laesst sich nicht wie ein Zaehlvektor auf eine Auswahl summieren. Fehlt die
+    Spalte (der DDL-Schritt ist manuell), fehlt der Schluessel in der Zeile und
+    die Karte meldet ``missing`` — nichts bricht (A5).
+    """
+    if quality_job.is_running(key) or quality_job.summary_running(key):
+        return {"status": "running", "abschnitte": []}
+    row = month_stats.load_month(key) or {}
+    if not row.get("quality"):
+        return {"status": "missing", "abschnitte": []}
+    stored = row.get("summary") or {}
+    if not stored.get("abschnitte"):
+        # Ausgewertet, aber (noch) ohne Text — oder unvollstaendig ausgewertet;
+        # dann bleibt es bewusst bei den Zustandstexten der anderen Karten.
+        return {
+            "status": "missing",
+            "abschnitte": [],
+            "quality_status": row.get("quality_status") or "ok",
+        }
+    return {
+        "status": "ok",
+        "abschnitte": stored["abschnitte"],
+        "vormonat": stored.get("vormonat"),
+        "computed_at": row.get("summary_computed_at") or stored.get("computed_at"),
+        "quality_status": row.get("quality_status") or "ok",
+    }
+
+
 def previous_period_comparison(key: MonthKey, segments) -> dict[str, Any] | None:
     """The same slice of the previous month, for the running month only.
 
@@ -800,6 +833,7 @@ def month_detail(key: MonthKey, include_chats: bool = True) -> MonthDetail | Non
         # Zeilenvergleiche laedt eine Heatmap zum Lesen ein.
         "weekday_occurrences": occurrences,
         "quality": quality_for(key, segments),
+        "summary": summary_for(key),
         "chats": chats,
     }
 
@@ -1000,8 +1034,24 @@ def DASHBOARD_quality_run(month: MonthKey):
     """
     if not MONTH_RE.match(month or ""):
         return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
-    result = quality_job.enqueue(month, lambda: fetch_month_chats(month)[0])
+    result = quality_job.enqueue(month, lambda m: fetch_month_chats(m)[0])
     return jsonify(result)
+
+
+@auth_required
+def DASHBOARD_summary_run(month: MonthKey):
+    """Den KI-Kurzreport eines ausgewerteten Monats (neu) erzeugen — im
+    Hintergrund, wie die Auswertung selbst. Ein Aufruf, Cent-Betrag."""
+    if not MONTH_RE.match(month or ""):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    return jsonify(quality_job.enqueue_summary(month, lambda m: fetch_month_chats(m)[0]))
+
+
+@auth_required
+def DASHBOARD_summary_status(month: MonthKey):
+    if not MONTH_RE.match(month or ""):
+        return jsonify({"error": "Invalid 'month' parameter, expected YYYY-MM"}), 400
+    return jsonify(summary_for(month))
 
 
 @auth_required
@@ -1088,6 +1138,8 @@ routes = [
     ),
     ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_status, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/api/dashboard/<string:month>/quality", DASHBOARD_quality_run, ["POST"], rate_limit.ADMIN_LIMIT),
+    ("/api/dashboard/<string:month>/summary", DASHBOARD_summary_status, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/api/dashboard/<string:month>/summary", DASHBOARD_summary_run, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/dashboard", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/dashboard/", DASHBOARD_index, ["GET"], rate_limit.DASHBOARD_LIMIT),
     (

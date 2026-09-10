@@ -19,12 +19,15 @@ from typing import Any
 import chat_quality
 import month_aggregate
 import month_stats
+import month_summary
 import pii_scan
 
 # One lock per month, plus a lock guarding the dict itself. A month is either
 # running or it is not; concurrent requests collapse onto the same run.
 _locks_guard = threading.Lock()
 _running: dict[str, dict[str, Any]] = {}
+# Dasselbe fuer den Kurzreport: ein Aufruf je Monat, nie zwei zugleich.
+_summarizing: set[str] = set()
 
 # How many chats the taxonomy is derived from. Stratified over segments and
 # months by the caller — a chronological seed would not know MeinChamäleon or
@@ -57,12 +60,13 @@ def is_running(month: str) -> bool:
         return month in _running
 
 
-def enqueue(month: str, fetch_rows) -> dict[str, Any]:
+def enqueue(month: str, fetch_rows_for) -> dict[str, Any]:
     """Start a run for ``month`` in the background, or report the one in flight.
 
-    ``fetch_rows`` is a zero-argument callable returning the month's raw rows —
-    injected so this module never reaches into the dashboard's cache and can be
-    driven by the scheduler and by an admin request alike.
+    ``fetch_rows_for`` is ``month -> rows`` — injected so this module never
+    reaches into the dashboard's cache and can be driven by the scheduler and
+    by an admin request alike. It takes the month as an argument because the
+    Kurzreport at the end of the run also needs the PREVIOUS month's rows.
     """
     with _locks_guard:
         if month in _running:
@@ -70,15 +74,15 @@ def enqueue(month: str, fetch_rows) -> dict[str, Any]:
         _running[month] = {"started_at": time.time(), "batches_done": 0}
 
     thread = threading.Thread(
-        target=_run, args=(month, fetch_rows), name=f"quality-{month}", daemon=True
+        target=_run, args=(month, fetch_rows_for), name=f"quality-{month}", daemon=True
     )
     thread.start()
     return {"status": "started"}
 
 
-def _run(month: str, fetch_rows) -> None:
+def _run(month: str, fetch_rows_for) -> None:
     try:
-        rows = fetch_rows()
+        rows = fetch_rows_for(month)
         taxonomy, taxonomy_version = month_stats.latest_taxonomy()
         topics = month_stats.latest_topics()
 
@@ -142,7 +146,7 @@ def _run(month: str, fetch_rows) -> None:
             )
             return
 
-        month_stats.save_quality(
+        saved = month_stats.save_quality(
             month,
             quality,
             taxonomy,
@@ -152,11 +156,108 @@ def _run(month: str, fetch_rows) -> None:
             status=result["status"],
             topics=topics,
         )
+        # Der Kurzreport haengt am Lauf, nicht am Aufruf (A5): einmal beim
+        # Monatsabschluss, ueber das eben geschriebene Aggregat. Nur fuer
+        # vollstaendige Laeufe — ein Text ueber eine halbe Klassifikation
+        # liest sich wie einer ueber den ganzen Monat.
+        if saved and result["status"] == "ok":
+            _summarize(month, rows, fetch_rows_for)
     except Exception as e:  # noqa: BLE001 — a failed run must not kill the worker
         print(f"[quality-job] {month}: run failed: {e}")
     finally:
         with _locks_guard:
             _running.pop(month, None)
+
+
+# ──────────────────────────────────────────
+# KI-Kurzreport
+# ──────────────────────────────────────────
+
+
+def summary_running(month: str) -> bool:
+    with _locks_guard:
+        return month in _summarizing
+
+
+def enqueue_summary(month: str, fetch_rows_for) -> dict[str, Any]:
+    """Den Kurzreport eines bereits ausgewerteten Monats (neu) erzeugen.
+
+    Fuer Monate, die vor dem Kurzreport ausgewertet wurden, und fuer eine neue
+    Prompt-Version. Ohne fertige Auswertung gibt es nichts zusammenzufassen —
+    das wird hier abgewiesen, nicht im Thread, damit der Aufrufer es erfaehrt.
+    """
+    if is_running(month):
+        return {"status": "running"}
+    row = month_stats.load_month(month)
+    if not row or not row.get("quality") or (row.get("quality_status") or "ok") != "ok":
+        return {"status": "missing"}
+    with _locks_guard:
+        if month in _summarizing:
+            return {"status": "running"}
+        _summarizing.add(month)
+
+    def _job():
+        try:
+            _summarize(month, fetch_rows_for(month), fetch_rows_for, row)
+        except Exception as e:  # noqa: BLE001
+            print(f"[quality-job] {month}: Kurzreport fehlgeschlagen: {e}")
+        finally:
+            with _locks_guard:
+                _summarizing.discard(month)
+
+    threading.Thread(target=_job, name=f"summary-{month}", daemon=True).start()
+    return {"status": "started"}
+
+
+def _summarize(month: str, rows, fetch_rows_for, row: dict | None = None) -> None:
+    """Ein Gemini-Aufruf ueber das gespeicherte Aggregat, dann ein Upsert.
+
+    Schlaegt der Aufruf fehl, wird nichts geschrieben: der Monat behaelt seinen
+    vorherigen Kurzreport, falls einer da ist (A5). Der Vormonat wird nur
+    verglichen, wenn er gegen dieselbe Taxonomie gelaufen ist — dieselbe Regel
+    wie in den Delta-Spalten des Reports.
+    """
+    with _locks_guard:
+        _summarizing.add(month)
+    try:
+        row = row or month_stats.load_month(month)
+        quality = (row or {}).get("quality")
+        if not quality:
+            return
+        version = quality.get("taxonomy_version", 0)
+        causes, topics = month_stats.split_taxonomy((row or {}).get("taxonomy"))
+        taxonomy = chat_quality.mark_referral(causes, version)
+
+        previous = (
+            month_aggregate.month_bounds(month)[0] - timedelta(days=1)
+        ).strftime("%Y-%m")
+        previous_row = month_stats.load_month(previous) or {}
+        previous_quality = previous_row.get("quality")
+        if not previous_quality or previous_quality.get("taxonomy_version") != version:
+            previous_quality = None
+        try:
+            previous_rows = fetch_rows_for(previous)
+        except Exception as e:  # noqa: BLE001 — ohne Vormonat steht der Text trotzdem
+            print(f"[quality-job] {month}: Vormonat {previous} nicht lesbar: {e}")
+            previous_rows = []
+
+        data = month_summary.build_input(
+            month,
+            month_aggregate.aggregate_month(rows, month) if rows else None,
+            quality,
+            taxonomy,
+            topics,
+            month_aggregate.aggregate_month(previous_rows, previous) if previous_rows else None,
+            previous_quality,
+        )
+        summary = month_summary.generate(data)
+        if month_stats.save_summary(month, summary):
+            print(f"[quality-job] {month}: Kurzreport gespeichert")
+    except Exception as e:  # noqa: BLE001
+        print(f"[quality-job] {month}: Kurzreport fehlgeschlagen: {e}")
+    finally:
+        with _locks_guard:
+            _summarizing.discard(month)
 
 
 def _stratified_sample(rows: list[Any], size: int) -> list[Any]:
@@ -242,6 +343,12 @@ def run_due_months(fetch_rows_for) -> None:
     if is_running(previous):
         return
     if status(previous).get("status") in ("ok", "partial"):
+        # Ausgewertet, aber ohne Kurzreport — Monate von vor dem Kurzreport,
+        # oder ein Gemini-Aufruf, der beim Lauf fehlschlug. Einmal nachholen.
+        row = month_stats.load_month(previous) or {}
+        if not row.get("summary") and not summary_running(previous):
+            print(f"[quality-job] {previous} hat keinen Kurzreport — erzeuge ihn")
+            enqueue_summary(previous, fetch_rows_for)
         return
     print(f"[quality-job] {previous} ist abgeschlossen und hat keinen Report — starte Lauf")
-    enqueue(previous, lambda m=previous: fetch_rows_for(m))
+    enqueue(previous, fetch_rows_for)

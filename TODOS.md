@@ -237,8 +237,13 @@ Plan: `docs/designs/dashboard-kundenfeedback-2026-09.md`.
       Die erste Zahl dafür steht seit 2026-09-06 in der Zeile (`uebergaben`);
       die Seite braucht zusätzlich einen zweiten echten Monatslauf. Bis dahin
       ist „Gesamt" ausdrücklich die Volumenseite und zeigt keine Qualität (D21).
-- [ ] **T-C — Eval-Suite für den Kurzreport-Prompt**, sobald der Kunde ihn
-      schickt. A5 ist bis dahin nicht gebaut.
+- [ ] **T-C — Eval-Suite für den Kurzreport-Prompt.** Prompt v1 kam am
+      2026-09-10 und ist gebaut (`month_summary.py`, Karte unten im Report).
+      Die Eval-Suite steht noch aus.
+- [ ] **DDL für den KI-Kurzreport von Hand ausführen:** die beiden
+      `alter table`-Zeilen am Ende von `sql/month_stats.sql` (`summary`,
+      `summary_computed_at`). Bis dahin läuft der Gemini-Aufruf, der Upsert
+      schlägt fehl und die Karte zeigt „liegt noch kein Kurzreport vor“.
 - [ ] **Dashboard bei 375px: die Seite scrollt seitlich (57px).** Zwei
       Verursacher, beide vorbestehend: die Kopfzeile (`.controls` mit
       `#lastUpdated` ragt 57px hinaus) und `#causeTable` (412px breit in einem

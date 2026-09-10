@@ -120,6 +120,19 @@ def save_quality(
     )
 
 
+def save_summary(month: str, summary: dict) -> bool:
+    """Upsert den KI-Kurzreport. Ruehrt weder Zaehl- noch Qualitaetshaelfte an.
+
+    Eigene Spalten (``summary``, ``summary_computed_at``), weil der Text auf
+    einem dritten Zeitplan entsteht: nach dem Lauf, und auf Wunsch noch einmal.
+    Fehlt die Spalte — der DDL-Schritt ist manuell —, schlaegt der Upsert fehl
+    und meldet es; die Karte fehlt dann, sonst nichts (A5).
+    """
+    return _upsert(
+        month, {"summary": summary, "summary_computed_at": _now()}
+    )
+
+
 def split_taxonomy(stored: Any) -> tuple[list[dict], list[dict]]:
     """Read a stored `taxonomy` value as (causes, topics).
 
