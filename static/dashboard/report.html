@@ -743,6 +743,17 @@
       <p class="takeaway" id="takeaway" hidden></p>
 
       <div id="content" hidden>
+        <article class="card" id="summaryCard">
+          <h2>KI-Kurzreport</h2>
+          <p class="card-subtitle" id="summarySubtitle"></p>
+          <div class="state" id="summaryState" hidden></div>
+          <div class="summary" id="summaryBody" hidden></div>
+          <button class="summary-button" id="summaryButton" type="button" hidden>
+            Kurzreport erstellen
+          </button>
+          <p class="footnote" id="summaryFootnote" hidden></p>
+        </article>
+
         <article class="card">
           <h2>Der Monat in Zahlen</h2>
           <div class="metrics">
@@ -850,17 +861,6 @@
           </div>
           <div class="heat-legend" id="heatLegend"></div>
           <p class="footnote" id="heatFootnote"></p>
-        </article>
-
-        <article class="card" id="summaryCard">
-          <h2>KI-Kurzreport</h2>
-          <p class="card-subtitle" id="summarySubtitle"></p>
-          <div class="state" id="summaryState" hidden></div>
-          <div class="summary" id="summaryBody" hidden></div>
-          <button class="summary-button" id="summaryButton" type="button" hidden>
-            Kurzreport erstellen
-          </button>
-          <p class="footnote" id="summaryFootnote" hidden></p>
         </article>
       </div>
 
@@ -1366,7 +1366,7 @@
           footnote.textContent =
             "Der Text wurde von einem Sprachmodell aus den Zahlen dieses Reports geschrieben" +
             (summary.vormonat ? `, verglichen mit ${summary.vormonat}` : "") +
-            ". Maßgeblich sind die Zahlen in den Karten oben.";
+            ". Maßgeblich sind die Zahlen in den Karten darunter.";
           footnote.hidden = false;
           return;
         }
