@@ -1,13 +1,22 @@
 # Agenturbereich Chamäleon
 
-Für Fragen zu Reisen, Reservierungen und Buchungen:  
-Telefon: +49 30 347 996 0
+## Wen nennst du bei welcher Frage?
 
-Für Agenturfragen:  
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Geht es um die Reise selbst, geht es an die Erlebnisberatung. Geht es um das Drumherum, geht es an das Vertriebsteam.
 
-Bei folgenden Themen grundsätzlich an das Vertriebsteam verweisen, besonders wenn es um individuelle Fälle, Konditionen, Vertragsdetails oder Änderungen geht:
+**1. Erlebnisberater\*in der Reise** – Ablauf, Termine, Fluganfragen, Buchungsstatus, Reservierungen, Optionen.  
+Frage nach der Reise und hole Name und Durchwahl mit dem `erlebnisberater_tool`.
+
+**2. Vertriebsteam** – agentur@chamaeleon-reisen.de, Telefon: +49 30 347 996 290.  
+Für die Themen der Liste unten, auch wenn sie an einer konkreten Buchung hängen.
+
+**3. Empfang: +49 30 347 996 0** – wenn die Reise unklar bleibt oder das Tool keine Erlebnisberater\*in nennt.
+
+Fragt jemand „Wer ist mein Ansprechpartner?“, frage zurück, ob es um eine bestimmte Reise geht: ja → Erlebnisberater\*in dieser Reise, nein → Vertriebsteam.
+
+Schicke Fluganfragen, Buchungsstatus und Fragen zum Stand einer Reise nie an das Vertriebsteam.
+
+Bei folgenden Themen an das Vertriebsteam verweisen:
 
 - Provision
 - individuelle Provisionshöhe
@@ -254,9 +263,9 @@ Wähle dort die passende Option aus und klicke auf:
 
 Bei Fragen zu neuen Terminen für eine bestimmte Reise wende dich bitte an die Erlebnisberatung.
 
-Die zuständigen Erlebnisberater*innen findest du auf der jeweiligen Reiseseite rechts in der gelben Berater-Box.
+Frage nach der Reise, wenn du sie noch nicht kennst, und nenne dann Name und Durchwahl der zuständigen Erlebnisberater*in (`erlebnisberater_tool`). Verweise nicht darauf, dass die Angabe auf der Reiseseite steht – nenne sie.
 
-Telefon allgemein: +49 30 347 996 0
+Nennt das Tool keine Erlebnisberater*in, dann gilt: Telefon allgemein +49 30 347 996 0.
 
 ### Was bedeutet „Jetzt vorausbuchen“?
 
@@ -274,9 +283,7 @@ Aktuelle Reisetermine für kurzfristige Abreisen findest du im Agenturbereich bz
 
 Bitte wende dich an die Erlebnisberatung. Dort wird geprüft, ob die ausgewählte Reise ohne Flug gebucht werden kann.
 
-Telefon allgemein: +49 30 347 996 0
-
-Die zuständigen Erlebnisberater*innen findest du auf der jeweiligen Reiseseite rechts in der gelben Berater-Box.
+Frage nach der Reise, wenn du sie noch nicht kennst, und nenne dann Name und Durchwahl der zuständigen Erlebnisberater*in (`erlebnisberater_tool`). Nennt das Tool keine, dann Telefon allgemein +49 30 347 996 0.
 
 ---
 
@@ -333,6 +340,12 @@ Die Reiseunterlagen für deine Buchungen werden im Agenturbereich hochgeladen.
 
 Du findest sie unter [**Buchungen & Dokumente**](https://agt.chamaeleon-reisen.de/Agentur/Buchungen). Dort kannst du sowohl deine Unterlagen als auch die Dokumente für die Gäste herunterladen.
 
+### Wie komme ich an bereits archivierte Unterlagen?
+
+Wenn du auf Unterlagen zugreifen möchtest, die bereits archiviert sind, wende dich bitte an unsere Buchhaltung.
+
+E-Mail: buchhaltung@chamaeleon-reisen.de
+
 ### Wie kann ich Expedient*innen bearbeiten oder hinzufügen?
 
 Expedient*innen kannst du im Agenturbereich selbst bearbeiten oder hinzufügen. Gehe dafür auf **Daten anpassen**.
@@ -371,10 +384,7 @@ Wenn dein Gast sich bei **MeinChamäleon** einloggt und selbst eine Buchung anle
 
 Chamäleon schreibt die Buchung deiner Agenturnummer zu. Dadurch bleibt auch die Provision für dich gesichert.
 
-Bei individuellen Fragen zu einer konkreten Buchung wende dich bitte an das Vertriebsteam.
-
-E-Mail: agentur@chamaeleon-reisen.de  
-Telefon: +49 30 347 996 290
+Bei Fragen zu einer konkreten Buchung wende dich an die Erlebnisberater\*in der Reise, sonst an den Empfang: +49 30 347 996 0.
 
 ---
 
@@ -389,6 +399,10 @@ Dafür kommt jede Erlebnisreise infrage, auf der noch keine Plätze gebucht sind
 Das Prinzip: Zwölf Gäste reisen mit, und für dich ist ein Freiplatz vorgesehen.
 
 Weitere Informationen findest du auf der [Just4You-Seite im Agenturbereich](https://agt.chamaeleon-reisen.de/Agentur/Just4You).
+
+Bei Fragen zu Just4You, Sonderreisen und exklusiven Reisen nennst du nie Preise, Provisionshöhen oder individuelle Konditionen – auch nicht, wenn sie auf der aktuellen Seite stehen. Verweise dafür auf die Just4You-Seite.
+
+Ansprechpartner: telefonisch das Vertriebsteam (+49 30 347 996 290), per E-Mail just4you@chamaeleon-reisen.de.
 
 ---
 
@@ -444,7 +458,15 @@ Dort kannst du dich mit anderen Reiseprofis und Chamäleon austauschen, Neuigkei
 Zur Gruppe geht es direkt hier: [Facebook-Gruppe Chamäleon Insider](https://www.facebook.com/groups/chamaeleon.insider/).
 
 
-# Vertriebsteam
+# Die drei Kontakte
 
+**Erlebnisberater\*in der Reise** – für die Reise selbst: Ablauf, Termine, Fluganfragen, Buchungsstatus, Reservierungen, Optionen. Frage nach der Reise und hole Name und Durchwahl mit dem `erlebnisberater_tool`.
+
+**Vertriebsteam** – für das Drumherum, also die Themen der Liste ganz oben.  
 E-Mail: agentur@chamaeleon-reisen.de  
 Telefon: +49 30 347 996 290
+
+**Empfang** – wenn die Reise unklar bleibt oder das Tool keine Erlebnisberater\*in nennt.  
+Telefon: +49 30 347 996 0
+
+Fluganfragen, Buchungsstatus und Fragen zum Stand einer Reise gehen nie an das Vertriebsteam.
