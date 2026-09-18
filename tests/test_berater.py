@@ -121,8 +121,12 @@ def test_seite_ohne_berater(seite):
     assert agent_base.berater_von_seite("/Afrika/Namibia/Erongo-ALL") == ("", "")
 
 
-def test_keine_reise_url_ruft_die_seite_gar_nicht_ab(monkeypatch):
-    """Die Schranke, ohne die jeder Agentur-Request in den Timeout liefe."""
+def test_promptbau_ruft_fuer_nicht_reise_url_nicht_ab(monkeypatch):
+    """Die Schranke, ohne die jeder Agentur-Request in den Timeout liefe.
+
+    Sie sitzt im Promptbau, nicht im Parser: format_system_prompt laeuft auf
+    JEDER Chatnachricht, das Tool dagegen wird gezielt aufgerufen.
+    """
     import travel_index
 
     def _darf_nicht(_url):
@@ -130,7 +134,41 @@ def test_keine_reise_url_ruft_die_seite_gar_nicht_ab(monkeypatch):
 
     monkeypatch.setattr(agent_base, "chamaeleon_website_tool_base", _darf_nicht)
     monkeypatch.setattr(travel_index, "is_reise_url", lambda _url: False)
-    assert agent_base.berater_von_seite("/Agentur/Buchungen") == ("", "")
+    monkeypatch.setattr(travel_index, "get_berater", lambda _url: {})
+
+    prompt = agent_base.format_system_prompt("/Agentur/Buchungen", [])
+    assert "Erlebnisberater " not in prompt
+
+
+def test_tool_weist_den_agenturbereich_ab(monkeypatch):
+    """Das Tool greift ohne Index-Schranke — der Agenturbereich waere ein Timeout."""
+
+    def _darf_nicht(_url):
+        raise AssertionError("Seitenabruf fuer den Agenturbereich")
+
+    monkeypatch.setattr(agent_base, "chamaeleon_website_tool_base", _darf_nicht)
+    antwort = agent_base.berater_tool_base("/Agentur/Buchungen")
+    assert "Frage nach der Reise" in antwort
+
+
+def test_tool_liefert_name_und_durchwahl(seite):
+    seite(REISESEITE)
+    antwort = agent_base.berater_tool_base("/Asien/X/Y")
+    assert "Mira Feldmann" in antwort and "+49 30 347996-901" in antwort
+
+
+def test_tool_ohne_berater_nennt_die_zentrale(seite):
+    """Leermeldung statt Schweigen — sonst fuellt das Modell die Luecke selbst."""
+    seite(OHNE_BERATER)
+    antwort = agent_base.berater_tool_base("/Afrika/Namibia/Erongo-ALL")
+    assert "+49 30 347 996 0" in antwort
+
+
+def test_tool_ohne_index_eintrag_liest_trotzdem(seite):
+    """Nicht indizierte Reiseseiten darf das Tool lesen — anders als der Promptbau."""
+    seite(REISESEITE, ist_reise=False)
+    antwort = agent_base.berater_tool_base("/Asien/Nicht/Indiziert")
+    assert "Mira Feldmann" in antwort
 
 
 def test_abrufausnahme_bleibt_drin(seite, monkeypatch):

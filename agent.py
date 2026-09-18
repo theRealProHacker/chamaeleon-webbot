@@ -18,6 +18,8 @@ from agent_base import (
     laender_faqs,
     reise_info_tools_description,
     reiseinfo_tool_base,
+    berater_tool_base,
+    berater_tool_description,
     termine_tool_base,
     termine_tool_description,
     visa_tool_base,
@@ -49,6 +51,12 @@ def chamaeleon_website_tool(url_path: str) -> str:
 def country_faq_tool(country: str) -> str:
     """LangChain tool wrapper for the country FAQ tool."""
     return country_faq_tool_base(country)
+
+
+@tool(description=berater_tool_description)
+def erlebnisberater_tool(url_path: str) -> str:
+    """LangChain tool wrapper for the berater tool."""
+    return berater_tool_base(url_path)
 
 
 @tool(description=termine_tool_description)
@@ -225,6 +233,7 @@ def call_stream(
         chamaeleon_website_tool,
         country_faq_tool,
         termine_tool,
+        erlebnisberater_tool,
     ]
     if kunden_id:
         tools.append(make_buchungen_tool(kunden_id))

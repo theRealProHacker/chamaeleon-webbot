@@ -720,19 +720,16 @@ def berater_von_seite(url_path: str) -> tuple[str, str]:
     das Markdownifizieren der 50k-Zeichen-Seite — ohne diesen Dekorator kostete
     der Promptbau gemessen 85 ms je Nachricht statt 0.
 
-    Nur fuer Reiseseiten. ``is_reise_url`` peekt in den Index und baut ihn nie —
-    das laeuft auf jeder Chatnachricht. Ohne diese Schranke liefe jeder
-    Agentur-Request in den Abruf-Timeout, denn der Agenturbereich ist
-    login-geschuetzt und ueber das Website-Tool gar nicht erreichbar.
+    Ruft die Seite ab und parst sie — ohne Schranke. Wer das auf JEDER
+    Chatnachricht aufruft, schraenkt vorher selbst ein (siehe
+    ``format_system_prompt``, das ``travel_index.is_reise_url`` davorsetzt);
+    das Tool dagegen wird gezielt aufgerufen und darf auch eine nicht
+    indizierte Reiseseite lesen.
 
     Gibt ("", "") zurueck, sobald irgendetwas fehlt: kein Teiltreffer, keine
     geratene Nummer. Wirft nie — der Promptbau darf hieran nicht scheitern.
     """
     try:
-        import travel_index
-
-        if not travel_index.is_reise_url(url_path):
-            return "", ""
         markdown = chamaeleon_website_tool_base(url_path)
     except Exception as e:
         print(f"[agent_base] berater page lookup failed for {url_path}: {e}")
@@ -748,6 +745,17 @@ def berater_von_seite(url_path: str) -> tuple[str, str]:
     return "", ""
 
 
+def _ist_reise_url(url_path: str) -> bool:
+    """travel_index.is_reise_url, aber ohne je eine Ausnahme durchzulassen."""
+    try:
+        import travel_index
+
+        return travel_index.is_reise_url(url_path)
+    except Exception as e:
+        print(f"[agent_base] reise-url check failed for {url_path}: {e}")
+        return False
+
+
 def _berater_aus_index(url_path: str) -> dict[str, str]:
     """travel_index.get_berater, aber ohne je eine Ausnahme durchzulassen."""
     try:
@@ -757,6 +765,49 @@ def _berater_aus_index(url_path: str) -> dict[str, str]:
     except Exception as e:
         print(f"[agent_base] berater lookup failed for {url_path}: {e}")
         return {}
+
+
+berater_tool_description = """
+Tool für die zuständige Erlebnisberater*in einer Reise — Name und Durchwahl,
+direkt von der Reiseseite.
+
+Nutze es, sobald jemand wissen will, wer für eine Reise zuständig ist oder an
+wen er sich zu einer konkreten Reise wenden soll: "Wer ist mein
+Ansprechpartner?", "an wen wende ich mich wegen meiner Fluganfrage?", Fragen
+zum Buchungsstatus, zu Reservierungen und Optionen.
+
+Du brauchst dafür die Reise. Kennst du sie noch nicht, frage zuerst danach,
+statt zu raten.
+
+Liefert das Tool nichts, dann hat diese Seite keine Erlebnisberater*in
+hinterlegt. Nenne dann die Zentrale (+49 30 347 996 0). Erfinde niemals einen
+Namen oder eine Durchwahl.
+
+Args:
+    url_path (str): Pfad der Reiseseite, z.B. "/Afrika/Namibia/Etosha"
+"""
+
+
+def berater_tool_base(url_path: str) -> str:
+    """Erlebnisberater*in einer Reise als fertiger Satz, oder eine Leermeldung.
+
+    Der Agenturbereich ist login-geschuetzt und ueber das Website-Tool nicht
+    erreichbar — ein Abruf liefe nur in den Timeout. Deshalb hier abgewiesen,
+    statt das Modell warten zu lassen.
+    """
+    if url_path.lstrip("/").lower().startswith("agentur"):
+        return (
+            "Der Agenturbereich hat keine Erlebnisberater*in. "
+            "Frage nach der Reise, um die es geht."
+        )
+
+    name, telefon = berater_von_seite(url_path)
+    if name and telefon:
+        return f"Erlebnisberater*in dieser Reise: {name}, Telefon {telefon}"
+    return (
+        "Für diese Seite ist keine Erlebnisberater*in hinterlegt. "
+        "Nenne die Zentrale: +49 30 347 996 0"
+    )
 
 
 def format_system_prompt(
@@ -781,7 +832,15 @@ def format_system_prompt(
     # zwei festen Formen (siehe berater_von_seite): 23 von 25 stichprobenartig
     # geprueften Reise-URLs. Der Index bleibt in der Kette, damit es von selbst
     # wirkt, falls TourOne das Feld je befuellt.
-    seite_name, seite_telefon = berater_von_seite(endpoint)
+    #
+    # is_reise_url peekt in den Index und baut ihn nie. Die Schranke steht hier
+    # und nicht in berater_von_seite, weil sie zu DIESEM Aufrufer gehoert: er
+    # laeuft auf jeder Chatnachricht. Ohne sie liefe jeder Agentur-Request in
+    # den Abruf-Timeout — der Agenturbereich ist login-geschuetzt und ueber das
+    # Website-Tool gar nicht erreichbar.
+    seite_name, seite_telefon = (
+        berater_von_seite(endpoint) if _ist_reise_url(endpoint) else ("", "")
+    )
     index_berater = _berater_aus_index(endpoint)
     kundenberater_name = (
         seite_name or kundenberater_name or index_berater.get("name", "")
