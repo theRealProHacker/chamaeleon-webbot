@@ -676,6 +676,89 @@ def _vrrvorgang_from_url(url: str) -> str:
     return match.group(1) if match else ""
 
 
+# Die Berater-Box der Website, in den beiden Formen, in denen sie vorkommt.
+# Gemessen 2026-09-18 ueber 25 zufaellige indizierte Reise-URLs: 23 Treffer,
+# die zwei Fehlschlaege (Sossusvlei-ALL, Erongo-ALL) fuehren gar keinen Berater.
+#
+#   Reisedetailseite (~50k Zeichen, Box bei 84-99 % Tiefe):
+#       ![Mira Feldmann](/data/thumbs/.../PASSBILD900.jpg)
+#
+#       Erlebnisberater\*in
+#
+#       Mira Feldmann
+#
+#       [+49 30 347996-901](tel:+49 30 347996-901)
+#
+#   Laender- und -ALL-Uebersicht (~15-22k Zeichen, Box bei 4-6 % Tiefe):
+#       **Jonas Wehrle**
+#       Erlebnisberaterin
+#
+#       Ich bin fuer dich da.
+#
+#       [+49 30 347996-902](tel:+49 30 347996-902 "Anruf starten")
+#
+# Die Nummer wird genommen, wie sie dasteht. In denselben 25 Seiten kamen drei
+# Schreibweisen vor (+49 30 347996-901, +49 30-347996-903, 030347996905) — wer
+# hier normalisiert, erfindet eine Nummer, die so auf der Seite nicht steht.
+_BERATER_PATTERNS = (
+    re.compile(
+        r"Erlebnisberater\\\*in\s*\n+\s*(?P<name>[^\n\[\]]+?)\s*\n+\s*"
+        r"\[\s*(?P<tel>[+0-9][0-9 \-]{5,})\s*\]\(tel:"
+    ),
+    re.compile(
+        r"\*\*(?P<name>[^*\n]+?)\*\*\s*\n+\s*Erlebnisberater(?:in)?\b"
+        r"[\s\S]{0,120}?\[\s*(?P<tel>[+0-9][0-9 \-]{5,})\s*\]\(tel:"
+    ),
+)
+
+
+@ttl_cache(maxsize=1024, ttl=86400)
+def berater_von_seite(url_path: str) -> tuple[str, str]:
+    """(Name, Telefon) der Erlebnisberater*in von der Reiseseite, sonst ("", "").
+
+    Gecacht wie die Seite selbst (24 h): der HTML-Cache erspart den Abruf, nicht
+    das Markdownifizieren der 50k-Zeichen-Seite — ohne diesen Dekorator kostete
+    der Promptbau gemessen 85 ms je Nachricht statt 0.
+
+    Nur fuer Reiseseiten. ``is_reise_url`` peekt in den Index und baut ihn nie —
+    das laeuft auf jeder Chatnachricht. Ohne diese Schranke liefe jeder
+    Agentur-Request in den Abruf-Timeout, denn der Agenturbereich ist
+    login-geschuetzt und ueber das Website-Tool gar nicht erreichbar.
+
+    Gibt ("", "") zurueck, sobald irgendetwas fehlt: kein Teiltreffer, keine
+    geratene Nummer. Wirft nie — der Promptbau darf hieran nicht scheitern.
+    """
+    try:
+        import travel_index
+
+        if not travel_index.is_reise_url(url_path):
+            return "", ""
+        markdown = chamaeleon_website_tool_base(url_path)
+    except Exception as e:
+        print(f"[agent_base] berater page lookup failed for {url_path}: {e}")
+        return "", ""
+
+    for pattern in _BERATER_PATTERNS:
+        match = pattern.search(markdown)
+        if match:
+            name = match.group("name").replace("\xa0", " ").strip()
+            telefon = match.group("tel").strip()
+            if name and telefon:
+                return name, telefon
+    return "", ""
+
+
+def _berater_aus_index(url_path: str) -> dict[str, str]:
+    """travel_index.get_berater, aber ohne je eine Ausnahme durchzulassen."""
+    try:
+        import travel_index
+
+        return travel_index.get_berater(url_path)
+    except Exception as e:
+        print(f"[agent_base] berater lookup failed for {url_path}: {e}")
+        return {}
+
+
 def format_system_prompt(
     endpoint: str,
     countries: list[str],
@@ -687,18 +770,25 @@ def format_system_prompt(
     has_agentur_daten: bool = False,
 ) -> str:
     """Format the system prompt with current time information and endpoint."""
-    # The embedding page may pass the advisor with the request; when it does
-    # not, fall back to the TourOne berater captured in the travel index for
-    # this page. Page-supplied values win. Must never break prompt assembly.
-    if not (kundenberater_name and kundenberater_telefon):
-        try:
-            import travel_index
-
-            berater = travel_index.get_berater(endpoint)
-            kundenberater_name = kundenberater_name or berater.get("name", "")
-            kundenberater_telefon = kundenberater_telefon or berater.get("telefon", "")
-        except Exception as e:
-            print(f"[agent_base] berater lookup failed for {endpoint}: {e}")
+    # Erlebnisberater, in dieser Rangfolge: bei einer Reise gewinnt die Angabe
+    # von der Reiseseite selbst, dann die vom einbettenden Widget, zuletzt der
+    # TourOne-Index.
+    #
+    # Warum die Seite oben steht: der Index liefert das Feld seit jeher leer.
+    # Gemessen 2026-09-18 ueber fetch_all_travels — 670 von 670 Reisen tragen
+    # ein berater-Dict mit den richtigen Schluesseln und in allen 670 sind
+    # vorname, nachname, telefon und email leer. Die Seite traegt es dagegen in
+    # zwei festen Formen (siehe berater_von_seite): 23 von 25 stichprobenartig
+    # geprueften Reise-URLs. Der Index bleibt in der Kette, damit es von selbst
+    # wirkt, falls TourOne das Feld je befuellt.
+    seite_name, seite_telefon = berater_von_seite(endpoint)
+    index_berater = _berater_aus_index(endpoint)
+    kundenberater_name = (
+        seite_name or kundenberater_name or index_berater.get("name", "")
+    )
+    kundenberater_telefon = (
+        seite_telefon or kundenberater_telefon or index_berater.get("telefon", "")
+    )
 
     time_info = get_current_time_info()
 

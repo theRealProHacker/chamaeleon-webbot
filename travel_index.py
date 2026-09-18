@@ -865,6 +865,16 @@ def get_reisecodes(url_path: str) -> list[str]:
     return list(entry["codes"]) if entry else []
 
 
+def is_reise_url(url_path: str) -> bool:
+    """True when this URL is an indexed trip page.
+
+    PEEKS at the current index like :func:`get_berater`, never builds — this
+    runs on every chat message and must not block a reply. An unbuilt index
+    therefore answers False, which callers read as "not a trip page (yet)".
+    """
+    return _url_key(url_path) in _index
+
+
 def get_berater(url_path: str) -> dict[str, str]:
     """Erlebnisberater ({name, telefon, email}) for a trip URL, or {}.
 
