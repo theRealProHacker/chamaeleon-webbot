@@ -191,6 +191,38 @@ geänderten Prompt-Kopf, besonders `vertriebsteam-mailto` (:89) und
 
 ---
 
+## Ausgangsmessung (2026-09-18, vor dem Deploy)
+
+Aus `chats` in Supabase, read-only:
+
+| | |
+|---|---|
+| Chats gesamt | 15.188 |
+| Agentur-Chats (Segment nach URL) | 267 |
+| davon: Bot nennt den Vertrieb | 58 |
+| davon: Nutzerfrage war Flug / Buchungsstatus / Ansprechpartner / Option | **7** |
+
+Die sieben echten Fragen: „wer ist ansprechpartner für just4you" ·
+„kann ich eine reise ohne flug buchen" · „Wie kann ich eine Buchung/Option
+anlegen" · „ich möchte eine option stornieren" · **„Und die Reservierung?"** ·
+„Optionsverlängerung" · „option verlängern".
+
+Drei Schlüsse:
+
+1. **Die Fehlroute ist kleiner als das Feedback nahelegt** — 7 von 267
+   Agentur-Chats, rund 2,6 %. Das relativiert nicht die Beschwerde (wer
+   falsch geschickt wird, merkt es), aber es setzt den Aufwand ins Verhältnis.
+2. **Die Zahl ist ein Mindestwert.** Das Segment `agentur` hängt allein am
+   Pfad `/Agentur`; per Origin/Referer erkannte Agentur-Chats auf Reiseseiten
+   zählen hier als Publikums-Chats. Genau dort werden Flug- und
+   Statusfragen gestellt. Ohne `is_agentur`-Logging (offenes TODO) ist die
+   echte Quote nicht messbar — und damit auch der Erfolg dieser Änderung nicht.
+3. **„Und die Reservierung?" ist real.** Die Option-gegen-Reservierung-
+   Unklarheit aus dem TODO ist keine Vermutung aus dem Review, sondern eine
+   Frage, die eine Expi tatsächlich gestellt hat.
+
+Fürs Nachmessen nach dem Deploy: dieselbe Abfrage, gleiche Filter.
+
 ## NOT in scope
 
 - **Paxlounge** — Owner-Ansage 2026-09-16. Keine Login-Warnregel, keine
