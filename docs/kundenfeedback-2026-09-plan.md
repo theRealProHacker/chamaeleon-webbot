@@ -630,16 +630,98 @@ Feature-Branch, kein PR). Bei Konflikt: nicht raten, Owner fragen.
 Danach im Hauptverzeichnis die komplette Offline-Suite:
 `pytest -q` → grün, bevor Welle 2 startet.
 
-### Ausgangsmessung — Orchestrator, allein, ohne parallele Live-Last (Review D15, D20)
+### Verschränkte Messung — ersetzt Ausgangs- und Schlussmessung (2026-09-23, dreht D20)
 
-Unter Last kippt Gemini in leere Antworten; eine Messung neben fünf live
-prüfenden Agenten wäre nach unten verzerrt und ließe danach jede Änderung wie
-eine Verbesserung aussehen. Deshalb misst der Orchestrator NACH Welle 1 und
-VOR Welle 2, in einem Worktree auf dem alten Stand (`d920db3` + Welle-0-Commits
-+ die Eval-Datei aus W1, sonst nichts): alle drei Suiten mit `EVAL_N=3`,
-blockweise (≤25 Aufrufe), Quote je Fall und je Block in die Tabelle am Ende
-dieses Plans. Die Schlussmessung nach W3 läuft unter denselben Bedingungen.
-Gesamt rund 450–600 Live-Aufrufe über beide Messungen.
+**Eine Kampagne statt zwei.** Jeder Fall wird zweimal unmittelbar
+nacheinander im selben Prozess gestellt: einmal mit dem alten, einmal mit dem
+neuen `system_prompt_template`, die Reihenfolge je Fall alternierend. Gemessen
+wird NACH den vier W3-Commits, nicht davor.
+
+**Warum.** Zwei getrennte Kampagnen vermengen die Prompt-Änderung mit allem,
+was dazwischen liegt: Zeit, Last, Modell-Serving, Webseiteninhalt,
+Zwischen-Commits. Das ist hier kein theoretisches Risiko, sondern zweimal
+belegt: der W1-Probelauf unter paralleler Last riss reproduzierbar das
+10-s-Timeout der Website (~9 s Antwortzeit) und war nach unten verzerrt; und
+`7c6ed5e` hat am selben Tag den Nenner des `airline`-Blocks verschoben —
+`hauptseiten(land)[:3]` wählt seither für 7 der 32 Airline-Länder andere
+Seiten, drei davon hatten vorher nur eine `-ALL`-Seite ohne Leistungen und
+fielen als „übersprungen" heraus. Ein Vorher-Wert von 12:58 ist gegen einen
+Nachher-Wert von morgen nicht vergleichbar. Verschränkt ist innerhalb des
+Paares alles konstant außer dem Prompt.
+
+**Baubar, geprüft 2026-09-23.** Der Eval ruft `agent.call` im selben Prozess
+(`tests/test_kundenfeedback_eval.py:70`), und `format_system_prompt` liest
+`system_prompt_template` erst zur Aufrufzeit (`agent_base.py:1494`).
+Umschalten ist eine Zuweisung auf das Modulglobal.
+
+**Umfang: 107 Fälle, 214 Aufrufe, eine Sitzung.** Gegen 450–600 im alten
+Zuschnitt.
+
+| Block | Fälle | warum drin |
+|---|---|---|
+| `filter` | 8 | W3-Regelgruppe 1, Kern von Änderung A |
+| `airline` | 28 | W3-Regelgruppe 4 und Punkt 12; breitester Block der Suite |
+| `nichtangeboten` | 4 (von 10) | prüft EINEN Prompt-Satz; zehn Länder kaufen dafür nichts |
+| `ungefragt` | 4 | Regelgruppe 2, dazu B1 |
+| `fachwissen` | 12 | Regelgruppe 2/4 |
+| `erfinden` | 4 | Regelgruppe 3 |
+| `flug` | 2 | Regelgruppe 4 |
+| Agentur | 32 | Regressionssperre Push 2 |
+| MeinChamäleon | 13 | Regressionssperre Push 2 |
+
+`anker` (5) läuft als Vorbedingung vor jedem Block, macht keine
+Modellaufrufe und zählt nicht als Messung.
+
+**Blockgröße.** Verschränkt kostet ein Fall ZWEI Aufrufe. Die Grenze von ~25
+Aufrufen am Stück (TODOS, Empty-Reply) gilt für Aufrufe, nicht für Fälle: ein
+Prozess darf höchstens ~12 Fälle fahren. `airline` wird in drei Läufe geteilt,
+`fachwissen` in zwei, Agentur in drei.
+
+**Maßstab: `EVAL_N` bleibt 1, das Paar IST die Wiederholung.** Wichtig und
+leicht zu übersehen: `fahre()` (`tests/test_kundenfeedback_eval.py:600-613`)
+legt bei `EVAL_N=1` und `EVAL_N>=2` VERSCHIEDENE Maßstäbe an — bei N=1 muss der
+eine Lauf grün sein, ab N=2 genügt EINER von N. Ein Fall mit echter Quote 1/3
+ist bei N=3 immer grün und bei N=1 zu zwei Dritteln rot. Beide Seiten dürfen
+deshalb nie mit verschiedenem N laufen.
+
+**Auswertung: gepaart, nicht als zwei Quoten.** Je Block die diskordanten
+Paare zählen — b = alt rot/neu grün, c = alt grün/neu rot. McNemar exakt,
+zweiseitig `p = 2·(1/2)^b` bei c=0: b=4 → 0,125, b=5 → 0,0625, b=6 → 0,031.
+Daraus folgt hart: **ein Block mit weniger als 5 Fällen kann bei keiner
+Effektgröße signifikant werden.** `flug` (2), `erfinden` (4) und `ungefragt`
+(4) gehen deshalb als „kaputt / nicht kaputt" in den Bericht, nie als Quote
+neben `filter` und `fachwissen` — dort würden sie als Evidenz gelesen.
+
+**Mitzuschneiden: Tool-Aufrufe je Chat.** `agent.py:362` und `:415` loggen
+sie. Welle 3 Punkt 3 verlangt einen Vorher/Nachher-Vergleich; nach dem
+W3-Commit wäre die Vorher-Zahl nur durch neue Modellaufrufe zurückzuholen. Im
+verschränkten Lauf fällt sie beidseitig gratis an.
+
+**Was diese Messung NICHT mehr beantwortet.** Der alte Zuschnitt wollte „ist
+das Kundenfeedback behoben" (Baseline `d920db3`). Verschränkt misst „wirkt
+W3" — W4, W5, W6 und W7 stecken in beiden Zweigen. Der Beleg für die
+Feedback-Frage steht damit in den Paketabnahmen, nicht in dieser Tabelle.
+Welle 3 Punkt 1 ist entsprechend umzuformulieren.
+
+**Offen für den Review:**
+1. Die alten Suiten sind nur teilweise datengetrieben: `test_agentur_faq` hat
+   einen parametrisierten Block (`DONE`, Z. 208) plus neun Einzelfunktionen,
+   `test_meinchamaeleon_faq` `URL_CASES` (Z. 92) plus drei. Für die
+   Einzelfunktionen gibt es eine Paarung je Fall nicht ohne Eingriff in die
+   Dateien. Vorschlag: diese Fälle laufen zweimal unmittelbar hintereinander
+   in derselben Sitzung (alt, dann neu), zeitlich benachbart statt paarweise.
+   Lohnt der Eingriff, oder reicht Nachbarschaft?
+2. Der 80-%-Auslöser für die Vergleichstabelle je Land (Welle 3, Punkt 4) ist
+   bei 8 `filter`-Fällen nicht auflösbar: 6/8 = 75 %, 7/8 = 87,5 %, die
+   Schwelle liegt dazwischen. Umschreiben auf „6 von 8 oder schlechter", oder
+   `filter` aufstocken?
+3. Mindestens 2 der 8 `filter`-Fälle sind heute allein wegen der Satzzahl rot
+   (gemessen 8, 7, 3, 3 Sätze gegen `MAX_SAETZE = 5`). Der Auslöser misst dort
+   teilweise die Länge, nicht das Filtern. Gehört in die Tabelle, sonst wird
+   er falsch gelesen.
+4. Wo läuft die Kampagne — eigener Runner, der die Falllisten importiert, oder
+   ein Paar-Modus in der Eval-Datei? Ersteres fasst W1s Dateien nicht an,
+   erreicht aber die Einzelfunktionen der alten Suiten nicht.
 
 ### Welle 2 — ein Agent, seriell (Modell: opus)
 
@@ -695,9 +777,20 @@ Besitzt nur `system_prompt_template`. Änderungen:
   Verhalten wenig; trotzdem vor Push 1 den Block `-k airline` und
   `RUN_MEINCHAMAELEON_EVAL=1` einmal laufen lassen. Danach kurz auf die
   Live-Chats im Dashboard schauen.
-- **Push 2, Tool-Nutzung + Prompt:** erst, wenn in der Schlussmessung
-  (`EVAL_N=3`) keine der beiden alten Suiten in der Quote schlechter ist als
-  in der Ausgangsmessung und der Längen-Check nicht gekippt ist.
+- **Push 2, Tool-Nutzung + Prompt:** erst, wenn in der verschränkten Messung
+  keine der beiden alten Suiten schlechter ist als mit dem alten Prompt und
+  der Längen-Check nicht gekippt ist.
+  **Korrigiert 2026-09-23:** die alte Fassung verlangte „in der Quote
+  (`EVAL_N=3`)". Das war nie ausführbar — `EVAL_N` existiert ausschließlich in
+  `tests/test_kundenfeedback_eval.py:88`; `test_agentur_faq.py` und
+  `test_meinchamaeleon_faq.py` kennen keine Wiederholung und liefern nur
+  rot/grün. Maßgeblich ist jetzt das gepaarte Ergebnis je Fall (b/c), nicht
+  eine Quote.
+  Dazu eine Warnung aus `TODOS.md:79-91`: ein voller `RUN_AGENTUR_EVAL=1`-Lauf
+  (32 Fälle) ist selbst der dokumentierte Auslöser für die Empty-Reply-Kippe,
+  und sie trifft wechselnde Fälle. Verschränkt sind es 64 Aufrufe — die Suite
+  MUSS geteilt werden, sonst löst das Tor auf Rauschen aus und wird beim ersten
+  Mal von Hand übergangen. Danach ist es kein Tor mehr.
 
 ### Welle 3 — Orchestrator
 
@@ -743,12 +836,12 @@ Alle vom Owner einzeln entschieden; die Pakettexte oben sind bereits angepasst.
 | D12 | Tool-Schnitt | Ein-Seiten-Funktion bleibt unverändert, `website_tool_multi` obendrauf |
 | D13 | Vergleichstabelle je Land | Nicht jetzt; TODO mit Auslöser |
 | D14 | Worker-Blockade | Zwischen den Seiten abgeben (`gevent.sleep(0)`) |
-| D15 | Eval-Statistik | `EVAL_N=3` für Ausgangs- und Schlussmessung; Schwesterfälle |
+| D15 | Eval-Statistik | ~~`EVAL_N=3` für Ausgangs- und Schlussmessung~~; Schwesterfälle bleiben. **Korrigiert 2026-09-23:** `EVAL_N=3` war für zwei der drei Suiten nie verfügbar (der Schalter existiert nur in der neuen Suite) und ließ sich mit „blockweise ≤25 Aufrufe" ohnehin nicht vereinbaren — `airline` wären 84 Aufrufe am Stück gewesen. Die Streuung dämpft jetzt die Paarung statt der Wiederholung |
 | D16 | Zirkelschluss im Eval | Feste Ankerwerte mit Datum; leere/volle Erwartungsmenge ist rot |
 | D17 | Stil-Beispiel „erste Safari" | Umschreiben: Rückfrage statt Etosha |
 | D18 | Längenregel gegen mehrteilige Pflichtantworten | **Fallengelassen (Owner, 2026-09-23).** Die Regel bleibt wie sie ist, W3 startet damit. Nicht erneut aufrollen — nur bei einem konkreten Fall, der dagegenläuft, wieder vorlegen |
 | D19 | Cache-Inhalt | Nur die Buchungsliste, `maxsize=512` |
-| D20 | Messzeitpunkt | W1 schreibt nur die Fälle; Ausgangsmessung fährt der Orchestrator allein nach Welle 1 |
+| D20 | Messzeitpunkt | ~~W1 schreibt nur die Fälle; Ausgangsmessung fährt der Orchestrator allein nach Welle 1~~ — **gedreht 2026-09-23:** keine getrennte Ausgangsmessung, stattdessen EINE verschränkte Kampagne nach W3 (siehe „Verschränkte Messung"). Grund: zwei Kampagnen vermengen die Prompt-Änderung mit Zeit, Last und Zwischen-Commits; `7c6ed5e` hat den `airline`-Nenner am selben Tag verschoben und einen bereits gefahrenen Vorher-Wert entwertet |
 
 ## Was es schon gibt (und wie der Plan es nutzt)
 
