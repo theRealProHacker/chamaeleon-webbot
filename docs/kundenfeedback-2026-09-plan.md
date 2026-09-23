@@ -746,7 +746,7 @@ Alle vom Owner einzeln entschieden; die Pakettexte oben sind bereits angepasst.
 | D15 | Eval-Statistik | `EVAL_N=3` für Ausgangs- und Schlussmessung; Schwesterfälle |
 | D16 | Zirkelschluss im Eval | Feste Ankerwerte mit Datum; leere/volle Erwartungsmenge ist rot |
 | D17 | Stil-Beispiel „erste Safari" | Umschreiben: Rückfrage statt Etosha |
-| D18 | Längenregel gegen mehrteilige Pflichtantworten | **Vom Owner übersprungen, offen.** Plan unverändert; findet W3 keinen grünen Zustand zwischen Pflichtinhalten und Satzzahl, meldet er es (Regel 8) statt zu kreisen |
+| D18 | Längenregel gegen mehrteilige Pflichtantworten | **Fallengelassen (Owner, 2026-09-23).** Die Regel bleibt wie sie ist, W3 startet damit. Nicht erneut aufrollen — nur bei einem konkreten Fall, der dagegenläuft, wieder vorlegen |
 | D19 | Cache-Inhalt | Nur die Buchungsliste, `maxsize=512` |
 | D20 | Messzeitpunkt | W1 schreibt nur die Fälle; Ausgangsmessung fährt der Orchestrator allein nach Welle 1 |
 
@@ -932,5 +932,7 @@ finding above. Run with Claude Code or Codex; checkbox as you ship.
 - **OUTSIDE COVERAGE:** codex, phase plan-review, unavailable (CLI kann die Modell-Liste nicht dekodieren). Native Rückfall-Prüfung durch einen Claude-Subagenten mit frischem Kontext lief durch und lieferte 10 Befunde; das ersetzt keine Fremdmodell-Abdeckung.
 - **VERDICT:** ENG REVIEW durchgeführt, 19 von 20 Entscheidungen eingearbeitet, 0 kritische Lücken. Nicht CLEAR, solange D18 offen ist — eng review required. Die Ausführung kann starten; D18 betrifft erst W3 (Welle 2).
 
-**UNRESOLVED DECISIONS:**
-- D18 — Längenregel (2–4 Sätze) gegen mehrteilige Pflichtantworten (Punkt 4, Vergleichsantworten): vom Owner übersprungen. Muss vor dem Start von W3 entschieden sein, sonst meldet W3 den Konflikt und hält an.
+**UNRESOLVED DECISIONS:** keine.
+
+- D18 — Längenregel (2–4 Sätze) gegen mehrteilige Pflichtantworten: **am 2026-09-23 vom Owner fallengelassen.** `system_prompt_template` behält die Regel unverändert (`agent_base.py:913`, wiederholt `:1025`), W3 startet damit. Die Frage wird nicht erneut gestellt; wer auf einen konkreten Fall stößt, der zwischen Pflichtinhalt und Satzzahl nicht auflösbar ist, legt **diesen Fall** vor — nicht die Grundsatzfrage.
+  Gemessen am 2026-09-23 (Probelauf W1, ohne jede W3-Änderung): das Modell hält 2–4 Sätze in allen Blöcken außer den Vergleichsantworten — `airline` durchweg 2–3 über 27 Länder, `fachwissen` 2–4, `ungefragt` 3–4, aber `filter` 8, 7, 3, 3. Der Konflikt ist also real und sitzt genau dort, wo Änderung A das Verhalten zur Regel macht.
