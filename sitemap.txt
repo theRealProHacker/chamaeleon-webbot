@@ -222,6 +222,14 @@
 /Afrika/Uganda/Nachtraeumen-Kalagala-Island
 /Afrika/Uganda/Nachtraeumen-Lake-Mburo-Nationalpark
 
+/Afrika/Aegypten/Nofretete
+/Afrika/Botswana-Namibia/Kwando
+/Afrika/Botswana-Namibia/Moremi
+/Afrika/Marokko/Atlas
+/Afrika/Marokko/Indigo
+/Afrika/Namibia/Sossusvlei
+/Afrika/Suedafrika-Eswatini/Krueger
+/Afrika/Suedafrika/Outeniqua
 ### Weitere
 
 /Botswana-Safari
@@ -304,6 +312,13 @@
 /Amerika/USA/Suedwesten
 /Amerika/USA/Yellowstone
 
+/Amerika/Brasilien-Argentinien/Pantanal
+/Amerika/Costa-Rica/Monteverde
+/Amerika/Costa-Rica/Volcano
+/Amerika/Kolumbien/San-Agustin
+/Amerika/Kuba/Baracoa
+/Amerika/Kuba/Trinidad
+/Amerika/Mexiko/Oaxaca
 ### Weitere
 
 /Costa-Rica-Gruppenreise
@@ -390,6 +405,10 @@
 /Asien/Vietnam/Nachtraeumen-Phu-Quoc-mit-Saigon
 /Asien/Vietnam/Sapa
 
+/Asien/Japan/Nagano
+/Asien/Oman/1001-Nacht
+/Asien/Vietnam-Kambodscha/Puppeteer
+/Asien/Vietnam/Ao-Dai
 ### Weiteres
 /Sehenswuerdigkeiten-Sri-Lanka
 
@@ -483,6 +502,11 @@
 /Europa/Spanien/Nachtraeumen-Estepona
 /Europa/Tuerkei/Kappadokien
 
+/Europa/Estland/Soomaa
+/Europa/Italien/Sizilien
+/Europa/Norwegen/Lofoten
+/Europa/Schweden-Norwegen/Geiranger
+/Europa/Spanien-Kanaren/Kanaren
 ### Weiteres
 
 /Island-Rundreise
