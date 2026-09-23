@@ -372,8 +372,6 @@ def authenticate(
     finally:
         committed = commit_auth(session_id, kunden_id, generation)
 
-    if not committed:
-        print("[kunden_auth] superseded by a newer auth for the same session")
     authenticated = bool(kunden_id) and committed
     # Der frühere ungated print("authenticated=…") ist raus. Sein Kommentar
     # behauptete "einmal pro Chat-Öffnung" — tatsächlich ruft das Widget

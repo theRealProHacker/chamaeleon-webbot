@@ -158,7 +158,6 @@ def verify_agentur_session(
         return None
     ss_url = ss_url_for_origin(origin)
     if not ss_url:
-        print(f"[agentur_auth] kein agt-ss.php für Origin {origin!r} — abgelehnt")
         return None
     try:
         resp = requests.get(
