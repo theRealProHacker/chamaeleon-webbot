@@ -1,6 +1,7 @@
 import re
 import time
 
+import gevent
 import mistune
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
@@ -27,6 +28,7 @@ from agent_base import (
     website_tool_multi,
 )
 from agenturdaten import make_buchungen_agentur_tool
+import kundendaten
 from kundendaten import make_buchungen_tool
 
 # Initialize the model
@@ -172,6 +174,52 @@ def text_aus_content(content) -> str:
     return ""
 
 
+# Gesamtwartezeit für den Buchungsabruf beim Prompt-Bau. Der requests-timeout
+# aus kundendaten.TIMEOUT (8 s) gilt je Socket-Schritt, nicht für die
+# Gesamtdauer — genau deshalb steht hier eine zweite, harte Schranke.
+REISE_TIMEOUT_S = 1.0
+
+
+def reise_fuer_links(endpoint: str, kunden_id: str) -> tuple[str, str]:
+    """Welche Reise die MeinChamäleon-Links meinen: ``(vorgang, label)``.
+
+    Rangfolge:
+      1. formal gültiges VRRVORGANG in der URL → diese Nummer, OHNE API-Abruf.
+         Das ist der Stand von heute und funktioniert auch bei TourOne-Ausfall;
+         wer auf seiner Reiseseite steht, meint diese Reise.
+      2. sonst die nächste offene Reise aus den (gecachten) Buchungen.
+      3. sonst leer → im Prompt bleiben nur die Übersichts-Links.
+
+    Der Abruf darf den Chat nie aufhalten: höchstens ``REISE_TIMEOUT_S``, dann
+    geht es ohne Reise-Links weiter. Beim Login hat /kunde/auth den Cache in der
+    Regel längst gefüllt (siehe app.py), der Normalfall kostet also nichts.
+    """
+    if not kunden_id:
+        return "", ""
+    seiten_vorgang = _vrrvorgang_from_url(endpoint)
+    if seiten_vorgang:
+        return seiten_vorgang, ""
+
+    buchungen = None
+    try:
+        # exception=False: der Timeout verlässt den Block still. Sonst käme hier
+        # eine BaseException heraus, die das except darunter nicht fängt — und
+        # der Kunde sähe statt einer Antwort einen Fehler.
+        with gevent.Timeout(REISE_TIMEOUT_S, False):
+            buchungen = kundendaten._buchungen_roh(kunden_id)
+    except Exception as e:
+        # Nur der Typ: die requests-Exception trägt die volle Request-URL und
+        # damit die Kundennummer (gleicher Grund wie in kundendaten).
+        print(
+            f"[agent] buchungen für die Reise-Links nicht abrufbar: "
+            f"{type(e).__name__}"
+        )
+        return "", ""
+    if not buchungen:
+        return "", ""
+    return kundendaten.naechste_offene_reise(buchungen, kundendaten.heute_berlin())
+
+
 def call_stream(
     messages: list,
     endpoint: str,
@@ -208,6 +256,11 @@ def call_stream(
         if any(country in msg["content"] for msg in messages):
             detected_countries.append(country)
 
+    # Welche Reise die MeinChamäleon-Links meinen, wird HIER entschieden, nicht
+    # im Prompt-Bau und nicht vom Modell: format_system_prompt bekommt zwei
+    # fertige Strings und bleibt damit eine reine Textfunktion ohne Netz.
+    reise_vorgang, reise_label = reise_fuer_links(endpoint, kunden_id)
+
     # Format system prompt with current time and endpoint
     system_prompt = format_system_prompt(
         endpoint,
@@ -218,6 +271,8 @@ def call_stream(
         page_content,
         is_kunde=bool(kunden_id),
         has_agentur_daten=bool(agentur_id),
+        reise_vorgang=reise_vorgang,
+        reise_label=reise_label,
     )
 
     # Convert messages to LangChain format

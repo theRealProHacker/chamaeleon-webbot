@@ -293,6 +293,10 @@ def _adresse(monkeypatch, ergebnis):
         return ergebnis
 
     monkeypatch.setattr(kd, "_tourone_get", fake)
+    # Ein neuer Fake heißt: ab hier gilt eine andere TourOne-Antwort. Der
+    # Buchungs-Cache (10 min, Schlüssel nur die Kundennummer) überlebte sonst
+    # den vorigen Test und der Fake käme gar nicht zum Zug.
+    kd._buchungen_roh.cache_clear()
 
 
 def test_vorgangsnummern_sortiert_kommende_nach_vorn(monkeypatch):

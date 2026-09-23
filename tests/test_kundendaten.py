@@ -1,10 +1,15 @@
 """Tests for Kunden-Modus (kundendaten.py + kunden_modus prompt block).
 
 Pure logic is tested directly; TourOne calls are monkeypatched — no live
-requests here. Deliberately never imports ``app`` (importing it triggers
-live Supabase reads).
+requests here. ``app`` wird nur dort importiert, wo /kunde/auth selbst geprüft
+wird, und dann INNERHALB der Testfunktion (Muster wie test_general.py): der
+Import zieht die halbe Anwendung nach sich und geht die übrigen Tests nichts an.
 """
 
+import threading
+import time
+
+import gevent
 import pytest
 
 import common as _  # noqa: F401  (adds repo root to sys.path)
@@ -80,6 +85,11 @@ def fake_tourone(monkeypatch, handlers):
         return result
 
     monkeypatch.setattr(kd, "_tourone_get", fake)
+    # Ein neuer Fake heißt: ab hier gilt eine andere TourOne-Antwort. Der
+    # Buchungs-Cache (10 min, Schlüssel nur die Kundennummer) überlebte sonst
+    # den vorigen Test und der Fake käme gar nicht zum Zug. Die Cache-Tests
+    # weiter unten leeren zusätzlich selbst, wo sie es genau festnageln.
+    kd._buchungen_roh.cache_clear()
     return calls
 
 
@@ -533,3 +543,383 @@ def test_dedup_ohne_id_passiert_durch():
     seen = set()
     assert len(kd.filter_new_tool_calls([{"name": "x"}, {"name": "x"}], seen)) == 2
     assert seen == set()
+
+
+# --- Buchungs-Cache (_buchungen_roh) -----------------------------------------
+#
+# Hintergrund: der Prompt-Bau löst seit Änderung E die gemeinte Reise selbst auf
+# und liefe sonst je Kunden-Nachricht in einen TourOne-Abruf. Gemessen
+# 2026-09-20 (8 Abrufe, Testkunde 999999999): Median 286 ms, kalt 768 ms,
+# Ausreißer 1.268 ms.
+
+
+def test_cache_spart_den_zweiten_abruf(monkeypatch):
+    calls = fake_tourone(
+        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
+    )
+    erste = kd._buchungen_roh("999999999")
+    zweite = kd._buchungen_roh("999999999")
+    assert len(calls) == 1
+    assert erste == zweite
+
+
+def test_cache_trennt_die_kunden(monkeypatch):
+    calls = fake_tourone(
+        monkeypatch,
+        {"/get/adresse": lambda params: adresse_mit(
+            [eingebettete_buchung(params["kundennummer"])]
+        )},
+    )
+    assert kd._buchungen_roh("111111111")[0]["vorgang"] == "111111111"
+    assert kd._buchungen_roh("222222222")[0]["vorgang"] == "222222222"
+    assert len(calls) == 2
+
+
+def test_ausfall_wird_nicht_gecacht(monkeypatch):
+    """Sonst hielte ein einzelner Timeout den Kunden 10 Minuten in der
+    Störungsmeldung: ttl_cache merkt sich Rückgabewerte, auch None, aber keine
+    Exceptions — deshalb wirft die gecachte Funktion."""
+    zustand = {"kaputt": True}
+
+    def wechselhaft(params):
+        if zustand["kaputt"]:
+            raise RuntimeError("timeout")
+        return adresse_mit([eingebettete_buchung()])
+
+    calls = fake_tourone(monkeypatch, {"/get/adresse": wechselhaft})
+    with pytest.raises(RuntimeError):
+        kd._buchungen_roh("999999999")
+    zustand["kaputt"] = False
+    assert kd._buchungen_roh("999999999")  # zweiter Anlauf, nicht der Cache
+    assert len(calls) == 2
+
+
+def test_vorgangsnummern_meldet_den_ausfall_und_erholt_sich(monkeypatch):
+    """Derselbe Fall eine Ebene höher: None (Störung) darf nicht kleben."""
+    zustand = {"kaputt": True}
+
+    def wechselhaft(params):
+        if zustand["kaputt"]:
+            raise RuntimeError("timeout")
+        return adresse_mit([eingebettete_buchung("126001")])
+
+    fake_tourone(monkeypatch, {"/get/adresse": wechselhaft})
+    assert kd.vorgangsnummern("999999999") is None
+    zustand["kaputt"] = False
+    assert kd.vorgangsnummern("999999999") == ["126001"]
+
+
+def test_unbekannte_id_wird_gecacht_und_bleibt_unterscheidbar(monkeypatch):
+    """None heißt „Kundennummer unbekannt", [] heißt „bekannt, ohne Buchung".
+
+    Der Unterschied entscheidet, was der Kunde liest (UNBEKANNT_TEXT vs.
+    KEINE_BUCHUNGEN_TEXT) — er darf beim Umzug in den Cache nicht verloren
+    gehen. Ein stabiles „kenne ich nicht" ist kein Ausfall und wird gecacht.
+    """
+    calls = fake_tourone(monkeypatch, {"/get/adresse": []})
+    assert kd._buchungen_roh("999999999") is None
+    assert kd._buchungen_roh("999999999") is None
+    assert len(calls) == 1
+    assert kd.fetch_buchungen_text("999999999") == kd.UNBEKANNT_TEXT
+
+    fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([])})
+    assert kd._buchungen_roh("999999999") == []
+    assert kd.fetch_buchungen_text("999999999") == kd.KEINE_BUCHUNGEN_TEXT
+
+
+def test_cache_laeuft_nach_der_ttl_ab(monkeypatch):
+    """Nach 10 Minuten wird neu geholt — sonst sähe ein Kunde nach seiner
+    Zahlung noch den alten Zahlstand (deshalb 10 min und nicht 2 h).
+
+    Die Zeit wird vorgespult (``TTLCache.expire``), nicht verschlafen.
+    """
+    calls = fake_tourone(
+        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
+    )
+    cache = kd._buchungen_roh.cache
+    assert (cache.ttl, cache.maxsize) == (600, 512)
+    kd._buchungen_roh("999999999")
+    kd._buchungen_roh("999999999")
+    assert len(calls) == 1
+    cache.expire(cache.timer() + cache.ttl + 1)  # zehn Minuten später
+    kd._buchungen_roh("999999999")
+    assert len(calls) == 2
+
+
+def test_cache_haelt_nur_die_buchungen(monkeypatch):
+    """Review D19: Name, Anschrift und Kontaktdaten liegen nie im Cache."""
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": {
+            "kundennummer": 999999999,
+            "name": "Testperson",
+            "strasse": "Teststraße 1",
+            "email": "test@example.org",
+            "buchungen": [eingebettete_buchung()],
+        }},
+    )
+    kd._buchungen_roh("999999999")
+    gecacht = repr(list(kd._buchungen_roh.cache.values()))
+    for feld in ("Testperson", "Teststraße", "example.org"):
+        assert feld not in gecacht
+
+
+# --- naechste_offene_reise (Review D10) --------------------------------------
+
+HEUTE = "2026-09-23"
+
+
+def _buchung(vorgang, von, bis, code="NAWDH"):
+    return {"vorgang": vorgang, "vonDat": von, "bisDat": bis, "reiseCode": code}
+
+
+def test_nur_vergangene_reisen_ergeben_keine(monkeypatch):
+    """Der Grund für die eigene Funktion: reiseinfo_vorgang gäbe hier die
+    Vorjahresreise zurück, und ein Link auf „deine Reise" zeigte darauf."""
+    _titel_map(monkeypatch, {})
+    buchungen = [_buchung("ALT", VERGANGEN_VON, VERGANGEN_BIS)]
+    assert kd.naechste_offene_reise(buchungen, HEUTE) == ("", "")
+
+
+def test_eine_kommende_reise_mit_ziel_und_datum(monkeypatch):
+    _titel_map(monkeypatch, {"NAWDH": "Wüstenhauch"})
+    buchungen = [
+        _buchung("ALT", VERGANGEN_VON, VERGANGEN_BIS),
+        _buchung("126001", "2027-03-04 00:00:00", "2027-03-18 00:00:00"),
+    ]
+    vorgang, label = kd.naechste_offene_reise(buchungen, HEUTE)
+    assert vorgang == "126001"
+    assert "Wüstenhauch" in label and "04.03.2027" in label
+
+
+def test_zwei_kommende_reisen_die_naeheste_gewinnt(monkeypatch):
+    _titel_map(monkeypatch, {})
+    buchungen = [
+        _buchung("SPAET", "2027-11-01 00:00:00", "2027-11-15 00:00:00"),
+        _buchung("FRUEH", "2027-03-04 00:00:00", "2027-03-18 00:00:00"),
+    ]
+    vorgang, label = kd.naechste_offene_reise(buchungen, HEUTE)
+    assert vorgang == "FRUEH"
+    assert "04.03.2027" in label
+
+
+def test_laufende_reise_zaehlt_als_offen(monkeypatch):
+    """Wer gerade unterwegs ist, meint diese Reise — nicht die übernächste."""
+    _titel_map(monkeypatch, {})
+    buchungen = [
+        _buchung("LAEUFT", "2026-09-20 00:00:00", "2026-10-04 00:00:00"),
+        _buchung("SPAETER", "2027-03-04 00:00:00", "2027-03-18 00:00:00"),
+    ]
+    assert kd.naechste_offene_reise(buchungen, HEUTE)[0] == "LAEUFT"
+
+
+def test_label_nimmt_den_titel_aus_der_buchung(monkeypatch):
+    _titel_map(monkeypatch, {})
+    buchungen = [
+        {
+            "vorgang": "126001",
+            "vonDat": "2027-03-04 00:00:00",
+            "bisDat": "2027-03-18 00:00:00",
+            "reiseCode": "NAWDH",
+            "beschreibungen": [{"titel": "Sossusvlei"}],
+        }
+    ]
+    assert kd.naechste_offene_reise(buchungen, HEUTE)[1] == "Sossusvlei, 04.03.2027"
+
+
+def test_ohne_buchungen_keine_reise():
+    assert kd.naechste_offene_reise([], HEUTE) == ("", "")
+
+
+# --- Auflösung im Aufrufer (agent.reise_fuer_links, Review D3/D4/D11) --------
+
+UEBERSICHT_URL = "https://www.chamaeleon-reisen.de/MeinChamaeleon"
+URL_NUMMER = "9988776655"
+REISE_URL = (
+    f"https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG={URL_NUMMER}"
+)
+
+
+def test_url_nummer_kostet_keinen_abruf(monkeypatch):
+    """Pflicht-Regression (D3): trägt die Seite eine Nummer, ist die Frage
+    beantwortet — ohne API, also auch bei TourOne-Ausfall."""
+    import agent
+
+    calls = fake_tourone(
+        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung("126001")])}
+    )
+    assert agent.reise_fuer_links(REISE_URL, "999999999") == (URL_NUMMER, "")
+    assert calls == []
+
+
+def test_url_nummer_ueberlebt_den_tourone_ausfall(monkeypatch):
+    """Pflicht-Regression (D3): die vier Links, die es heute gibt, müssen den
+    Ausfall überstehen — sie hingen nie an der API."""
+    import agent
+
+    fake_tourone(monkeypatch, {"/get/adresse": RuntimeError("boom")})
+    vorgang, label = agent.reise_fuer_links(REISE_URL, "999999999")
+    assert vorgang == URL_NUMMER
+    block = agent_base._trip_links_block(vorgang, label)
+    for anker in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
+        assert f"?VRRVORGANG={URL_NUMMER}{anker})" in block
+
+
+def test_ohne_url_nummer_gewinnt_die_naechste_offene_reise(monkeypatch):
+    import agent
+
+    _titel_map(monkeypatch, {})
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([
+            _buchung("ALT", VERGANGEN_VON, VERGANGEN_BIS),
+            _buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS),
+        ])},
+    )
+    vorgang, label = agent.reise_fuer_links(UEBERSICHT_URL, "999999999")
+    assert vorgang == "126001"
+    assert "01.01.2099" in label  # Ziel und Datum stehen im Prompt-Kopf
+    assert label in agent_base._trip_links_block(vorgang, label)
+
+
+def test_ohne_offene_reise_nur_uebersichts_links(monkeypatch):
+    import agent
+
+    _titel_map(monkeypatch, {})
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([_buchung("ALT", VERGANGEN_VON, VERGANGEN_BIS)])},
+    )
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
+    assert agent_base._trip_links_block("", "") == ""
+
+
+def test_ausfall_ohne_url_nummer_laesst_den_chat_laufen(monkeypatch):
+    import agent
+
+    fake_tourone(monkeypatch, {"/get/adresse": RuntimeError("boom")})
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
+
+
+def test_ohne_kunden_id_kein_abruf(monkeypatch):
+    """Öffentlicher Chat: keine Bindung, keine Buchungen, kein Request."""
+    import agent
+
+    calls = fake_tourone(monkeypatch, {"/get/adresse": adresse_mit([])})
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "") == ("", "")
+    assert calls == []
+
+
+def test_vorwaermen_und_prompt_pfad_teilen_den_cache_eintrag(monkeypatch):
+    """Schlüssel-Gleichheit (D11): /kunde/auth wärmt, der Prompt-Bau liest —
+    zusammen genau EIN Abruf. Mit einem Timeout-Argument im Schlüssel träfe das
+    Vorwärmen einen anderen Eintrag und wäre wirkungslos."""
+    import agent
+
+    _titel_map(monkeypatch, {})
+    calls = fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)])},
+    )
+    kd._buchungen_roh("999999999")  # das tut der Daemon-Thread in /kunde/auth
+    vorgang, _ = agent.reise_fuer_links(UEBERSICHT_URL, "999999999")
+    assert vorgang == "126001"
+    assert len(calls) == 1
+
+
+def test_haengendes_tourone_blockiert_den_chat_nicht(monkeypatch):
+    """Review D11: der requests-timeout gilt je Socket-Schritt, nicht für die
+    Gesamtdauer — deshalb die harte Schranke außen.
+
+    Der Fake gibt über ``gevent.sleep`` ab, wie es ein hängender Socket unter
+    ``gunicorn -k gevent`` (monkey-patched) auch tut.
+    """
+    import agent
+
+    def haengt(path, params, timeout=20):
+        gevent.sleep(5)
+        return adresse_mit([eingebettete_buchung()])
+
+    kd._buchungen_roh.cache_clear()
+    monkeypatch.setattr(kd, "_tourone_get", haengt)
+    start = time.monotonic()
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
+    assert time.monotonic() - start < 1.5
+
+
+# --- Vorwärmen beim Login (app.py /kunde/auth) -------------------------------
+
+
+def _auth_client(monkeypatch, resolve):
+    """Ein Testclient, dessen /kunde/auth-Anmeldung immer gelingt."""
+    import app as app_modul
+
+    monkeypatch.setattr(
+        app_modul.kunden_auth, "authenticate", lambda *args: (True, "sid")
+    )
+    monkeypatch.setattr(app_modul.kunden_auth, "resolve", resolve)
+    return app_modul.app.test_client()
+
+
+def test_auth_wartet_nicht_auf_das_vorwaermen(monkeypatch):
+    """Die Route antwortet sofort; der Abruf läuft im Daemon-Thread weiter."""
+    gestartet, freigeben = threading.Event(), threading.Event()
+
+    def langsam(kunden_id):
+        gestartet.set()
+        freigeben.wait(5)
+        return []
+
+    monkeypatch.setattr(kd, "_buchungen_roh", langsam)
+    client = _auth_client(monkeypatch, lambda sid: "999999999")
+    start = time.monotonic()
+    antwort = client.post("/kunde/auth", json={"session_id": "sid"})
+    dauer = time.monotonic() - start
+    try:
+        assert antwort.get_json() == {"authenticated": True}
+        assert dauer < 1.0
+        assert gestartet.wait(2)  # das Vorwärmen läuft wirklich
+    finally:
+        freigeben.set()
+
+
+def test_fehler_beim_vorwaermen_aendert_die_auth_antwort_nicht(monkeypatch, capsys):
+    """Und die Kundennummer darf dabei nicht ins Log — die requests-Exception
+    trägt die volle Request-URL (gleicher Grund wie in vorgangsnummern)."""
+
+    def kaputt(session_id):
+        raise RuntimeError(
+            "404 for url: https://api.tourone.de/get/adresse?kundennummer=999999999"
+        )
+
+    client = _auth_client(monkeypatch, kaputt)
+    antwort = client.post("/kunde/auth", json={"session_id": "sid"})
+    assert antwort.get_json() == {"authenticated": True}
+
+    ausgabe = ""
+    for _ in range(200):  # der Thread loggt gleich, aber nicht synchron
+        ausgabe += capsys.readouterr().out
+        if "kunden warm failed" in ausgabe:
+            break
+        time.sleep(0.01)
+    assert "kunden warm failed: RuntimeError" in ausgabe
+    assert "999999999" not in ausgabe
+
+
+def test_gescheiterte_anmeldung_waermt_nicht(monkeypatch):
+    """Ohne Bindung gibt es keine Kundennummer — und nichts vorzuwärmen."""
+    import app as app_modul
+
+    gerufen = []
+    monkeypatch.setattr(
+        app_modul.kunden_auth, "authenticate", lambda *args: (False, "sid")
+    )
+    monkeypatch.setattr(
+        app_modul.kunden_auth, "resolve", lambda sid: gerufen.append(sid)
+    )
+    antwort = app_modul.app.test_client().post(
+        "/kunde/auth", json={"session_id": "sid"}
+    )
+    assert antwort.get_json() == {"authenticated": False}
+    time.sleep(0.05)
+    assert gerufen == []

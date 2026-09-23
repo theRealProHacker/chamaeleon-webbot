@@ -11,6 +11,7 @@ from flask_cors import CORS
 
 from agent import call_stream
 from agent_base import markdownify_page_html
+import kundendaten
 from kundendaten import filter_new_tool_calls
 import agentur_auth
 import kunden_auth
@@ -235,6 +236,44 @@ def chat_stream():
 
 
 # --- Kunden-Modus auth ---
+def _vorwaermen_buchungen(session_id: str) -> None:
+    """Die Buchungen des gerade angemeldeten Kunden im Hintergrund vorholen.
+
+    Das Widget ruft /kunde/auth, bevor der Kunde tippt. Wer diese Sekunde
+    nutzt, spart sie der ersten Nachricht: der Prompt-Bau löst dort die gemeinte
+    Reise auf (agent.reise_fuer_links) und läse sonst kalt aus TourOne —
+    gemessen 2026-09-20 für Testkunde 999999999: Median 286 ms, kalt 768 ms,
+    Ausreißer 1.268 ms.
+
+    Muster wie ``_startup_warm``: Daemon-Thread, die Route wartet nicht. Die
+    Kundennummer kennt die Route nicht (authenticate gibt nur authenticated und
+    session_id zurück), der Thread holt sie über dieselbe Bindung wie
+    /chat/stream.
+
+    Annahme: das wirkt nur, solange WEB_CONCURRENCY=1 — der Cache liegt im
+    Prozess (gleiche Annahme wie rate_limit und session_binding). Mit mehr
+    Workern landet die erste Nachricht eventuell bei einem anderen Prozess und
+    zahlt den Abruf selbst; mehr passiert nicht.
+
+    Fehler bleiben hier: ein misslungenes Vorwärmen darf die Anmeldung nicht
+    berühren. Geloggt wird nur der Typ, nie die Kundennummer (gleicher Grund wie
+    in kundendaten.vorgangsnummern).
+    """
+
+    def hole():
+        try:
+            kunden_id = kunden_auth.resolve(session_id) or ""
+            if kunden_id:
+                # Absichtlich die private Funktion: gewärmt werden soll genau
+                # der Cache-Eintrag, den der Prompt-Bau später liest — jede
+                # andere Einstiegsstelle formatiert nur zusätzlich.
+                kundendaten._buchungen_roh(kunden_id)
+        except Exception as e:
+            print(f"[app] kunden warm failed: {type(e).__name__}")
+
+    threading.Thread(target=hole, name="kunden-warm", daemon=True).start()
+
+
 @app.route("/kunde/auth", methods=["POST"], endpoint=rate_limit.AUTH_ENDPOINT)
 @limiter.limit(rate_limit.MESSAGE_LIMIT, exempt_when=rate_limit.is_loopback)
 def kunde_auth():
@@ -275,6 +314,8 @@ def kunde_auth():
     if session_id is None:
         # Ohne brauchbare session_id gibt es auch nichts zu lösen.
         return abort(400, "No session_id provided")
+    if authenticated:
+        _vorwaermen_buchungen(session_id)
     return {"authenticated": authenticated}
 
 

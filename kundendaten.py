@@ -8,7 +8,8 @@ EIGENEN Buchungen des Kunden, nie wessen), nur GET-Zugriffe, und die Antwort
 enthält ausschließlich whitelisted Felder.
 
 ``buchungen_tool(auswahl, anzahl, details)`` — Closure auf kunden_id:
-  └─ GET /get/adresse?kundennummer=…                    (Hop 1, timeout=8)
+  └─ GET /get/adresse?kundennummer=…      (Hop 1, timeout=8; 10 min gecacht,
+       │                                   siehe ``_buchungen_roh``)
        ├─ Liste ([])  → unbekannte ID → UNBEKANNT_TEXT
        └─ Objekt → buchungen[] → select(auswahl, anzahl):
             auswahl "alle"       → kommende (näheste voran), dann vergangene
@@ -50,6 +51,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 import pytz
+from cachetools.func import ttl_cache
 from langchain_core.tools import tool
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
@@ -405,27 +407,105 @@ def _hop2_alle(ausgewaehlt: list) -> list:
         return list(pool.map(hole, ausgewaehlt))
 
 
+# Hop 1 ist der teuerste Schritt im Kunden-Modus — und seit der Prompt-Bau die
+# gemeinte Reise selbst auflöst (agent.py), liefe er potenziell auf JEDER
+# Nachricht. Gemessen 2026-09-20, 8 Abrufe für Testkunde 999999999: Median
+# 286 ms, kalt 768 ms, Ausreißer 1.268 ms. Also derselbe Mechanismus wie für
+# Visa, Seiten-Markdown und Berater in agent_base: cachetools.func.ttl_cache,
+# kein neuer.
+#
+# TTL 10 Minuten (Owner, 2026-09-20; 2 h verworfen): derselbe Cache speist auch
+# das buchungen_tool, und nach einer Zahlung darf der Kunde nicht zwei Stunden
+# den alten Zahlstand sehen.
+#
+# Der Schlüssel ist NUR die kunden_id — kein timeout-Argument und kein zweiter
+# Parameter: sonst träfe das Vorwärmen aus /kunde/auth einen anderen Eintrag als
+# der Prompt-Bau und der Cache wäre wirkungslos. Intern gilt der feste TIMEOUT.
+@ttl_cache(maxsize=512, ttl=600)
+def _buchungen_roh(kunden_id: str) -> list | None:
+    """Die rohen Buchungen des Kunden aus Hop 1 — gecacht. WIRFT bei Ausfall.
+
+    Gecacht wird ausschließlich ``adresse["buchungen"]``: Name, Anschrift und
+    Kontaktdaten des Kunden liegen damit nie im Speicher herum, und beide
+    Aufrufer lesen ohnehin nur dieses Feld.
+
+    ``None`` heißt „diese Kundennummer kennt TourOne nicht" (Kontrakt:
+    unbekannte ID → leere Liste, Treffer → Objekt, beides HTTP 200), ``[]``
+    heißt „bekannt, aber ohne Buchung". Der Unterschied entscheidet, was der
+    Kunde liest (UNBEKANNT_TEXT vs. KEINE_BUCHUNGEN_TEXT) — er darf beim Umzug
+    in den Cache nicht verloren gehen.
+
+    Fehler werden hier NICHT gefangen: ttl_cache merkt sich Rückgabewerte (auch
+    ``None``), aber keine Exceptions. Würde ein Ausfall zu ``None``, hielte ein
+    einzelner Timeout den Kunden 10 Minuten in der Störungsmeldung. Die Aufrufer
+    fangen wie bisher.
+
+    Sortiert wird hier nichts — die Reihenfolge hängt an ``heute_berlin()`` und
+    gehört deshalb in den einzelnen Aufruf, nicht in den Cache. Die Liste gehört
+    dem Cache; Aufrufer lesen sie, verändern sie nie (``select`` baut neue).
+    """
+    adresse = _tourone_get(
+        "/get/adresse", {"kundennummer": kunden_id}, timeout=TIMEOUT
+    )
+    if not isinstance(adresse, dict):
+        return None
+    return [
+        b
+        for b in adresse.get("buchungen") or []
+        if isinstance(b, dict) and b.get("vorgang")
+    ]
+
+
+def naechste_offene_reise(buchungen: list, heute: str) -> tuple[str, str]:
+    """Die nächste noch nicht abgeschlossene Reise als ``(vorgang, label)``.
+
+    Beantwortet für die MeinChamäleon-Links im Prompt: welche Reise meint der
+    Kunde, wenn er keine nennt? Kommend und „läuft gerade" zählen als offen, die
+    näheste gewinnt. Das Label („Ziel, Datum") benennt sie im Prompt, damit Leon
+    bei mehreren offenen Reisen sagen kann, worauf er sich bezieht — das
+    betrifft das eine Prozent, 99 % haben genau eine offene Reise. Keine offene
+    Reise → ``("", "")``, dann bleiben nur die Übersichts-Links.
+
+    Warum nicht ``agent_base.reiseinfo_vorgang``: die gibt ``eigene[0]`` der
+    „alle"-Sortierung zurück, bei einem Kunden ohne kommende Reise also die
+    zuletzt gereiste. Für das Reiseinfo-Tool ist das richtig (die Bausteine der
+    letzten Reise sind besser als nichts), für einen Link auf „deine Reise" wäre
+    es die Vorjahresreise; ein Label liefert sie außerdem nicht. Deshalb gibt es
+    zwei Funktionen, und ``reiseinfo_vorgang`` bleibt unverändert.
+
+    Rein und ohne Netz: arbeitet auf der bereits geholten (gecachten) Liste.
+    """
+    offen = [
+        b
+        for b in buchungen
+        if zeit_marker(str(b.get("vonDat") or ""), str(b.get("bisDat") or ""), heute)
+        in ("kommend", "läuft gerade")
+    ]
+    if not offen:
+        return "", ""
+    offen.sort(key=lambda b: str(b.get("vonDat") or ""))  # näheste zuerst
+    naechste = offen[0]
+    code = naechste.get("reiseCode")
+    titel = buchung_titel(naechste, _titel_aus_code(code) or code or "deine Reise")
+    von = str(naechste.get("vonDat") or "")
+    label = f"{titel}, {fmt_datum(von)}" if von else titel
+    return str(naechste.get("vorgang") or ""), label
+
+
 def fetch_buchungen_text(
     kunden_id: str, auswahl: str = "alle", anzahl: int = 0, details: bool = False
 ) -> str:
     """Hole und formatiere die (ausgewählten) Buchungen des Kunden. Wirft nie."""
     try:
-        adresse = _tourone_get(
-            "/get/adresse", {"kundennummer": kunden_id}, timeout=TIMEOUT
-        )
+        alle = _buchungen_roh(kunden_id)
     except Exception as e:
         print(f"[kundendaten] adresse lookup failed: {e}")
         return FEHLER_TEXT
 
     # Kontrakt: unbekannte ID → leere Liste, Treffer → Objekt (beides HTTP 200).
-    if not isinstance(adresse, dict):
+    if alle is None:
         return UNBEKANNT_TEXT
 
-    alle = [
-        b
-        for b in adresse.get("buchungen") or []
-        if isinstance(b, dict) and b.get("vorgang")
-    ]
     if not alle:
         return KEINE_BUCHUNGEN_TEXT
 
@@ -495,21 +575,14 @@ def vorgangsnummern(kunden_id: str) -> list[str] | None:
     kann, statt ungeprüft in einen authentifizierten API-Aufruf zu gehen.
     """
     try:
-        adresse = _tourone_get(
-            "/get/adresse", {"kundennummer": kunden_id}, timeout=TIMEOUT
-        )
+        alle = _buchungen_roh(kunden_id)
     except Exception as e:
         # Ohne die Exception-Nachricht: sie trägt die volle Request-URL und
         # damit die Kundennummer ins Log.
         print(f"[kundendaten] adresse lookup failed: {type(e).__name__}")
         return None
-    if not isinstance(adresse, dict):
+    if not alle:  # unbekannte ID (None) wie „keine Buchung" ([]) — wie bisher
         return []
-    alle = [
-        b
-        for b in adresse.get("buchungen") or []
-        if isinstance(b, dict) and b.get("vorgang")
-    ]
     return [str(b["vorgang"]) for b in select(alle, "alle", 0, heute_berlin())]
 
 

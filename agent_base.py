@@ -1219,6 +1219,55 @@ def berater_tool_base(url_path: str) -> str:
     )
 
 
+# Dasselbe Zeichenset wie in ``_vrrvorgang_pattern``, nur als ganzer Wert: die
+# Nummer kann jetzt auch aus TourOne statt aus der URL kommen, landet aber
+# genauso in einem Link in der gerenderten Antwort.
+_VRRVORGANG_SAFE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _trip_links_block(reise_vorgang: str, reise_label: str) -> str:
+    """Die vier MeinChamäleon-Links zur gemeinten Reise; "" ohne Buchungsnummer.
+
+    WELCHE Reise gemeint ist, löst der Aufrufer auf (``agent.py``): entweder die
+    Nummer aus der geöffneten Seite oder die nächste offene Buchung des Kunden.
+    Hier kommt nur noch ein fertiger String an — der Prompt-Bau bleibt dadurch
+    ohne Netz und sieht die kunden_id weiterhin nie.
+
+    ``reise_label`` ist genau dann gesetzt, wenn die Reise aus den Buchungen
+    stammt statt aus der URL. Dann benennt die Überschrift sie (Ziel, Datum),
+    damit Leon sagen kann, worauf er sich bezieht — bei mehreren offenen Reisen
+    ist das sonst geraten.
+
+    Die Nummer wird wie in ``_vrrvorgang_from_url`` auf ein sicheres Zeichenset
+    geprüft: sie landet in einem Link, der in der gerenderten Antwort steht.
+    Alles andere zählt als „keine Nummer", dann bleiben die Übersichts-Links.
+    """
+    if not _VRRVORGANG_SAFE.match(reise_vorgang or ""):
+        return ""
+    reise_url = (
+        "https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise"
+        f"?VRRVORGANG={reise_vorgang}"
+    )
+    kopf = (
+        f"Zur nächsten Reise ({reise_label}):"
+        if reise_label
+        else "Zur aktuell geöffneten Reise:"
+    )
+    return (
+        f"{kopf}\n"
+        f"- [Reisedaten]({reise_url}#reisedaten)"
+        " — die Eckdaten deiner Buchung\n"
+        f"- [Reiseverlauf]({reise_url}#reiseverlauf)"
+        " — die Unterkünfte und der Ablauf deiner Reise\n"
+        f"- [Gäste]({reise_url}#gaeste)"
+        " — die Passdaten der Reisenden einsehen und ergänzen\n"
+        f"- [Reiseunterlagen]({reise_url}#unterlagen)"
+        " — deine Reiseunterlagen mit Flugplan, Rechnung (inklusive "
+        "Zahlungslink), Rail&Fly-Tickets und Visumausfüllhilfe; "
+        "bereitgestellt spätestens zwei Wochen vor Reisebeginn\n"
+    )
+
+
 def format_system_prompt(
     endpoint: str,
     countries: list[str],
@@ -1228,8 +1277,15 @@ def format_system_prompt(
     page_content: str = "",
     is_kunde: bool = False,
     has_agentur_daten: bool = False,
+    reise_vorgang: str = "",
+    reise_label: str = "",
 ) -> str:
-    """Format the system prompt with current time information and endpoint."""
+    """Format the system prompt with current time information and endpoint.
+
+    ``reise_vorgang``/``reise_label``: die schon aufgelöste Reise für die
+    MeinChamäleon-Links (siehe ``_trip_links_block``). Beide sind Strings und
+    kommen fertig vom Aufrufer — diese Funktion holt nichts nach.
+    """
     # Erlebnisberater, in dieser Rangfolge: bei einer Reise gewinnt die Angabe
     # von der Reiseseite selbst, dann die vom einbettenden Widget, zuletzt der
     # TourOne-Index.
@@ -1265,31 +1321,13 @@ def format_system_prompt(
     # und darf hier nie auftauchen.
     kunden_modus_block = ""
     if is_kunde:
-        # Trip-specific MeinChamäleon links carry the booking number. Prefill it
-        # from the current page's VRRVORGANG so the model only ever receives
-        # ready-to-use links; when the current URL has no (valid) VRRVORGANG we
-        # omit the four trip links entirely. The model thus never holds a
-        # placeholder and can never surface a broken or empty-number link.
-        buchungsnummer = _vrrvorgang_from_url(endpoint)
-        trip_links_block = ""
-        if buchungsnummer:
-            reise_url = (
-                "https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise"
-                f"?VRRVORGANG={buchungsnummer}"
-            )
-            trip_links_block = (
-                "Zur aktuell geöffneten Reise:\n"
-                f"- [Reisedaten]({reise_url}#reisedaten)"
-                " — die Eckdaten deiner Buchung\n"
-                f"- [Reiseverlauf]({reise_url}#reiseverlauf)"
-                " — die Unterkünfte und der Ablauf deiner Reise\n"
-                f"- [Gäste]({reise_url}#gaeste)"
-                " — die Passdaten der Reisenden einsehen und ergänzen\n"
-                f"- [Reiseunterlagen]({reise_url}#unterlagen)"
-                " — deine Reiseunterlagen mit Flugplan, Rechnung (inklusive "
-                "Zahlungslink), Rail&Fly-Tickets und Visumausfüllhilfe; "
-                "bereitgestellt spätestens zwei Wochen vor Reisebeginn\n"
-            )
+        # Trip-specific MeinChamäleon links carry the booking number, so the
+        # model only ever receives ready-to-use links and never holds a
+        # placeholder. Welche Buchung gemeint ist, steht schon fest, wenn wir
+        # hier ankommen (aufgelöst in agent.py: Nummer aus der geöffneten Seite,
+        # sonst die nächste offene Reise des Kunden). Ohne Nummer bleiben die
+        # vier Reise-Links weg — wie bisher.
+        trip_links_block = _trip_links_block(reise_vorgang, reise_label)
         kunden_modus_block = (
             "Kunden-Modus:\n"
             "Der Kunde ist in MeinChamäleon eingeloggt. Du hast über das "
@@ -1328,6 +1366,12 @@ def format_system_prompt(
             "chamaeleon_website_tool NICHT für MeinChamäleon-Seiten auf. "
             "Verwende ausschließlich die hier genannten Links und baue keine "
             "eigenen MeinChamäleon-URLs.\n"
+            "Gib einen MeinChamäleon-Link IMMER vollständig und wörtlich so "
+            "wieder, wie er hier steht — mit https://www.chamaeleon-reisen.de "
+            "davor, mit Buchungsnummer und mit Anker (#unterlagen, #gaeste, "
+            "#reiseverlauf, #reisedaten). Kürze ihn nie auf /MeinChamaeleon und "
+            "mache nie einen relativen Pfad daraus: die allgemeine Regel, "
+            "relative URLs zu verwenden, gilt für MeinChamäleon-Links NICHT.\n"
             "Passt die Frage des Kunden zu einer dieser Seiten, gib IMMER den "
             "passenden Link als fertigen Link zum Anklicken an — nenne den "
             "Bereich nie nur beim Namen (also nicht bloß „in den "
@@ -1880,6 +1924,11 @@ def reiseinfo_vorgang(
 
     # Die nächste eigene Reise. Die Liste ist wie ``auswahl="alle"`` sortiert,
     # das erste Element ist also die kommende Reise (sonst die zuletzt gereiste).
+    #
+    # Für die MeinChamäleon-Links im Prompt gilt bewusst etwas anderes:
+    # ``kundendaten.naechste_offene_reise`` nimmt NUR offene Reisen und gibt
+    # sonst nichts zurück. Hier ist die zuletzt gereiste richtig (ihre Bausteine
+    # sind besser als nichts), in einem Link auf „deine Reise" wäre sie falsch.
     if eigene:
         return eigene[0], ""
     return "", REISEINFO_OHNE_BUCHUNG_TEXT
