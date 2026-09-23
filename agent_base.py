@@ -554,6 +554,42 @@ def _filter_label(jahr: int | None, monat: int | None, nur_freie: bool) -> str:
     return f" ({', '.join(parts)})" if parts else ""
 
 
+def _letzte_abreise(path: str) -> tuple[int, int] | None:
+    """(Jahr, Monat) der spätesten veröffentlichten Abreise dieser Reise.
+
+    Zweite Abfrage ohne Filter; sie kostet keinen API-Aufruf, weil
+    travel_index die Terminliste je Reisecode-Tupel cacht.
+
+    None heißt „unbekannt“: die Reise hat gar keine sichtbaren Termine, oder
+    die Abfrage ist gescheitert. Beides ist ausdrücklich nicht dasselbe wie
+    „nichts hinter dem letzten Termin“ — aus einer leeren Liste lässt sich
+    über die Veröffentlichung nichts schließen.
+    """
+    import travel_index
+
+    try:
+        alle = travel_index.query_termine(path)
+        daten = sorted((t.get("von") or "")[:10] for t in alle if t.get("von"))
+        if not daten:
+            return None
+        return int(daten[-1][:4]), int(daten[-1][5:7])
+    except Exception as e:
+        print(f"[agent_base] letzte Abreise für {path} nicht ermittelbar: {e}")
+        return None
+
+
+def _nach_letzter_abreise(jahr: int, monat: int | None, letzte: tuple[int, int]) -> bool:
+    """Liegt die Frage hinter der letzten veröffentlichten Abreise?
+
+    Genau diese eine Frage trennt „noch nicht veröffentlicht“ von
+    „ausgebucht“. Ohne Jahr ist sie nicht zu beantworten, deshalb fragt der
+    Aufrufer erst gar nicht.
+    """
+    if monat and 1 <= monat <= 12:
+        return (jahr, monat) > letzte
+    return jahr > letzte[0]
+
+
 def termine_tool_base(
     url_path: str,
     jahr=None,
@@ -569,6 +605,10 @@ def termine_tool_base(
 
     Never claims "keine Termine" on an API failure — an outage is not a
     sold-out trip, and the difference is a false statement to a customer.
+
+    Ebenso wenig ist ein leeres Jahr ausgebucht: liegt die Frage hinter der
+    letzten veröffentlichten Abreise, sagt das Tool „noch nicht
+    veröffentlicht“ (Befund F5).
     """
     import travel_index
 
@@ -600,6 +640,21 @@ def termine_tool_base(
         )
 
     if not rows:
+        letzte = _letzte_abreise(path) if jahr else None
+        if letzte and _nach_letzter_abreise(jahr, monat, letzte):
+            # Befund F5 (2026-09-20): auf „Termine Januar 28“ kam „keine freien
+            # Termine verfügbar“ — das liest sich als ausgebucht. Hinter der
+            # letzten veröffentlichten Abreise ist nichts ausgebucht, es ist
+            # nur noch nichts online. Ab wann, steht als FAQ-Zeile und altert
+            # dort; hier steht bewusst kein festes Jahr.
+            return (
+                f"Für {path}{label} sind noch keine Termine veröffentlicht. "
+                f"Veröffentlicht ist diese Reise bis {_MONATE[letzte[1] - 1]} "
+                f"{letzte[0]}, alles danach geht später online. Sage genau das: "
+                f"die Termine für diesen Zeitraum sind noch nicht veröffentlicht "
+                f"— nicht „ausgebucht“, nicht „keine freien Plätze“ — und "
+                f"verlinke {path}#termine."
+            )
         # Belastbar, im Gegensatz zu den beiden Zweigen darüber: die Reise ist
         # indexiert und die API hat geantwortet — es gibt dafür wirklich nichts.
         hint = " Frage ohne Filter erneut ab, um Alternativen zu nennen." if label else ""
