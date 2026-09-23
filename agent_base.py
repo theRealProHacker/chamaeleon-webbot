@@ -278,6 +278,122 @@ def get_chamaeleon_website_html(url_path: str) -> str:
     return response.text
 
 
+# Jede Reiseseite traegt dieselben Abschnitte in derselben Reihenfolge, und
+# markdownify schreibt sie unterstrichen (setext), nicht mit Rauten:
+#
+#     Reiseverlauf
+#     ------------
+#
+# Gemessen 2026-09-21 ueber Cheetah, Ruaha und Mara-Fluss: Herzklopf-Momente,
+# Reiseverlauf, Reisedetails, Leistungen, Termine & Preise, Unterkuenfte,
+# Verlaengerungen, Berater Shortcuts. Laenderseiten (/Afrika/Namibia) tragen
+# keine davon.
+#
+# Die Namen links sind die der Anker auf der Website (/…#reiseverlauf) und
+# damit die, die in der Tool-Beschreibung stehen. "uebersicht" ist der
+# Sonderfall: Seitenanfang BIS zum Reiseverlauf, dort stehen Titel mit Dauer
+# und Highlights.
+SEITEN_ABSCHNITTE = (
+    "uebersicht",
+    "reiseverlauf",
+    "reisedetails",
+    "leistungen",
+    "unterkuenfte",
+    "zusatzprogramme",
+)
+
+_ABSCHNITT_UEBERSCHRIFT = {
+    "reiseverlauf": "Reiseverlauf",
+    "reisedetails": "Reisedetails",
+    "leistungen": "Leistungen",
+    "unterkuenfte": "Unterkünfte",
+    "zusatzprogramme": "Verlängerungen",
+}
+
+# Nur die ersten beiden Ebenen begrenzen einen Abschnitt. Das ist keine
+# Feinheit: im Uebersichtsteil steht "### Leistungen" als Zwischenueberschrift,
+# und wer jede Ebene gelten laesst, schneidet dort statt am echten Abschnitt.
+_ATX_UEBERSCHRIFT = re.compile(r"^#{1,2}\s+(.+?)\s*$")
+_SETEXT_STRICH = re.compile(r"^[-=]{2,}\s*$")
+
+
+def _normalisiere_ueberschrift(text: str) -> str:
+    """Vergleichsform: die Website setzt weiche Trennstriche und geschuetzte
+    Leerzeichen mitten in Ueberschriften."""
+    text = text.replace("\xad", "").replace("\xa0", " ")
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _ueberschriften(markdown: str) -> list[tuple[int, int, str]]:
+    """Alle Ueberschriften der ersten beiden Ebenen als (Anfang, Ende, Text).
+
+    Anfang/Ende sind Zeichenpositionen im uebergebenen Text, damit der
+    Aufrufer ohne Umrechnung schneiden kann. Ende zeigt hinter die
+    Unterstreichung, damit der Strich nicht im naechsten Abschnitt landet.
+    """
+    zeilen = markdown.split("\n")
+    # Zeichenposition jeder Zeile vorab, sonst wird das Suchen quadratisch.
+    anfaenge: list[int] = []
+    pos = 0
+    for zeile in zeilen:
+        anfaenge.append(pos)
+        pos += len(zeile) + 1
+
+    gefunden: list[tuple[int, int, str]] = []
+    for i, zeile in enumerate(zeilen):
+        text = zeile.strip()
+        if not text:
+            continue
+        treffer = _ATX_UEBERSCHRIFT.match(text)
+        if treffer:
+            gefunden.append((anfaenge[i], anfaenge[i] + len(zeile), treffer.group(1)))
+            continue
+        # Setext: die naechste Zeile ist die Unterstreichung. Ein "---" nach
+        # einer Leerzeile ist dagegen ein Trenner, keine Ueberschrift — und
+        # genau deshalb wird die Vorgaengerzeile hier auf Inhalt geprueft.
+        if _SETEXT_STRICH.match(text):
+            continue
+        if i + 1 < len(zeilen) and _SETEXT_STRICH.match(zeilen[i + 1].strip()):
+            gefunden.append((anfaenge[i], anfaenge[i + 1] + len(zeilen[i + 1]), text))
+    return gefunden
+
+
+def seiten_abschnitt(markdown: str, abschnitt: str) -> str | None:
+    """Schneidet einen Abschnitt aus dem Markdown einer Reiseseite.
+
+    Tool und Eval teilen sich diese Funktion, damit der Eval genau den
+    Ausschnitt prueft, den das Modell zu sehen bekommt.
+
+    Geschnitten wird von der Ueberschrift bis zur naechsten Ueberschrift der
+    ersten beiden Ebenen. Gibt ``None`` zurueck, wenn die Seite die
+    Ueberschrift nicht traegt — was der Aufrufer daraus macht, entscheidet er
+    selbst. Unbekannter Name: ``ValueError``.
+    """
+    if abschnitt not in SEITEN_ABSCHNITTE:
+        raise ValueError(
+            f"Unbekannter Abschnitt '{abschnitt}'. Gueltig: {', '.join(SEITEN_ABSCHNITTE)}"
+        )
+
+    gefunden = _ueberschriften(markdown)
+
+    if abschnitt == "uebersicht":
+        # Seitenanfang bis zum Reiseverlauf. Ohne Reiseverlauf ist es keine
+        # Reiseseite, und "die ganze Seite" waere hier die falsche Antwort.
+        gesucht = _normalisiere_ueberschrift("Reiseverlauf")
+        for anfang, _ende, text in gefunden:
+            if _normalisiere_ueberschrift(text) == gesucht:
+                return markdown[:anfang].strip() or None
+        return None
+
+    gesucht = _normalisiere_ueberschrift(_ABSCHNITT_UEBERSCHRIFT[abschnitt])
+    for i, (anfang, _ende, text) in enumerate(gefunden):
+        if _normalisiere_ueberschrift(text) != gesucht:
+            continue
+        schluss = gefunden[i + 1][0] if i + 1 < len(gefunden) else len(markdown)
+        return markdown[anfang:schluss].strip() or None
+    return None
+
+
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators."""
