@@ -226,14 +226,26 @@ zum Reiseverlauf (#reiseverlauf) und Reisedetails (#reisedetails)
 noch mal den Leistungen (#leistungen) und den nächsten Terminen (#termine).
 Außerdem gibt es Informationen zu den Unterkünften (#unterkuenfte) und möglichen Verlägerungen (#zusatzprogramme)
 
+Du kannst bis zu 8 Seiten in EINEM Aufruf abrufen. Nutze das, um Reisen zu
+vergleichen, statt sie nacheinander einzeln zu holen.
+
 Verfügbare Seiten:
 {sitemap}
 
 Args:
-    url_path: Der Pfad zur gewünschten Seite (z.B. "/Vision", "/Afrika/Namibia")
-    
+    url_paths (list[str]): 1 bis 8 Pfade zu den gewünschten Seiten
+        (z.B. ["/Vision"] oder ["/Afrika/Tansania/Ruaha", "/Afrika/Tansania/Cheetah"])
+    abschnitt (str): Optional einer von uebersicht, reiseverlauf, reisedetails,
+        leistungen, unterkuenfte, zusatzprogramme — dieselben Namen wie die
+        Anker oben. Leer heißt ganze Seite samt Terminen und geht nur bei EINEM
+        Pfad; ab zwei Pfaden ist der Abschnitt Pflicht, sonst sind die Seiten
+        zusammen zu lang.
+
+Beispiel: url_paths=["/Afrika/Tansania/Ruaha", "/Afrika/Tansania/Cheetah"], abschnitt="reiseverlauf"
+
 Returns:
-    dict: Enthält 'main_content' (als Markdown) und 'title'
+    str: Die Seiten als Markdown in der Reihenfolge der Anfrage; bei mehreren
+        Seiten steht über jeder ihr Pfad als Überschrift.
 """.strip()
 
 
@@ -265,7 +277,14 @@ def apply_sitemap(new_text: str) -> str:
 BASE_URL = "https://www.chamaeleon-reisen.de"
 
 
-@ttl_cache(maxsize=1024, ttl=86400)
+# Kein Cache mehr auf dieser Stufe (Review D9): rohes HTML sind gemessen
+# 218–374 KB je Seite, und bei 513 Seiten in der Sitemap laegen im einzigen
+# Worker bis zu ~150 MB. Gecacht wird eine Stufe weiter, als Titel + Markdown
+# (~52 KB) — siehe ``seite_markdown``. Einziger verbliebener Direktaufrufer ist
+# ``recommendations.make_recommendation_preview``, das <title> und og:image aus
+# dem rohen HTML zieht: es holt die Seite ab jetzt bei jeder Empfehlung neu,
+# parallel und mit 5 s Zeitlimit je Vorschau. Ein zweiter grosser HTML-Cache
+# daneben waere genau das, was hier weggeraeumt wird.
 def get_chamaeleon_website_html(url_path: str) -> str:
     full_url = BASE_URL + url_path
 
@@ -276,6 +295,38 @@ def get_chamaeleon_website_html(url_path: str) -> str:
     response.raise_for_status()
 
     return response.text
+
+
+@ttl_cache(maxsize=1024, ttl=86400)
+def seite_markdown(url_path: str) -> tuple[str, str]:
+    """(Titel, Markdown) einer Seite — die gecachte Stufe (Review D9).
+
+    Hier sitzt der Cache, weil hier die teure Arbeit endet: das
+    Markdownifizieren kostet gemessen 2026-09-21 rund 153 ms je Seite (75–191
+    ms), und es ist reine Rechenzeit im einzigen gevent-Worker. Der Abruf davor
+    ist Wartezeit, die sich parallelisieren laesst; das Umwandeln nicht.
+
+    Wirft durch (RequestException beim Abruf), damit der Aufrufer entscheidet,
+    was er dem Modell sagt. Eine Ausnahme landet nicht im Cache.
+    """
+    content = get_chamaeleon_website_html(url_path)
+
+    soup = BeautifulSoup(content, "html.parser")
+
+    # Main Content extrahieren
+    main = soup.find("main") or soup.find("div", class_="main") or soup.find("body")
+
+    # Title extrahieren
+    title = soup.find("title")
+    title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
+
+    # Convert main content to markdown
+    markdown_content = markdownify.markdownify(str(main)).strip()
+
+    # Remove multiple line breaks
+    markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+    return title_text, markdown_content
 
 
 # Jede Reiseseite traegt dieselben Abschnitte in derselben Reihenfolge, und
@@ -394,50 +445,73 @@ def seiten_abschnitt(markdown: str, abschnitt: str) -> str | None:
     return None
 
 
-# Base website tool (without decorator)
-def chamaeleon_website_tool_base(url_path: str) -> str:
-    """Base website tool function without framework-specific decorators."""
+def _normalisiere_pfad(url_path: str) -> str:
+    """Die Normalisierung, die das Website-Tool seit jeher macht — jetzt je Pfad.
+
+    Das Modell schickt mal die volle URL, mal einen Anker mit. Beides muss weg,
+    bevor gecacht oder abgerufen wird, sonst liegt dieselbe Seite unter zwei
+    Schluesseln im Cache.
+    """
     if url_path.startswith("https://chamaeleon-reisen.de"):
         url_path = url_path[len("https://chamaeleon-reisen.de") :]
 
     if "#" in url_path:
-        url_path, _ = url_path.split("#")
+        url_path = url_path.split("#", 1)[0]
+    return url_path
+
+
+def _warne_wenn_unbekannt(url_path: str) -> None:
     if url_path not in all_sites:
         print(f"Warnung: URL '{url_path}' nicht in Sitemap gefunden. ")
-    try:
-        content = get_chamaeleon_website_html(url_path)
 
-        soup = BeautifulSoup(content, "html.parser")
 
-        # Main Content extrahieren
-        main = soup.find("main") or soup.find("div", class_="main") or soup.find("body")
+def _seite_formatiert(url_path: str) -> str:
+    """Titel + Markdown in genau der Form, die das Tool seit jeher ausgibt.
 
-        # Title extrahieren
-        title = soup.find("title")
-        title_text = title.get_text(strip=True) if title else "Titel nicht gefunden"
-
-        # Convert main content to markdown
-        markdown_content = markdownify.markdownify(str(main)).strip()
-
-        # Remove multiple line breaks
-        markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
-
-        # Append current termine from TourOne for trip pages. Scraped HTML does
-        # not contain them (they are rendered client-side), so this is the only
-        # way the bot sees real dates. Must never break the page tool.
-        termine_md = ""
-        try:
-            import travel_index
-
-            termine_md = travel_index.get_termine_markdown(url_path)
-        except Exception as e:
-            print(f"[agent_base] termine lookup failed for {url_path}: {e}")
-
-        result = f"""
+    Die acht Leerzeichen vor dem Markdown stammen aus der eingerueckten
+    Literalform und stehen seit jeher in der Ausgabe. Sie bleiben, damit der
+    Cache-Umzug zeichengleich ist (Review D12); ``test_website_tool.py`` haelt
+    die Form fest.
+    """
+    title_text, markdown_content = seite_markdown(url_path)
+    return f"""
         # {title_text}
 
         {markdown_content}
         """.strip()
+
+
+def _termine_anhang(url_path: str) -> str:
+    """Aktuelle Termine aus TourOne, oder "".
+
+    Append current termine from TourOne for trip pages. Scraped HTML does not
+    contain them (they are rendered client-side), so this is the only way the
+    bot sees real dates. Must never break the page tool — und bewusst
+    ungecacht, waehrend die Seite daneben 24 h im Cache liegt.
+    """
+    try:
+        import travel_index
+
+        return travel_index.get_termine_markdown(url_path)
+    except Exception as e:
+        print(f"[agent_base] termine lookup failed for {url_path}: {e}")
+        return ""
+
+
+# Base website tool (without decorator)
+def chamaeleon_website_tool_base(url_path: str) -> str:
+    """Base website tool function without framework-specific decorators.
+
+    Signatur und Ausgabe bleiben, wie sie waren (Review D12): ``berater_tool_base``
+    liest hierueber Name und Durchwahl, und ``tests/test_berater.py`` patcht die
+    Funktion mit genau einem Argument. Mehrere Seiten holt ``website_tool_multi``.
+    """
+    url_path = _normalisiere_pfad(url_path)
+    _warne_wenn_unbekannt(url_path)
+    try:
+        result = _seite_formatiert(url_path)
+
+        termine_md = _termine_anhang(url_path)
         if termine_md:
             result += "\n\n" + termine_md
         return result
@@ -446,6 +520,170 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         return f"Fehler beim Abrufen der Seite: {str(e)}"
     except Exception as e:
         return f"Unerwarteter Fehler: {str(e)}"
+
+
+WEBSITE_TOOL_MAX_PATHS = 8
+
+# Gemessen 2026-09-20: eine Reiseseite ist ~52.000 Zeichen, acht ganze Seiten
+# waeren ~416.000 Zeichen ≈ 100.000 Tokens. Der Deckel steht hier im Tool und
+# nicht im Prompt, weil eine Prompt-Regel nur bittet (Review D8).
+WEBSITE_TOOL_MAX_CHARS = 100_000
+
+_KUERZUNGSMARKER = (
+    "\n\n[gekürzt: zusammen waren die Seiten zu lang. "
+    "Ruf die fehlenden Teile einzeln oder mit einem engeren Abschnitt ab.]"
+)
+
+# Die Fehlermeldungen der Ein-Seiten-Funktion sind Text, keine Ausnahme. Wer
+# daraus einen Abschnitt schneiden wollte, bekaeme None und wuerde den Fehler
+# durch den Hinweis "Abschnitt fehlt" ersetzen — also erst pruefen.
+_FEHLER_PRAEFIXE = ("Fehler beim Abrufen der Seite:", "Unerwarteter Fehler:")
+
+
+def _abschnitt_anweisung(grund: str) -> str:
+    """Statt Seiten eine Anweisung ans Modell (Review D8).
+
+    Nie stillschweigend die ganzen Seiten liefern: genau das hat den Aufruf
+    unbezahlbar gemacht. Eine Tool-Runde mehr kostet weniger als 400.000
+    Zeichen Kontext.
+    """
+    return (
+        f"{grund} Ruf das Tool erneut auf und gib einen Abschnitt an: "
+        "uebersicht (Titel, Dauer, Highlights), reiseverlauf, reisedetails, "
+        "leistungen, unterkuenfte, zusatzprogramme.\n"
+        'Beispiel: url_paths=["/Afrika/Tansania/Ruaha", "/Afrika/Tansania/Cheetah"], '
+        'abschnitt="reiseverlauf"'
+    )
+
+
+def _kurz_abgeben() -> None:
+    """Dem gevent-Hub zwischen zwei Seiten die Kontrolle geben (Review D14).
+
+    Gemessen 2026-09-21: HTML→Markdown kostet 153 ms je Seite im Median (75–191
+    ms), reine Rechenzeit. Acht kalte Seiten sind ~1,2 s, in denen der einzige
+    Worker (``WEB_CONCURRENCY=1``, gunicorn -k gevent) sonst keinen anderen
+    Chat-Stream bedient. Der Import liegt absichtlich in der Funktion, damit
+    die Unit-Tests auch ohne gevent laufen.
+    """
+    try:
+        import gevent
+    except ImportError:
+        return
+    gevent.sleep(0)
+
+
+def _auf_anteil_kuerzen(text: str, anteil: int) -> str:
+    if len(text) <= anteil:
+        return text
+    return text[: max(0, anteil - len(_KUERZUNGSMARKER))].rstrip() + _KUERZUNGSMARKER
+
+
+# Reihenfolge der Schranken in website_tool_multi (Plan A, Review D8/D14):
+#
+#     einzelner String statt Liste  → wird toleriert, Gemini schickt das
+#     kein Pfad / mehr als 8 Pfade  → Fehlermeldung ans Modell
+#     mehr als ein Pfad, kein Abschnitt → Anweisung mit den gueltigen Namen
+#     unbekannter Abschnittsname    → dieselbe Anweisung
+#     je Pfad (parallel holen, Ausgabe in Eingabereihenfolge):
+#         Seite → Titel + Markdown (Cache)
+#         seiten_abschnitt(...)     → None? Hinweis nur fuer diese Seite
+#         gevent.sleep(0)           → andere Chats kommen zwischen den Seiten dran
+#     Summe ueber WEBSITE_TOOL_MAX_CHARS? → anteilig kuerzen + Marker
+def website_tool_multi(url_paths, abschnitt: str = "") -> str:
+    """Eine bis acht Seiten, wahlweise nur ein Abschnitt je Seite.
+
+    Bei genau einem Pfad ohne Abschnitt ist die Ausgabe zeichengleich mit
+    ``chamaeleon_website_tool_base`` — die Funktion wird dafuer schlicht
+    aufgerufen. Alles Weitere (Schranken, Schnitt, Deckel, Zusammenbau) steht
+    hier, damit die Ein-Seiten-Funktion bleibt, wie sie ist (Review D12).
+
+    Ein Fehlschlag bleibt lokal: die uebrigen Seiten kommen trotzdem an.
+    """
+    # Gemini schickt gelegentlich einen blanken String statt der Liste.
+    if isinstance(url_paths, str):
+        url_paths = [url_paths]
+    if not isinstance(url_paths, (list, tuple)):
+        return (
+            "url_paths erwartet eine Liste von Pfaden, z.B. "
+            '["/Afrika/Tansania/Ruaha", "/Afrika/Tansania/Cheetah"].'
+        )
+
+    pfade = [str(p).strip() for p in url_paths if str(p).strip()]
+    if not pfade:
+        return (
+            "Kein Pfad angegeben. Gib mindestens einen Pfad an, z.B. "
+            'url_paths=["/Afrika/Tansania/Cheetah"].'
+        )
+    if len(pfade) > WEBSITE_TOOL_MAX_PATHS:
+        return (
+            f"Zu viele Seiten: {len(pfade)}. Höchstens {WEBSITE_TOOL_MAX_PATHS} Pfade "
+            "je Aufruf. Ruf die wichtigsten zuerst ab und den Rest danach."
+        )
+
+    # Der Abschnittsname kommt vom Modell: Leerzeichen und ein vorangestelltes
+    # "#" (der Anker aus der Tool-Beschreibung) sind zu erwarten. Mehr wird
+    # nicht geraten — alles Unbekannte fuehrt zur Anweisung.
+    abschnitt = str(abschnitt or "").strip().lstrip("#").strip().casefold()
+
+    if len(pfade) > 1 and not abschnitt:
+        return _abschnitt_anweisung(
+            f"{len(pfade)} ganze Seiten sind zusammen deutlich über "
+            f"{WEBSITE_TOOL_MAX_CHARS} Zeichen."
+        )
+    if abschnitt and abschnitt not in SEITEN_ABSCHNITTE:
+        return _abschnitt_anweisung(f"Den Abschnitt „{abschnitt}“ gibt es nicht.")
+
+    # Normalisieren und doppelte Pfade zusammenlegen (gleiches Muster wie in
+    # ``reiseinfo_tools``): dieselbe Seite zweimal zu holen kostet zweimal,
+    # und zweimal ausgegeben verbraucht sie nur den Deckel.
+    eindeutig = list(dict.fromkeys(_normalisiere_pfad(p) for p in pfade))
+
+    def _hole(pfad: str) -> str:
+        if not abschnitt:
+            # Genau ein Pfad, ganze Seite: unveraendert die alte Funktion,
+            # samt Sitemap-Warnung und Termine-Anhang.
+            return chamaeleon_website_tool_base(pfad)
+        # Mit Abschnitt ohne Termine-Anhang — sonst haenge er am letzten
+        # Abschnitt der Seite (Verlaengerungen) mit drin.
+        _warne_wenn_unbekannt(pfad)
+        try:
+            return _seite_formatiert(pfad)
+        except requests.RequestException as e:
+            return f"Fehler beim Abrufen der Seite: {str(e)}"
+        except Exception as e:
+            return f"Unerwarteter Fehler: {str(e)}"
+
+    # Parallel geholt wird die Wartezeit, nicht die Rechenzeit (Vorbild
+    # ``REISEINFO_FETCH_PARALLEL``). Eingesammelt wird in Eingabereihenfolge.
+    with ThreadPoolExecutor(
+        max_workers=min(len(eindeutig), WEBSITE_TOOL_MAX_PATHS)
+    ) as pool:
+        geholt = dict(zip(eindeutig, pool.map(_hole, eindeutig)))
+
+    teile: list[str] = []
+    for pfad in eindeutig:
+        inhalt = geholt[pfad]
+        if abschnitt and not inhalt.startswith(_FEHLER_PRAEFIXE):
+            ausschnitt = seiten_abschnitt(inhalt, abschnitt)
+            if ausschnitt is None:
+                # Laender- und Verlaengerungsseiten tragen die Ueberschrift
+                # nicht. Der Hinweis gilt nur fuer diese eine Seite.
+                inhalt = (
+                    f"Die Seite {pfad} hat keinen Abschnitt „{abschnitt}“. "
+                    "Ruf sie ohne Abschnitt ab, wenn du ihren Inhalt brauchst."
+                )
+            else:
+                inhalt = ausschnitt
+        teile.append(inhalt)
+        _kurz_abgeben()
+
+    if sum(len(t) for t in teile) > WEBSITE_TOOL_MAX_CHARS:
+        anteil = WEBSITE_TOOL_MAX_CHARS // len(teile)
+        teile = [_auf_anteil_kuerzen(t, anteil) for t in teile]
+
+    if len(teile) == 1:
+        return teile[0]
+    return "\n\n".join(f"# {pfad}\n\n{teil}" for pfad, teil in zip(eindeutig, teile))
 
 
 # The Agenturbereich sits behind a login, so get_chamaeleon_website_html can

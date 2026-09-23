@@ -10,7 +10,6 @@ from langgraph.prebuilt import create_react_agent
 from agent_base import (
     GEMINI_API_KEY,
     _vrrvorgang_from_url,
-    chamaeleon_website_tool_base,
     country_faq_tool_base,
     country_faq_tool_description,
     detect_recommendation_links,
@@ -25,6 +24,7 @@ from agent_base import (
     visa_tool_base,
     visa_tool_description,
     website_tool_description,
+    website_tool_multi,
 )
 from agenturdaten import make_buchungen_agentur_tool
 from kundendaten import make_buchungen_tool
@@ -42,9 +42,9 @@ def visa_tool(country: str) -> str:
 
 
 @tool(description=website_tool_description)
-def chamaeleon_website_tool(url_path: str) -> str:
+def chamaeleon_website_tool(url_paths: list[str], abschnitt: str = "") -> str:
     """LangChain tool wrapper for the base website tool."""
-    return chamaeleon_website_tool_base(url_path)
+    return website_tool_multi(url_paths, abschnitt)
 
 
 @tool(description=country_faq_tool_description)
