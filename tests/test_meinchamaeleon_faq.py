@@ -152,3 +152,56 @@ def test_koffergroesse_verweist_auf_die_fluggesellschaft():
         f"fabricated a MeinChamäleon deep link where none applies\n"
         f"--- reply ---\n{reply}"
     )
+
+
+# --- Punkt 14: der Unterlagen-Link, am href geprueft ----------------------
+#
+# Befund (Owner, 2026-09-20): Leon gibt teilweise nur /MeinChamaeleon aus statt
+# des ganzen Links zu den Reiseunterlagen. Zwei Prompt-Regeln ziehen
+# gegeneinander ("verwende einfach die relativen URLs" gegen "verwende
+# ausschliesslich die hier genannten Links"), und die vier Reise-Links gibt es
+# heute nur, wenn die aktuelle URL einen VRRVORGANG traegt — auf der
+# Uebersichtsseite hat Leon also gar keinen Unterlagen-Link.
+#
+# Geprueft wird am href und nicht am Prompt: ob der Link als Text danebensteht,
+# hilft dem Kunden nicht, und genau das war der Fehler. Beide Faelle brauchen
+# weder Login noch echte Buchung — mit VRRVORGANG reicht eine ausgedachte
+# Nummer in der Endpoint-URL, ohne laeuft der Fall als Testkunde 999999999
+# (wie in tests/test_kundendaten.py), dessen Buchungen das Tool liefert.
+
+TESTKUNDE = "999999999"
+UEBERSICHT_ENDPOINT = "https://www.chamaeleon-reisen.de/MeinChamaeleon"
+
+_HREF = re.compile(r'href="([^"]+)"')
+
+
+def meinchamaeleon_hrefs(reply: str) -> list[str]:
+    """Die MeinChamäleon-Links der Antwort, so wie der Kunde sie anklickt."""
+    return [ziel for ziel in _HREF.findall(reply) if "MeinChamaeleon" in ziel]
+
+
+@pytest.mark.parametrize(
+    "endpoint,kunden_id",
+    [
+        (ENDPOINT, KUNDEN_ID),
+        (UEBERSICHT_ENDPOINT, TESTKUNDE),
+    ],
+    ids=["mit-vrrvorgang", "ohne-vrrvorgang-testkunde"],
+)
+def test_reiseunterlagen_link_ist_vollstaendig(endpoint, kunden_id):
+    """Punkt 14: der Link zu den Reiseunterlagen, nie der nackte Übersichtslink.
+
+    Ohne VRRVORGANG in der URL muss die gemeinte Reise aus den Buchungen des
+    Kunden kommen; bis das gebaut ist, faellt Leon hier auf /MeinChamaeleon
+    zurueck und der Fall ist rot — genau das ist der Befund.
+    """
+    reply = call(
+        [{"role": "user", "content": "Wo finde ich meine Reiseunterlagen?"}],
+        endpoint,
+        kunden_id=kunden_id,
+    )
+    links = meinchamaeleon_hrefs(reply)
+    assert links, f"gar kein MeinChamäleon-Link\n--- reply ---\n{reply}"
+    assert any("#unterlagen" in ziel for ziel in links), (
+        f"kein Link auf die Reiseunterlagen, nur {links}\n--- reply ---\n{reply}"
+    )
