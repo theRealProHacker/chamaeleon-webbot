@@ -11,6 +11,26 @@ Wir verschicken die Kataloge innerhalb Deutschlands, nach Österreich und in die
 **F: Wo kann ich Kataloge bestellen?**
 Bestellung hier: https://www.chamaeleon-reisen.de/Bestellung#MODAL_FORM_BESTELLUNG
 
+## Buchen und Reservieren
+
+**F: Findet meine Reise garantiert statt?**
+A: Ja. Auf jede Chamäleon-Reise gibt es eine Durchführungsgarantie: Die Reise findet statt, auch wenn nur eine Person gebucht hat. Eine Mindestteilnehmerzahl für die Reise selbst gibt es nicht – Mindestteilnehmerzahlen auf den Reiseseiten gelten nur für einzelne Ausflüge, zum Beispiel eine Ballonfahrt ab 6 Personen.
+
+**F: Wie kann ich eine Reise buchen oder reservieren?**
+A: Direkt auf der Website: Öffne auf der Seite deiner Wunschreise den Bereich »Termine & Preise«, wähle deinen Termin und klicke auf »Zur Buchung« oder »Unverbindlich reservieren«. Soll deine Buchung über ein Reisebüro laufen, sag das deiner Erlebnisberater*in – sie überträgt die Buchung an dein Reisebüro. Ein Reisebüro in deiner Nähe findest du unter https://www.chamaeleon-reisen.de/Reisebuero-finden
+
+**F: Wie lange gilt eine Reservierung?**
+A: Eine Reservierung gilt 7 Tage. Danach wird sie automatisch in eine verbindliche Buchung umgewandelt.
+
+**F: Ab wann gibt es die Termine und Preise für 2028?**
+A: Termine und Preise für 2028 sind ab Anfang 2027 online. Steht ein Reisejahr noch nicht auf der Reiseseite, ist es noch nicht veröffentlicht.
+
+**F: Bietet ihr Privatreisen an?**
+A: Das klärt die Erlebnisberater*in deiner Wunschreise mit dir – sprich sie darauf an.
+
+**F: Kann ich eine Reise als eigene, exklusive Reise buchen (Just4You)?**
+A: Dafür gibt es Just4You. Die Erlebnisberater*in deiner Wunschreise sagt dir, was dabei möglich ist.
+
 ## Buchung & Bezahlung
 
 **F: Wie kann ich meine Reise bezahlen?**
@@ -39,14 +59,17 @@ A: Deine Reiseunterlagen senden wir dir spätestens zwei Wochen vor Reisebeginn 
 **F: Erhalte ich die Reiseunterlagen auch noch per Post?**
 A: Aus Gründen der Nachhaltigkeit versenden wir nur noch die Bestätigungsunterlagen per Post. Die Schlussunterlagen werden in der Regel nur noch in digitaler Form versendet.
 
+**F: Wo finde ich meine Reiseanmeldung?**
+A: Da hilft dir die Erlebnisberater*in deiner Reise weiter – frag sie danach.
+
 **F: Wann erhalte ich meine Flugtickets?**
 A: Flugtickets gibt es seit einigen Jahren nicht mehr. Du erhältst mit deinen Reiseunterlagen einen Flugplan von uns. Dieser enthält alle wichtigen Informationen, die die Airline im Bedarfsfall benötigt.
 
-**F: Wo finde ich meine Flugzeiten?**
-A: Diese Information findest du auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon.
+**F: Wo finde ich die Flugzeiten meiner gebuchten Reise?**
+A: Sobald deine Reise gebucht ist, findest du diese Information auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon.
 
-**F: Wo finde ich meine gebuchten Sitzplätze?**
-A: Diese Information findest du auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon. Ganz rechts, neben den Flugzeiten findest du die gebuchten Sitzplätze, sofern diese gebucht sind.
+**F: Wo finde ich die Sitzplätze meiner gebuchten Reise?**
+A: Sobald deine Reise gebucht ist, findest du diese Information auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon. Ganz rechts, neben den Flugzeiten findest du die gebuchten Sitzplätze, sofern diese gebucht sind.
 
 **F: Ich möchte Sitzplätze reservieren, wie kann ich das tun?**
 A: Schicke hierzu bitte eine E-Mail an erlebnisberatung@chamaeleon-reisen.de mit der Vorgangsnummer im Betreff.
@@ -95,7 +118,7 @@ Versicherungsbedingungen: https://m.hmrv.de/documents/168711/897094/VB-RKS+2021+
 
 ## Einreisebestimmungen
 
-**F: Brauche ich ein Visum/Impfungen für meine Reise?**
+**F: Wo finde ich die Einreisebestimmungen für meine Reise – brauche ich ein Visum oder Impfungen?**
 A: Bei bestehender Buchung: in der Reiseanmeldung unter "Einreisebestimmungen Zeitpunkt der Reiseanmeldung" und bei MeinChamäleon unter "Deine Einreisebestimmungen und Visainformationen". Wenn noch keine Buchung: auf der Website der jeweiligen Reise unter "Länderinfos für dein Reiseziel".
 Für eine individuelle reisemedizinische Vorsorge, inklusive Malaria-Prophylaxe, erhältst du mit deiner Reisebestätigung einen Coupon für ein kostenloses Informationsgespräch in einer BCRT-Reisepraxis. Die Standorte und Sprechzeiten findest du unter www.bcrt.de. Zurzeit bekannte Standorte: Berlin (Standorte Mitte und Steglitz), Dresden, Düsseldorf, Frankfurt a.M., Hamburg, Köln, München, Stuttgart und Wiesbaden. Eine telefonische Beratung ist dort nicht möglich. Bitte lass dich außerhalb dieser Standorte ärztlich beraten.
 

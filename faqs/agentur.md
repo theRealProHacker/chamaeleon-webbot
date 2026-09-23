@@ -236,7 +236,7 @@ So gehst du vor:
 4. Klicke auf **Zur Buchung** oder **Reservieren**.
 5. Fülle alle Felder in der Buchungsstrecke aus.
 
-Reservierungen werden **7 Tage** gehalten. Während dieser Zeit kannst du sie im Agenturbereich selbst verwalten.
+Reservierungen werden **7 Tage** gehalten. Danach werden sie automatisch in eine Festbuchung umgewandelt. Während dieser Zeit kannst du sie im Agenturbereich selbst verwalten.
 
 ### Wie lange wird eine Option gehalten?
 
