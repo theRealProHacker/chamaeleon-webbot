@@ -3297,6 +3297,39 @@
         );
       }
 
+      // Der Bot verlinkt relativ ("/Impressum",
+      // "/start/report.loadpdf.php?tpl=fluginformationen"), weil seine
+      // Antworten auf chamaeleon-reisen.de ausgeliefert werden. Das Dashboard
+      // läuft woanders: gegen window.location aufgelöst zeigte der
+      // "Fluginformationen"-Link im Kundenfeedback vom September 2026 auf den
+      // Railway-Host und damit ins Nichts. Basis ist deshalb die Website.
+      const WEBSITE_BASIS = "https://www.chamaeleon-reisen.de";
+
+      // Liefert die absolute Adresse auf der Website oder null, wenn dabei
+      // kein http(s) herauskommt. mailto:- und tel:-Links stehen so im Prompt
+      // und bleiben durch das null unangetastet.
+      function websiteUrl(adresse) {
+        try {
+          const url = new URL(adresse || "", WEBSITE_BASIS);
+          if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return null;
+          }
+          return url.href;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      // Das Antwort-HTML kommt fertig aus der Datenbank; seine Links müssen
+      // nach dem Einsetzen umgeschrieben werden, weil der Browser sie sonst
+      // gegen die Dashboard-Adresse auflöst.
+      function linksAufDieWebsiteZeigen(wurzelEl) {
+        wurzelEl.querySelectorAll("a[href]").forEach((a) => {
+          const ziel = websiteUrl(a.getAttribute("href"));
+          if (ziel) a.href = ziel;
+        });
+      }
+
       function renderMessages(chats, label, { filterLabel = null } = {}) {
         const displayLabel = label || "Ausgewählter Monat";
         DOM.messagesTitleEl.textContent = "Gespräche";
@@ -3416,6 +3449,7 @@
             if (message.role === "assistant") {
               bodyEl.className = "message-html-content";
               bodyEl.innerHTML = message.content || "";
+              linksAufDieWebsiteZeigen(bodyEl);
             } else {
               const p = document.createElement("p");
               p.textContent = message.content || "";
@@ -3433,10 +3467,7 @@
               recContainer.className = "chat-recommendations";
               nextMsg.data.recommendation_previews.forEach((preview) => {
                 try {
-                  const hrefUrl = new URL(
-                    preview.url || "",
-                    window.location.href,
-                  );
+                  const hrefUrl = new URL(preview.url || "", WEBSITE_BASIS);
                   if (
                     hrefUrl.protocol !== "http:" &&
                     hrefUrl.protocol !== "https:"
@@ -3451,10 +3482,7 @@
 
                   if (preview.image) {
                     try {
-                      const imgUrl = new URL(
-                        preview.image,
-                        window.location.href,
-                      );
+                      const imgUrl = new URL(preview.image, WEBSITE_BASIS);
                       if (
                         imgUrl.protocol === "http:" ||
                         imgUrl.protocol === "https:"
