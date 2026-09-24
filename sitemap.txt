@@ -227,6 +227,7 @@
 /Afrika/Botswana-Namibia/Moremi
 /Afrika/Marokko/Atlas
 /Afrika/Marokko/Indigo
+/Afrika/Marokko/Kasbah
 /Afrika/Namibia/Sossusvlei
 /Afrika/Suedafrika-Eswatini/Krueger
 /Afrika/Suedafrika/Outeniqua
