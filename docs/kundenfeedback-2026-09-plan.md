@@ -376,7 +376,7 @@ Folgen, die jeder Agent kennen muss:
 | W5 Kunden-Reise | `kundendaten.py`, `app.py` (Route `/kunde/auth`), `agent_base.py` Z. 813–960 (`format_system_prompt`: nur zwei neue String-Parameter + `kunden_modus_block`) und Z. 1418–1480, `agent.py` (`call_stream`: Auflösung + Übergabe, ~Z. 205–225), `tests/test_kundendaten.py` (anhängen) | `session_binding.py`, `kunden_auth.py` |
 | W6 Dashboard-Links | `static/dashboard/index.html`, ggf. `static/dashboard/report.html` | `dashboard.py` |
 | W7 Termine 2028 | `agent_base.py` Z. 441–497 (`termine_tool_base`), `tests/test_termine_live.py` bzw. neuer Unit-Test | `travel_index.py` |
-| W3 Prompt (Welle 2) | `agent_base.py` Z. 499–628 (`system_prompt_template`) | alles |
+| W3 Prompt (Welle 2) | `agent_base.py` Z. 908–1038 (`system_prompt_template`) | alles |
 
 Zeilennummern = Stand `d920db3`; maßgeblich sind die Funktionsnamen.
 
@@ -649,10 +649,31 @@ fielen als „übersprungen" heraus. Ein Vorher-Wert von 12:58 ist gegen einen
 Nachher-Wert von morgen nicht vergleichbar. Verschränkt ist innerhalb des
 Paares alles konstant außer dem Prompt.
 
-**Baubar, geprüft 2026-09-23.** Der Eval ruft `agent.call` im selben Prozess
-(`tests/test_kundenfeedback_eval.py:70`), und `format_system_prompt` liest
-`system_prompt_template` erst zur Aufrufzeit (`agent_base.py:1494`).
-Umschalten ist eine Zuweisung auf das Modulglobal.
+**Baubar, geprüft 2026-09-23, präzisiert 2026-09-24 (Review R6).** Der Eval
+ruft `agent.call` im selben Prozess (`tests/test_kundenfeedback_eval.py:69`),
+und `format_system_prompt` liest `system_prompt_template` erst zur Aufrufzeit
+(`agent_base.py:1494`). Umschalten ist eine Zuweisung auf das Modulglobal.
+Die ALTE Vorlage holt der Treiber aus Git: `git show <Eltern-Commit von
+W3-Commit 1>:agent_base.py`, f-String zwischen `system_prompt_template = f"""`
+und `""".strip()` (heute `agent_base.py:908-1038`) ausschneiden und mit `eval`
+im Namensraum von `agent_base` auswerten. Der Eltern-SHA steht als Konstante
+im Treiber und im Protokoll. Ein netzfreier Unit-Test prüft das Schneiden
+gegen den aktuellen Stand.
+
+**Der Treiber (Review R2/R8/R9).** Eine neue Datei unter `tests/`, kein
+Eingriff in die drei Suiten. Er importiert die Listen (`FILTER`, `UNGEFRAGT`,
+`FACHWISSEN`, `ERFINDEN`, `FLUG`, `DONE`, `URL_CASES`), baut `airline` und
+`nichtangeboten` mit den Modul-Helfern (`AIRLINE_LAENDER`, `reise_mit_airline`,
+`NICHT_ANGEBOTEN`) nach und wärmt alle Seitenabrufe vor dem ersten
+Modellaufruf vor. Für die neue Suite ruft er `call` + `pruefe(fall, reply)`
+direkt (Befund-Art aus den Befunden); die Einzelfunktionen der alten Suiten
+ruft er direkt auf, parametrisierte über ihre Modul-Listen,
+`test_buchungsstatus_mit_verifizierter_agentur` nur mit gesetzter
+`AGENTUR_TEST_NUMMER`. Jede Seite hat einen von vier Ausgängen: grün, rot
+(`AssertionError` / Befunde), leer (Fallback-Text, nach einmaliger
+Wiederholung), Fehler (`Skipped`, Netz-/TourOne-Ausnahme, fehlende Umgebung).
+Paare mit einer Leer- oder Fehlerseite fallen aus b/c und werden je Block
+gezählt.
 
 **Umfang: 107 Fälle, 214 Aufrufe, eine Sitzung.** Gegen 450–600 im alten
 Zuschnitt.
@@ -666,16 +687,20 @@ Zuschnitt.
 | `fachwissen` | 12 | Regelgruppe 2/4 |
 | `erfinden` | 4 | Regelgruppe 3 |
 | `flug` | 2 | Regelgruppe 4 |
-| Agentur | 32 | Regressionssperre Push 2 |
+| Agentur | 33 (22 `DONE` + 9 Einzelfunktionen + 2 Deko; 1 davon nur mit `AGENTUR_TEST_NUMMER`) | Regressionssperre Push 2 |
 | MeinChamäleon | 13 | Regressionssperre Push 2 |
 
 `anker` (5) läuft als Vorbedingung vor jedem Block, macht keine
 Modellaufrufe und zählt nicht als Messung.
 
-**Blockgröße.** Verschränkt kostet ein Fall ZWEI Aufrufe. Die Grenze von ~25
-Aufrufen am Stück (TODOS, Empty-Reply) gilt für Aufrufe, nicht für Fälle: ein
-Prozess darf höchstens ~12 Fälle fahren. `airline` wird in drei Läufe geteilt,
-`fachwissen` in zwei, Agentur in drei.
+**Blockgröße.** Verschränkt kostet ein Fall ZWEI Aufrufe, plus Wiederholungen
+bei Leerantworten (R1). Die Grenze von ~25 Aufrufen am Stück (TODOS,
+Empty-Reply) gilt für Aufrufe, nicht für Fälle: ein Prozess darf höchstens
+~10–12 Fälle fahren. `airline` wird in drei Läufe geteilt, `fachwissen` in
+zwei, Agentur in drei. Zwischen zwei Prozessen wartet der Orchestrator 60 s
+(`EVAL_PAUSE_S`, Review R12), weil ungemessen ist, ob die Kippe am Prozess
+oder an der Aufrufrate hängt; die Zeitdaten (R11) beantworten das nach der
+Kampagne.
 
 **Maßstab: `EVAL_N` bleibt 1, das Paar IST die Wiederholung.** Wichtig und
 leicht zu übersehen: `fahre()` (`tests/test_kundenfeedback_eval.py:600-613`)
@@ -684,18 +709,37 @@ eine Lauf grün sein, ab N=2 genügt EINER von N. Ein Fall mit echter Quote 1/3
 ist bei N=3 immer grün und bei N=1 zu zwei Dritteln rot. Beide Seiten dürfen
 deshalb nie mit verschiedenem N laufen.
 
-**Auswertung: gepaart, nicht als zwei Quoten.** Je Block die diskordanten
-Paare zählen — b = alt rot/neu grün, c = alt grün/neu rot. McNemar exakt,
-zweiseitig `p = 2·(1/2)^b` bei c=0: b=4 → 0,125, b=5 → 0,0625, b=6 → 0,031.
-Daraus folgt hart: **ein Block mit weniger als 5 Fällen kann bei keiner
-Effektgröße signifikant werden.** `flug` (2), `erfinden` (4) und `ungefragt`
-(4) gehen deshalb als „kaputt / nicht kaputt" in den Bericht, nie als Quote
-neben `filter` und `fachwissen` — dort würden sie als Evidenz gelesen.
+**Auswertung: gepaart, als Fall-Listen (Review R10).** Je Block die
+diskordanten Paare zählen — b = alt rot/neu grün, c = alt grün/neu rot — und
+die c-Fälle namentlich mit Befund-Art auflisten. Die Entscheidungsregel ist
+für ALLE Blöcke dieselbe wie bei D3: ganze Fälle, keine Prozentwerte, keine
+Einteilung in „Quote"- und „kaputt"-Blöcke. Ein p-Wert (McNemar exakt,
+zweiseitig, α = 0,05; bei c=0 ist `p = 2·(1/2)^b`, also erst b=6 → 0,031)
+steht nur als Zusatzzeile bei `airline` (28) und Agentur (33), wo n ihn trägt.
+Das Push-2-Tor entscheidet auf der c-Liste der beiden alten Suiten: leer, oder
+je Fall begründet.
 
-**Mitzuschneiden: Tool-Aufrufe je Chat.** `agent.py:362` und `:415` loggen
-sie. Welle 3 Punkt 3 verlangt einen Vorher/Nachher-Vergleich; nach dem
-W3-Commit wäre die Vorher-Zahl nur durch neue Modellaufrufe zurückzuholen. Im
-verschränkten Lauf fällt sie beidseitig gratis an.
+**Leerantworten (Review R1, 2026-09-24).** Eine Seite des Paares, deren Reply
+den Fallback-Text `EMPTY_ANSWER_FALLBACK` enthält, wird genau einmal sofort
+wiederholt, bevor gewertet wird; bleibt sie leer, zählt sie rot. Die
+Wiederholungen werden je Block gezählt (leer alt / leer neu) und stehen in der
+Vorher/Nachher-Tabelle. Sie zählen zur ~25er-Aufrufgrenze je Prozess.
+
+**Tausch-Nachweis (Review R5, 2026-09-24).** Bevor der erste Modellaufruf
+fällt, rendert der Treiber `format_system_prompt` für einen festen Fall unter
+alter und neuer Vorlage, verlangt `alt != neu` und schreibt SHA-256 beider
+Prompts plus den Git-Commit je Vorlage ins Protokoll. Gleichheit ist ein
+harter Abbruch, kein Ergebnis. Ein netzfreier Unit-Test deckt den Abbruch.
+
+**Mitzuschneiden: Tool-Aufrufe, Zeit, Dauer (Review R7/R11).** `agent.call`
+verwirft die `tool_call`-Events (`agent.py:477-491`), und geloggt wird nur bei
+auffälligem `finish_reason` oder leerer Antwort. Der Treiber ersetzt deshalb
+für die Kampagne `agent.call_stream` durch einen zählenden Wrapper (`call`
+löst den Namen zur Laufzeit auf). Protokollzeile je Fall × Seite: Fall-ID,
+Seite, Ausgang, Befund-Art, leer-Wiederholung, Tool-Aufrufe, Wanddauer,
+Zeitstempel (UTC), Prozess-Nr., Hash der Vorlage. Der Bericht weist je Block
+Median-Dauer alt/neu aus und trägt Leerantworten gegen die Aufrufrate auf.
+Welle 3 Punkt 3 (Overhead-Kontrolle) ist damit aus der Kampagne erfüllt.
 
 **Was diese Messung NICHT mehr beantwortet.** Der alte Zuschnitt wollte „ist
 das Kundenfeedback behoben" (Baseline `d920db3`). Verschränkt misst „wirkt
@@ -708,20 +752,21 @@ Welle 3 Punkt 1 ist entsprechend umzuformulieren.
    einen parametrisierten Block (`DONE`, Z. 208) plus neun Einzelfunktionen,
    `test_meinchamaeleon_faq` `URL_CASES` (Z. 92) plus drei. Für die
    Einzelfunktionen gibt es eine Paarung je Fall nicht ohne Eingriff in die
-   Dateien. Vorschlag: diese Fälle laufen zweimal unmittelbar hintereinander
-   in derselben Sitzung (alt, dann neu), zeitlich benachbart statt paarweise.
-   Lohnt der Eingriff, oder reicht Nachbarschaft?
+   Dateien. **Entschieden (Review R2, D2, 2026-09-24):** ein eigener Treiber
+   importiert die Einzelfunktionen und ruft sie alt/neu unmittelbar
+   nacheinander; `AssertionError` = rot, Funktionsname = Fall-ID. Kein
+   Eingriff in die Dateien, echte Paare.
 2. Der 80-%-Auslöser für die Vergleichstabelle je Land (Welle 3, Punkt 4) ist
    bei 8 `filter`-Fällen nicht auflösbar: 6/8 = 75 %, 7/8 = 87,5 %, die
-   Schwelle liegt dazwischen. Umschreiben auf „6 von 8 oder schlechter", oder
-   `filter` aufstocken?
+   Schwelle liegt dazwischen. **Entschieden (R3, D3):** umgeschrieben auf
+   ganze Fälle, siehe Welle 3 Punkt 4.
 3. Mindestens 2 der 8 `filter`-Fälle sind heute allein wegen der Satzzahl rot
    (gemessen 8, 7, 3, 3 Sätze gegen `MAX_SAETZE = 5`). Der Auslöser misst dort
-   teilweise die Länge, nicht das Filtern. Gehört in die Tabelle, sonst wird
-   er falsch gelesen.
-4. Wo läuft die Kampagne — eigener Runner, der die Falllisten importiert, oder
-   ein Paar-Modus in der Eval-Datei? Ersteres fasst W1s Dateien nicht an,
-   erreicht aber die Einzelfunktionen der alten Suiten nicht.
+   teilweise die Länge, nicht das Filtern. **Entschieden (R3, D3):** Spalte
+   „Befund-Art" je rotem Fall; Satzzahl-Fälle zählen nicht zum Auslöser.
+4. **Entschieden mit R2 (D2):** eigener Runner (neue Datei unter `tests/`),
+   der Falllisten UND Einzelfunktionen importiert. Er erreicht die
+   Einzelfunktionen sehr wohl — sie sind fixture-frei aufrufbar.
 
 ### Welle 2 — ein Agent, seriell (Modell: opus)
 
@@ -762,12 +807,11 @@ Besitzt nur `system_prompt_template`. Änderungen:
   Eval-Block (`-k filter` usw.), Ergebnis notieren, dann committen. Rote Einzelfälle einmal
   einzeln wiederholen, bevor am Prompt gedreht wird. Längenregel (2–4 Sätze)
   nicht aufweichen.
-- Abnahme (Review D6): je Eval-Block vorher/nachher gegen die
-  Ausgangsmessung im Bericht. Pflicht sind ALLE drei Suiten, vorher und
-  nachher, blockweise (≤25 Aufrufe): `RUN_KUNDENFEEDBACK_EVAL=1`,
-  `RUN_AGENTUR_EVAL=1`, `RUN_MEINCHAMAELEON_EVAL=1`. Die Ausgangsmessung
-  der beiden alten Suiten macht der Orchestrator nach dem Zusammenführen und
-  vor dem Start von W3.
+- Abnahme (Review D6, umgeschrieben 2026-09-24 nach D20): je Eval-Block
+  gepaart alt/neu in der verschränkten Kampagne NACH den vier W3-Commits
+  (siehe „Verschränkte Messung"). Keine getrennte Ausgangsmessung. Während
+  der Arbeit an einer Regelgruppe fährt W3 den zugehörigen Block nur als
+  Sichtprüfung (`-k filter` usw.), nicht als Messung.
 
 ### Zwei Pushes (Review D2) — beide nur auf ausdrückliches Wort des Owners
 
@@ -804,8 +848,10 @@ Besitzt nur `system_prompt_template`. Änderungen:
    **Vergleichstabelle je Land (Review D13)** — beim Sitemap-Sync je Land eine
    kleine Tabelle (Reise, Tage, Airline, ggf. Orte) vorberechnen, damit „ohne
    Sansibar"/„14 Tage" ein Nachschlagen wird statt 78.000 Zeichen Lesen.
-   Auslöser: Eval-Block `filter` liegt in der Schlussmessung unter 80 % ODER
-   die Tool-Aufrufe je Chat steigen spürbar. Offen dabei: „Orte im Verlauf"
+   Auslöser (umgeschrieben, Review R3/D3 2026-09-24): mindestens 2 der 8
+   `filter`-Fälle sind auch mit neuem Prompt rot, reine Satzzahl-Fälle nicht
+   mitgezählt, ODER die Tool-Aufrufe je Chat steigen spürbar. Die Tabelle
+   weist je rotem Fall die Befund-Art aus (Länge / Inhalt / Link / leer). Offen dabei: „Orte im Verlauf"
    ist unscharf (Ortsliste oder zweites Modell nötig).
 5. `/review` über den Gesamtdiff. **Kein Push** — der Owner entscheidet.
 
@@ -919,7 +965,7 @@ der Auflösung in `agent.py`; die Schranken-Reihenfolge als Kommentar über
 | Vorwärmen | Mehr als ein Worker | nein | Kommentar zur Annahme | Erste Nachricht ~0,3 s langsamer, sonst nichts |
 | `naechste_offene_reise` | Kunde hat nur vergangene Reisen | ja (W5) | leer | Übersichts-Links statt Vorjahresreise |
 | `termine_tool_base` | Jahr noch nicht veröffentlicht | ja (W7) | neuer Text | „noch nicht veröffentlicht" statt „keine freien Termine" |
-| Prompt (W3) | Neue Regel verschlechtert Agentur-Routing | ja (D6, `EVAL_N=3`) | Push 2 gesperrt, `git revert` je Regelgruppe | Nichts, weil nicht deployt |
+| Prompt (W3) | Neue Regel verschlechtert Agentur-Routing | ja (D6, gepaart alt/neu, D20) | Push 2 gesperrt, `git revert` je Regelgruppe | Nichts, weil nicht deployt |
 | Dashboard-Links (W6) | Link mit anderem Schema (`mailto:`, `tel:`) | manuell | Protokollprüfung bleibt | Link unverändert |
 
 Kein Pfad ist zugleich ungetestet, unbehandelt UND still: **0 kritische Lücken.**
@@ -937,11 +983,11 @@ Einzige bewusst hingenommene Stille: der 24-h-Seiten-Cache, unverändert gegenü
 | W6 Dashboard | `static/dashboard/` | — |
 | W7 Termine | `agent_base.py` (`termine_tool_base`), `tests/` | — |
 | Ausgangsmessung | — (nur lesen, live) | W1 |
-| W3 Prompt | `agent_base.py` (`system_prompt_template`) | W2, W4, W5, W7, Ausgangsmessung |
+| W3 Prompt | `agent_base.py` (`system_prompt_template`) | W2, W4, W5, W7 |
 
-- **Bahn A:** W1 → Ausgangsmessung (Orchestrator)
+- **Bahn A:** W1 (nur Fälle; keine Ausgangsmessung, D20)
 - **Bahn B:** W2 · **Bahn C:** W4 · **Bahn D:** W5 · **Bahn E:** W6 · **Bahn F:** W7
-- **Danach seriell:** Zusammenführen → Push 1 → W3 → Schlussmessung → Push 2
+- **Danach seriell:** Zusammenführen → Push 1 → W3 → verschränkte Kampagne → Push 2
 - **Konfliktflaggen:** W2, W5, W7 (und später W3) ändern alle `agent_base.py`;
   W2 und W5 ändern beide `agent.py`. Die Regionen sind disjunkt
   (Funktionsnamen, nicht Zeilen, sind maßgeblich), zusammengeführt wird per
@@ -994,10 +1040,7 @@ finding above. Run with Claude Code or Codex; checkbox as you ship.
   - Surfaced by: Tests D7, Außenstimme 6/7 / D15, D16 — Länge ungemessen, Einzelläufe sind Rauschen, Eval zirkulär
   - Files: `tests/test_kundenfeedback_eval.py`, `tests/test_meinchamaeleon_faq.py`
   - Verify: ohne Schalter alles `skipped`; Ankerwert-Test grün; `EVAL_N=3` meldet Quoten
-- [ ] **T11 (P1, human: ~1 Tag / CC: ~2h Laufzeit)** — Orchestrator — Ausgangs- und Schlussmessung aller drei Suiten mit `EVAL_N=3`, allein
-  - Surfaced by: Tests D6, Außenstimme 10b / D20 — Messung unter Parallel-Last wäre verzerrt
-  - Files: `docs/kundenfeedback-2026-09-plan.md` (Tabelle)
-  - Verify: Vorher/Nachher-Quoten je Block stehen im Plan
+- [ ] ~~**T11** — Ausgangs- und Schlussmessung mit `EVAL_N=3`~~ — **ersetzt durch T15–T20 (D20 gedreht, 2026-09-23/24)**
 - [ ] **T12 (P1, human: ~30min / CC: ~5min)** — W3 — ein Commit je Regelgruppe; Stil-Beispiel „erste Safari" umschreiben
   - Surfaced by: Architektur D2, Außenstimme 9a / D17 — ein Commit für neun Regeln; Beispiel macht Etosha ohne Prüfung vor
   - Files: `agent_base.py`
@@ -1011,21 +1054,619 @@ finding above. Run with Claude Code or Codex; checkbox as you ship.
   - Files: `TODOS.md`
   - Verify: Eintrag mit Auslöser und offener Frage „Orte im Verlauf"
 
+_Nachtrag /plan-eng-review „Verschränkte Messung", 2026-09-24:_
+
+- [ ] **T15 (P1, human: ~2h / CC: ~15min)** — Treiber — alte Vorlage aus Git schneiden und im `agent_base`-Namensraum auswerten; Eltern-SHA als Konstante; Unit-Test Schneiden == aktuelles Template
+  - Surfaced by: Außenstimme 1 / R6 (D5) — Quelle der alten Vorlage war unbenannt
+  - Files: `tests/eval_paare.py` (neu), `tests/test_eval_paare.py` (neu)
+  - Verify: `pytest tests/test_eval_paare.py -q`
+- [ ] **T16 (P1, human: ~1h / CC: ~10min)** — Treiber — Vorbedingung: beide Vorlagen rendern, `alt != neu`, SHA-256 + Commit ins Protokoll, sonst Abbruch; Unit-Test Abbruch bei Gleichheit
+  - Surfaced by: Tests R5 (D4) — b = c = 0 wäre von „W3 wirkt nicht" nicht unterscheidbar
+  - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
+  - Verify: Unit-Test „identische Vorlagen → SystemExit vor erstem Aufruf"
+- [ ] **T17 (P1, human: ~3h / CC: ~20min)** — Treiber — Fallquellen: Listen importieren, `airline`/`nichtangeboten` mit Modul-Helfern nachbauen und vorwärmen, Einzelfunktionen direkt (parametrisierte über Modul-Listen, skipif nur mit Nummer); vier Ausgänge je Seite; Paare mit leer/Fehler aus b/c
+  - Surfaced by: Code Quality R2 (D2), Außenstimme 3/4 / R8 (D7), R9 (D8)
+  - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
+  - Verify: Unit-Tests mit gefälschtem `call`: AssertionError → rot, Skipped → Fehler, Fallback-Text → leer + eine Wiederholung; Fallzählung Agentur = 33
+- [ ] **T18 (P1, human: ~1h / CC: ~10min)** — Treiber — `agent.call_stream` zählend einwickeln; Tool-Aufrufe, Wanddauer, Zeitstempel, Prozess-Nr. je Seite protokollieren
+  - Surfaced by: Außenstimme 2 / R7 (D6), Außenstimme 6+8 / R11 (D10)
+  - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
+  - Verify: Unit-Test mit gefälschtem Stream (2 `tool_call`-Events → 2)
+- [ ] **T19 (P1, human: ~2h / CC: ~15min)** — Treiber/Bericht — Auswertung als Fall-Listen je Block (b, c, c-Fälle mit Befund-Art), McNemar nur für `airline` und Agentur; D13-Auslöser auf ganze Fälle; Befund-Art-Spalte
+  - Surfaced by: Tests R3 (D3), Außenstimme 5 / R10 (D9)
+  - Files: `tests/eval_paare.py`, `docs/kundenfeedback-2026-09-plan.md` (Tabelle)
+  - Verify: Unit-Test der Auswertung auf einem synthetischen Protokoll (b/c/leer/Fehler korrekt getrennt)
+- [ ] **T20 (P2, human: ~1 Tag / CC: ~1.5h Laufzeit)** — Orchestrator — Kampagne fahren: ≤ ~12 Fälle je Prozess, 60 s Pause (`EVAL_PAUSE_S`), Protokoll und Tabelle in den Plan
+  - Surfaced by: Architektur D20, Außenstimme 6 / R12 (D11)
+  - Files: `docs/kundenfeedback-2026-09-plan.md`
+  - Verify: Tabelle je Block mit b, c, leer, Fehler, Median-Dauer, Tool-Aufrufe; Hashes beider Vorlagen im Kopf
+
+
+## Decision ledger (/plan-eng-review „Verschränkte Messung", 2026-09-24)
+
+### R1: Leerantworten in der gepaarten Auswertung
+Finding: R1, P1, confidence 9/10, `agent.py:426` (`if not reply.strip(): reply = EMPTY_ANSWER_FALLBACK`) und `TODOS.md:83-87` („trifft wechselnde Fälle, am häufigsten den teuersten"), Reviewer: plan-eng-review (Architektur)
+Plan baseline: Abschnitt „Verschränkte Messung" zählt je Block b/c aus rot/grün; eine Leerantwort ist dort nicht erwähnt und zählt still als rot auf ihrer Seite. Keine frühere Freigabe.
+Runtime evidence: `agent.call` liefert bei leerer Modellantwort nach ≤3 Versuchen/6 s den Fallback-Text (`agent.py:129-137`, `:426`). Kein Eval prüft darauf (nur `tests/test_empty_reply.py`). Die Kippe setzt bei ~30 Aufrufen am Stück ein und trifft den teuersten Fall (zwei Züge plus Tool). W3 macht die neue Seite jedes Paares teurer (Mehrseiten-Abruf) — die Asymmetrie ist systematisch, nicht zufällig.
+Comparison grid:
+
+| Choice | Current | A | B | C |
+|---|---|---|---|---|
+| R1 Leerantwort im Paar | zählt still als rot | Signatur je Aufruf erkennen (Fallback-Text), Paar mit ≥1 Leerseite aus b/c raus, eigene Spalte „leer alt / leer neu" je Block | wie heute: rot auf der Seite | eine Leerseite einmal sofort wiederholen, erst dann werten; Wiederholung protokollieren |
+| Zusatzaufrufe | 0 | 0 | 0 | bis +1 je Leerseite |
+| Sichtbar im Bericht | nein | ja, je Block | nein | ja (Anzahl Wiederholungen) |
+| R2–R5 | pending | pending | pending | pending |
+
+Question D1:
+D1 — Wie zählt eine Leerantwort in der gepaarten Auswertung?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Gemini gibt unter Last manchmal gar keine Antwort; der Bot sagt dann „Entschuldige, da ist mir gerade keine Antwort gelungen." Im Paar-Vergleich alt/neu zählt das heute stillschweigend als „neu ist schlechter", und es trifft bevorzugt die teure neue Seite. Die Messung würde W3 systematisch schlechter aussehen lassen, als es ist.
+Stakes if we pick wrong: Push 2 hängt am gepaarten Ergebnis; ein Leerantwort-Artefakt kann das Tor auslösen oder es beim ersten Mal von Hand übergehen lassen, danach ist es kein Tor mehr.
+Recommendation: A, weil sie null Zusatzaufrufe kostet, das Paar-Prinzip erhält und die Störung sichtbar macht statt sie zu verstecken.
+Completeness: A=10/10, B=4/10, C=7/10
+Pros / cons:
+A) Signatur erkennen, Paar ausweisen (recommended)
+  ✅ Fallback-Text ist ein fester String (`agent.py:135`), Erkennung ist ein Substring-Vergleich ohne Codeänderung am Bot
+  ✅ b/c bleiben sauber; Leerantworten je Seite werden zur eigenen Zahl und beantworten die TODOS-Frage gleich mit
+  ❌ Blöcke mit vielen Leerpaaren verlieren Fälle; bei `filter` (8) kann das die Signifikanz kosten
+B) Wie heute, rot auf der Seite
+  ✅ Kein Aufwand, der Treiber bleibt schlank
+  ✅ Zählt so, wie der Nutzer es erleben würde
+  ❌ Verzerrt systematisch gegen die neue Seite; Push-2-Tor misst dann Last statt Prompt
+C) Leerseite einmal sofort wiederholen
+  ✅ Paar bleibt vollständig, keine Fallverluste
+  ✅ Wiederholung ist im selben Prozess, Reihenfolge bleibt benachbart
+  ❌ Zusatzaufrufe rücken den Block näher an die ~25er-Kippe, die die Leerantwort überhaupt auslöst
+Net: Sichtbar machen und ausklammern (A) gegen bequem, aber verzerrt (B) gegen vollständig, aber lastverstärkend (C).
+Header: Leerantwort im Paar
+Options:
+A) Signatur erkennen, Paar ausweisen (recommended)
+✅ Fallback-Text ist ein fester String (`agent.py:135`), Erkennung ist ein Substring-Vergleich ohne Codeänderung am Bot. ✅ b/c bleiben sauber; Leerantworten je Seite werden zur eigenen Zahl und beantworten die TODOS-Frage gleich mit. ❌ Blöcke mit vielen Leerpaaren verlieren Fälle; bei `filter` (8) kann das die Signifikanz kosten.
+B) Wie heute, rot auf der Seite
+✅ Kein Aufwand, der Treiber bleibt schlank. ✅ Zählt so, wie der Nutzer es erleben würde. ❌ Verzerrt systematisch gegen die neue Seite; Push-2-Tor misst dann Last statt Prompt.
+C) Leerseite einmal sofort wiederholen
+✅ Paar bleibt vollständig, keine Fallverluste. ✅ Wiederholung ist im selben Prozess, Reihenfolge bleibt benachbart. ❌ Zusatzaufrufe rücken den Block näher an die ~25er-Kippe, die die Leerantwort überhaupt auslöst.
+
+State: approved
+Actual answer: C) Leerseite einmal sofort wiederholen (Owner, D1, 2026-09-24)
+Accepted scope: Der Treiber erkennt eine Leerantwort am Fallback-Text (`agent.EMPTY_ANSWER_FALLBACK` im Reply) und wiederholt genau diese Seite des Paares einmal sofort, bevor gewertet wird; bleibt sie leer, zählt sie rot. Jede Wiederholung wird je Block protokolliert (Anzahl leer alt / leer neu) und steht in der Vorher/Nachher-Tabelle. Die Wiederholungen zählen zur Aufruf-Obergrenze je Prozess (~25) — die Blockteilung rechnet mit Fällen × 2 plus Reserve. Kein Eingriff in `agent.py`.
+History: none
+
+### R2: Einzelfunktionen der alten Suiten paaren
+Finding: R2, P2, confidence 9/10, `tests/test_agentur_faq.py:222-357` (neun Einzelfunktionen und eine kleine Parametrisierung neben `DONE`, Z. 208) und `tests/test_meinchamaeleon_faq.py:140-191` (drei neben `URL_CASES`, Z. 92), Reviewer: plan-eng-review (Code Quality)
+Plan baseline: Abschnitt „Verschränkte Messung", offener Punkt 1: „diese Fälle laufen zweimal unmittelbar hintereinander in derselben Sitzung (alt, dann neu), zeitlich benachbart statt paarweise". Keine Freigabe.
+Runtime evidence: Jede Einzelfunktion ruft `_frage(...)` → `agent.call` und endet in `assert` (z. B. `test_provision_bleibt_beim_vertrieb`, Z. 222-231). Sie sind ohne Fixtures aufrufbar; ein Treiber kann sie importieren, unter altem und neuem `system_prompt_template` je einmal ausführen und `AssertionError` als rot werten. Ein Umbau der Dateien ist dafür nicht nötig. Nachbarschaft (Datei zweimal fahren) bringt bei 32 Agentur-Fällen ~32 Aufrufe Abstand — genau die Spanne, über die die Empty-Reply-Kippe einsetzt (`TODOS.md:80`).
+Comparison grid:
+
+| Choice | Current | A | B | C |
+|---|---|---|---|---|
+| R2 Paarung der Einzelfunktionen | offen (Vorschlag Nachbarschaft) | Treiber importiert jede Testfunktion und ruft sie alt/neu direkt nacheinander; `AssertionError` = rot | Datei zweimal per pytest fahren (alt, dann neu), ~32 Aufrufe Abstand | Einzelfunktionen in Datenlisten umbauen, dann wie `DONE` paaren |
+| Eingriff in W1-Dateien | keiner | keiner | keiner | ja, 12 Funktionen |
+| Paarabstand | — | 1 Aufruf | ~32 Aufrufe | 1 Aufruf |
+| R1 | approved (C) | fix | fix | fix |
+| R3–R5 | pending | pending | pending | pending |
+
+Question D2:
+D2 — Wie werden die 12 Einzelfunktionen der alten Suiten alt/neu gepaart?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Die alten Suiten haben neben ihren Fall-Listen zwölf handgeschriebene Testfunktionen. Für die Paarung muss jede unter altem und neuem Prompt direkt hintereinander laufen. Der Treiber kann sie einfach importieren und zweimal aufrufen; die Alternative wäre, die ganze Datei zweimal zu fahren, dann liegen zwischen alt und neu ~32 Aufrufe und damit genau die Last, die Leerantworten auslöst.
+Stakes if we pick wrong: Die Regressionssperre für Push 2 misst dann Last statt Prompt bei einem Drittel der Agentur-Fälle.
+Recommendation: A, weil sie echte Paare ohne Eingriff in fremde Dateien liefert und der Treiber ohnehin die Fall-Listen importiert.
+Completeness: A=10/10, B=5/10, C=9/10
+Pros / cons:
+A) Treiber ruft die Testfunktionen direkt (recommended)
+  ✅ Echte Paare mit einem Aufruf Abstand, gleiche Auswertung wie für `DONE` und `URL_CASES`
+  ✅ Keine Änderung an `test_agentur_faq.py` oder `test_meinchamaeleon_faq.py`, nichts kollidiert mit W1
+  ❌ Der Treiber muss `AssertionError` fangen und den Funktionsnamen als Fall-ID führen (human: ~1h / CC: ~10 min)
+B) Datei zweimal fahren, zeitlich benachbart
+  ✅ Kein Treiber-Code für die Einzelfunktionen, pytest macht alles
+  ✅ Ergebnis bleibt pro Datei lesbar wie heute
+  ❌ ~32 Aufrufe Abstand zwischen alt und neu, die Kippe liegt dazwischen; kein sauberes b/c
+C) Einzelfunktionen in Datenlisten umbauen
+  ✅ Danach ist alles datengetrieben und einheitlich paarbar
+  ✅ Zukünftige Kampagnen brauchen keinen Sonderweg
+  ❌ Zwölf Funktionen mit eigener Logik (Durchwahl, Vertrieb, Rückfragen) in Daten pressen, fremde Dateien anfassen (human: ~3h / CC: ~30 min)
+Net: Paare ohne Dateieingriff (A) gegen bequem, aber unpaarig (B) gegen sauber, aber Umbau fremder Dateien (C).
+Header: Einzelfunktionen paaren
+Options:
+A) Treiber ruft die Testfunktionen direkt (recommended)
+✅ Echte Paare mit einem Aufruf Abstand, gleiche Auswertung wie für `DONE` und `URL_CASES`. ✅ Keine Änderung an `test_agentur_faq.py` oder `test_meinchamaeleon_faq.py`, nichts kollidiert mit W1. ❌ Der Treiber muss `AssertionError` fangen und den Funktionsnamen als Fall-ID führen (human: ~1h / CC: ~10 min).
+B) Datei zweimal fahren, zeitlich benachbart
+✅ Kein Treiber-Code für die Einzelfunktionen, pytest macht alles. ✅ Ergebnis bleibt pro Datei lesbar wie heute. ❌ ~32 Aufrufe Abstand zwischen alt und neu, die Kippe liegt dazwischen; kein sauberes b/c.
+C) Einzelfunktionen in Datenlisten umbauen
+✅ Danach ist alles datengetrieben und einheitlich paarbar. ✅ Zukünftige Kampagnen brauchen keinen Sonderweg. ❌ Zwölf Funktionen mit eigener Logik (Durchwahl, Vertrieb, Rückfragen) in Daten pressen, fremde Dateien anfassen (human: ~3h / CC: ~30 min).
+
+State: approved
+Actual answer: A) Treiber ruft die Testfunktionen direkt (Owner, D2, 2026-09-24)
+Accepted scope: Ein eigener Treiber (neue Datei unter `tests/`, kein Eingriff in `test_agentur_faq.py`, `test_meinchamaeleon_faq.py`, `test_kundenfeedback_eval.py`) importiert die Fall-Listen (`DONE`, `URL_CASES`, die Blöcke der neuen Suite) UND die zwölf Einzelfunktionen, führt jeden Fall alt/neu unmittelbar nacheinander aus, fängt `AssertionError` als rot und führt den Funktionsnamen als Fall-ID. Damit ist R4 (Treiber-Ort) entschieden: eigener Runner, weil nur er die Einzelfunktionen erreicht; ein Paar-Modus in der Eval-Datei entfällt.
+History: none
+
+### R3: 80-%-Auslöser bei acht `filter`-Fällen
+Finding: R3, P2, confidence 10/10, Plan „Welle 3" Punkt 4 („Eval-Block `filter` liegt in der Schlussmessung unter 80 %") gegen die Blocktabelle (`filter` = 8 Fälle); dazu offener Punkt 3: mindestens 2 der 8 sind heute allein wegen der Satzzahl rot (gemessen 8, 7, 3, 3 Sätze gegen `MAX_SAETZE = 5`, `tests/test_kundenfeedback_eval.py:474`). Reviewer: plan-eng-review (Tests)
+Plan baseline: D13 (2026-09-21): TODO „Vergleichstabelle je Land" mit Auslöser „`filter` unter 80 % ODER Tool-Aufrufe je Chat steigen spürbar". Der Prozentwert ist bei n=8 nicht erreichbar (6/8 = 75 %, 7/8 = 87,5 %). Zudem verschwindet die Quote in der gepaarten Auswertung (D15 korrigiert): es gibt nur noch rot/grün je Seite.
+Runtime evidence: `FILTER` hat 8 Einträge (`tests/test_kundenfeedback_eval.py:679-747`), `querschnitt()` färbt bei > `MAX_SAETZE` rot (Z. 581). Ein Fall kann also inhaltlich richtig filtern und trotzdem rot sein.
+Comparison grid:
+
+| Choice | Current | A | B | C |
+|---|---|---|---|---|
+| R3 Auslöser für D13-TODO | „unter 80 %" (nicht auflösbar bei n=8) | „mindestens 2 der 8 `filter`-Fälle auch mit neuem Prompt rot, Satzzahl-only-Rot nicht mitgezählt" | `filter` auf 10 Fälle aufstocken (zwei Schwesterfälle in W1-Datei), Auslöser 8/10 | Auslöser nur über Tool-Aufrufe je Chat, Fallzahl streichen |
+| Befund-Art in der Tabelle sichtbar (Länge vs. Filtern) | nein | ja, Spalte „Befund-Art" je rotem Fall | ja | nein |
+| Zusatzaufrufe | 0 | 0 | +4 | 0 |
+| Eingriff in W1-Datei | keiner | keiner | ja | keiner |
+| R1, R2 | approved (C, A) | fix | fix | fix |
+| R5 | pending | pending | pending | pending |
+
+Question D3:
+D3 — Wie lautet der Auslöser für die Vergleichstabelle je Land (D13), wenn `filter` nur 8 Fälle hat?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Der Plan sagt „unter 80 % → TODO ziehen". Bei acht Fällen gibt es kein 80 %, nur 75 oder 87,5. Und zwei der acht sind heute rot, weil die Antwort zu lang ist, nicht weil falsch gefiltert wurde. Der Auslöser muss auf ganze Fälle umgeschrieben werden und Länge von Filtern trennen, sonst wird er falsch gelesen.
+Stakes if we pick wrong: Das TODO wird auf Rauschen gezogen oder nie, und der Owner liest „filter rot" als Filterfehler, wo es Satzzahl ist.
+Recommendation: A, weil sie null Aufrufe kostet, in der gepaarten Auswertung direkt ablesbar ist und die Längenfälle sichtbar trennt.
+Completeness: A=10/10, B=9/10, C=5/10
+Pros / cons:
+A) Auf ganze Fälle umschreiben, Befund-Art ausweisen (recommended)
+  ✅ „2 von 8 auch neu rot, ohne reine Längenfälle" ist mit b/c und Befundliste direkt abzulesen
+  ✅ Kein Eingriff in die W1-Datei, keine zusätzlichen Modellaufrufe
+  ❌ Bei n=8 bleibt jeder Schwellenwert grob; ein einzelner Ausreißer wiegt 12,5 %
+B) `filter` auf 10 aufstocken, Auslöser 8/10
+  ✅ 80 % wird exakt erreichbar, Block wird etwas belastbarer
+  ✅ Zwei Schwesterfälle kosten wenig (human: ~30 min / CC: ~5 min)
+  ❌ Vier Zusatzaufrufe je Kampagne und ein Eingriff in `test_kundenfeedback_eval.py`, dessen Fälle W1 gerade fixiert hat
+C) Nur Tool-Aufrufe je Chat als Auslöser
+  ✅ Keine Fallzahl-Arithmetik mehr
+  ✅ Misst genau den Overhead, den die Tabelle je Land senken soll
+  ❌ Verliert die Qualitätsseite: `filter` kann rot bleiben, ohne dass das TODO je gezogen wird
+Net: Ganze Fälle (A) gegen mehr Fälle für eine runde Zahl (B) gegen nur Kosten messen (C).
+Header: filter-Auslöser
+Options:
+A) Auf ganze Fälle umschreiben, Befund-Art ausweisen (recommended)
+✅ „2 von 8 auch neu rot, ohne reine Längenfälle" ist mit b/c und Befundliste direkt abzulesen. ✅ Kein Eingriff in die W1-Datei, keine zusätzlichen Modellaufrufe. ❌ Bei n=8 bleibt jeder Schwellenwert grob; ein einzelner Ausreißer wiegt 12,5 %.
+B) `filter` auf 10 aufstocken, Auslöser 8/10
+✅ 80 % wird exakt erreichbar, Block wird etwas belastbarer. ✅ Zwei Schwesterfälle kosten wenig (human: ~30 min / CC: ~5 min). ❌ Vier Zusatzaufrufe je Kampagne und ein Eingriff in `test_kundenfeedback_eval.py`, dessen Fälle W1 gerade fixiert hat.
+C) Nur Tool-Aufrufe je Chat als Auslöser
+✅ Keine Fallzahl-Arithmetik mehr. ✅ Misst genau den Overhead, den die Tabelle je Land senken soll. ❌ Verliert die Qualitätsseite: `filter` kann rot bleiben, ohne dass das TODO je gezogen wird.
+
+State: approved
+Actual answer: A) Auf ganze Fälle umschreiben, Befund-Art ausweisen (Owner, D3, 2026-09-24)
+Accepted scope: Der D13-Auslöser lautet neu: „mindestens 2 der 8 `filter`-Fälle sind auch mit neuem Prompt rot, wobei Fälle, die allein an der Satzzahl scheitern, nicht mitzählen — ODER die Tool-Aufrufe je Chat steigen spürbar". Die Vorher/Nachher-Tabelle bekommt je rotem Fall eine Spalte „Befund-Art" (aus den `pruefe()`-Befunden: Länge / Inhalt / Link / leer), damit Länge und Filtern getrennt lesbar sind. Kein Eingriff in `test_kundenfeedback_eval.py`, keine Zusatzaufrufe.
+History: none
+
+### R5: Beweis, dass der Vorlagen-Tausch greift
+Finding: R5, P1 (Test), confidence 9/10, `agent_base.py:1494` (`return system_prompt_template.format(`) — der Treiber schaltet per Zuweisung auf das Modulglobal um; nichts prüft, dass die beiden Seiten eines Paares tatsächlich verschiedene Prompts bekommen. Reviewer: plan-eng-review (Tests)
+Plan baseline: Abschnitt „Verschränkte Messung": „Umschalten ist eine Zuweisung auf das Modulglobal." Kein Nachweis vorgesehen. Keine Freigabe.
+Runtime evidence: `format_system_prompt` liest `system_prompt_template` bei jedem Aufruf (`agent_base.py:1494`), `agent.call` ruft es je Anfrage. Greift der Tausch nicht (falsches Modul importiert, `from agent_base import system_prompt_template` als Kopie, Reihenfolge der Zuweisung), sind alt und neu identisch, jedes Paar konkordant, b = c = 0 — und das liest sich als „W3 bewirkt nichts". Das ist der eine Fehler, den die Paarung selbst nicht entdecken kann.
+Comparison grid:
+
+| Choice | Current | A | B | C |
+|---|---|---|---|---|
+| R5 Nachweis des Tauschs | keiner | Vorbedingung im Treiber: beide Vorlagen für einen festen Fall rendern, `assert alt != neu`, SHA-256 je Seite ins Protokoll; bei Gleichheit Abbruch vor dem ersten Modellaufruf | nur SHA-256 je Seite ins Protokoll, kein Abbruch | kein Nachweis |
+| Protokoll je Lauf | — | Hash alt / Hash neu / Git-Commit der beiden Vorlagen | Hash alt / Hash neu | — |
+| Zusatzaufrufe | 0 | 0 (nur Rendern) | 0 | 0 |
+| R1–R4 | approved | fix | fix | fix |
+
+Question D4:
+D4 — Wie wird nachgewiesen, dass jedes Paar wirklich alten und neuen Prompt gesehen hat?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Der Treiber tauscht die Prompt-Vorlage per Zuweisung um. Klappt das nicht, laufen beide Seiten mit demselben Prompt, alle Paare sind gleich, und das Ergebnis sagt „W3 wirkt nicht". Genau diesen Fehler kann die Paarung nicht selbst bemerken. Ein Vorab-Check „beide Vorlagen rendern, sie müssen sich unterscheiden" kostet nichts.
+Stakes if we pick wrong: 214 Aufrufe und eine Stunde Laufzeit liefern eine Null-Aussage, die als Ergebnis gelesen wird; Push 2 wird auf falscher Grundlage entschieden.
+Recommendation: A, weil Rendern und Hashen gratis sind und ein Abbruch vor dem ersten Aufruf die einzige Stelle ist, an der der Fehler noch billig ist.
+Completeness: A=10/10, B=6/10, C=1/10
+Pros / cons:
+A) Rendern, vergleichen, hashen, sonst Abbruch (recommended)
+  ✅ Ein stiller Nicht-Tausch wird vor dem ersten Modellaufruf zum harten Fehler, nicht zu einem Ergebnis
+  ✅ Hash je Seite im Protokoll macht jede Tabelle später der genauen Vorlage zuordenbar
+  ❌ Ein paar Zeilen mehr im Treiber und eine feste Render-Eingabe, die gepflegt werden muss
+B) Nur Hashes protokollieren
+  ✅ Zuordenbarkeit ist gegeben, minimaler Code
+  ✅ Kein Abbruchpfad, der selbst falsch feuern könnte
+  ❌ Der Fehler fällt erst beim Lesen auf, nach 214 Aufrufen — wenn überhaupt jemand die Hashes vergleicht
+C) Kein Nachweis
+  ✅ Nichts zu bauen
+  ✅ Vertraut darauf, dass die Zuweisung auf das Modulglobal wie geprüft funktioniert
+  ❌ b = c = 0 ist von „W3 wirkt nicht" nicht unterscheidbar
+Net: Harter Vorab-Check (A) gegen nachträgliche Zuordenbarkeit (B) gegen Vertrauen (C).
+Header: Tausch-Nachweis
+Options:
+A) Rendern, vergleichen, hashen, sonst Abbruch (recommended)
+✅ Ein stiller Nicht-Tausch wird vor dem ersten Modellaufruf zum harten Fehler, nicht zu einem Ergebnis. ✅ Hash je Seite im Protokoll macht jede Tabelle später der genauen Vorlage zuordenbar. ❌ Ein paar Zeilen mehr im Treiber und eine feste Render-Eingabe, die gepflegt werden muss.
+B) Nur Hashes protokollieren
+✅ Zuordenbarkeit ist gegeben, minimaler Code. ✅ Kein Abbruchpfad, der selbst falsch feuern könnte. ❌ Der Fehler fällt erst beim Lesen auf, nach 214 Aufrufen — wenn überhaupt jemand die Hashes vergleicht.
+C) Kein Nachweis
+✅ Nichts zu bauen. ✅ Vertraut darauf, dass die Zuweisung auf das Modulglobal wie geprüft funktioniert. ❌ b = c = 0 ist von „W3 wirkt nicht" nicht unterscheidbar.
+
+State: approved
+Actual answer: A) Rendern, vergleichen, hashen, sonst Abbruch (Owner, D4, 2026-09-24)
+Accepted scope: Vorbedingung im Treiber, vor dem ersten Modellaufruf: `format_system_prompt` für einen festen Fall einmal unter alter und einmal unter neuer Vorlage rendern, `assert alt != neu`, SHA-256 beider gerenderten Prompts plus Git-Commit je Vorlage ins Laufprotokoll und in die Vorher/Nachher-Tabelle; bei Gleichheit harter Abbruch der Kampagne. Dazu ein Unit-Test im Treiber-Modul (ohne Netz), der den Abbruch bei identischen Vorlagen nachweist.
+History: none
+
+### Korrekturen ohne Frage (Außenstimme, Claude-Subagent, 2026-09-24)
+- Außenstimme 7 (P2, bestätigt): Plan Z. 779-783, 937, 955, 959 trugen noch die Zwei-Kampagnen-Fassung (Ausgangsmessung, `EVAL_N=3`, Schlussmessung) gegen D20/D15. Umgeschrieben auf die verschränkte Kampagne; kein Verhalten geändert, nur Text an bereits genehmigte Entscheidungen angepasst.
+- Außenstimme 9 (P3, bestätigt): `system_prompt_template` liegt bei `agent_base.py:908-1038`, nicht 499-628; `from agent import call` ist `tests/test_kundenfeedback_eval.py:69`. Korrigiert.
+
+### R6: Woher nimmt der Treiber die ALTE Vorlage?
+Finding: Außenstimme 1, P1, confidence 10/10 (bestätigt), `agent_base.py:908` (`system_prompt_template = f"""`) bis `:1038` (`""".strip()`), Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: „Umschalten ist eine Zuweisung auf das Modulglobal." Nach den vier W3-Commits enthält der Prozess nur die NEUE Vorlage; die Quelle der alten ist nirgends benannt. R5 prüft nur `alt != neu`, nicht, dass „alt" wirklich der Stand vor W3 ist. Keine Freigabe.
+Runtime evidence: Die Vorlage ist ein f-String, der beim Import Modulzustand interpoliert (`{allgemeine_faqs}` u. a.). Ein zweites Modul aus der alten Datei zu laden würde Sitemap- und FAQ-Laden wiederholen und W2/W5/W7-Code der alten Datei mitbringen. `git show <sha>:agent_base.py` liefert den Text; der f-String muss daraus geschnitten und im Namensraum von `agent_base` ausgewertet werden.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R6 Quelle der alten Vorlage | unbenannt | `git show <Eltern-Commit von W3-Commit 1>:agent_base.py`, f-String zwischen `system_prompt_template = f"""` und `""".strip()` schneiden, mit `eval` im `agent_base.__dict__` auswerten; SHA des Eltern-Commits ins Protokoll; Unit-Test für das Schneiden (ohne Netz) | unbenannt lassen, W3-Agent entscheidet | Erst prüfen, ob ein zweites Modul (`importlib` aus altem Text) sauber lädt, dann wählen | diese Zeile offen lassen |
+| R5 Hash/Commit im Protokoll | approved | erfüllt: Commit = Eltern-SHA | unverändert | unverändert | unverändert |
+| R1–R5 | approved | fix | fix | fix | fix |
+
+Question D5:
+D5 — Woher bekommt der Treiber die alte Prompt-Vorlage?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Die Vorlage ist ein f-String, der beim Import gebaut wird. Nach W3 gibt es im laufenden Prozess nur noch die neue. Der Treiber muss die alte irgendwoher holen, sonst gibt es nichts zu tauschen. Naheliegend: aus Git den Stand vor W3 lesen, den Vorlagentext ausschneiden und im selben Modul auswerten.
+Stakes if we pick wrong: Der W3-Agent improvisiert, lädt womöglich die alte Datei als zweites Modul samt alter Tool-Logik, und „alt" ist dann nicht der Prompt vor W3, sondern ein anderer Bot.
+Recommendation: A, weil Git die einzige eindeutige Quelle für „vor W3" ist und das Schneiden des f-Strings mit einem Unit-Test billig abgesichert wird.
+Completeness: A=10/10, B=2/10, C=6/10, D=0/10
+Pros / cons:
+A) Aus Git schneiden und im Modul auswerten (recommended)
+  ✅ „Alt" ist per SHA definiert, R5 bekommt seinen Commit gratis, keine doppelte Modulinitialisierung
+  ✅ Ein Unit-Test prüft das Schneiden gegen den aktuellen Stand, bevor die Kampagne startet
+  ❌ `eval` auf Quelltext aus Git und ein festes Marker-Paar, das bei einer Umbenennung bricht (human: ~2h / CC: ~15 min)
+B) Unbenannt lassen
+  ✅ Kein Planaufwand jetzt
+  ✅ Der W3-Agent hat den Code vor sich und kann selbst wählen
+  ❌ Genau die Lücke, die die Außenstimme als größtes Feasibility-Risiko nennt; R5 kann sie nicht auffangen
+C) Erst zweites Modul prüfen
+  ✅ Vermeidet `eval`, falls `importlib` sauber lädt
+  ✅ Bounded: eine Stunde Probe, dann Entscheidung
+  ❌ Zweites Modul wiederholt Sitemap/FAQ-Laden und bringt alten W2/W5/W7-Code mit; Ergebnis sehr wahrscheinlich „nein"
+D) Diese Zeile offen lassen
+  ✅ Nichts wird jetzt festgelegt
+  ✅ Alle anderen Entscheidungen bleiben unberührt
+  ❌ Der Treiber kann nicht gebaut werden, solange das offen ist
+Net: Definierte Git-Quelle (A) gegen Improvisation (B) gegen eine Probe mit absehbarem Ausgang (C) gegen Stillstand (D).
+Header: Alte Vorlage
+Options:
+A) Aus Git schneiden und im Modul auswerten (recommended)
+✅ „Alt" ist per SHA definiert, R5 bekommt seinen Commit gratis, keine doppelte Modulinitialisierung. ✅ Ein Unit-Test prüft das Schneiden gegen den aktuellen Stand, bevor die Kampagne startet. ❌ `eval` auf Quelltext aus Git und ein festes Marker-Paar, das bei einer Umbenennung bricht (human: ~2h / CC: ~15 min).
+B) Unbenannt lassen
+✅ Kein Planaufwand jetzt. ✅ Der W3-Agent hat den Code vor sich und kann selbst wählen. ❌ Genau die Lücke, die die Außenstimme als größtes Feasibility-Risiko nennt; R5 kann sie nicht auffangen.
+C) Erst zweites Modul prüfen
+✅ Vermeidet `eval`, falls `importlib` sauber lädt. ✅ Bounded: eine Stunde Probe, dann Entscheidung. ❌ Zweites Modul wiederholt Sitemap/FAQ-Laden und bringt alten W2/W5/W7-Code mit; Ergebnis sehr wahrscheinlich „nein".
+D) Diese Zeile offen lassen
+✅ Nichts wird jetzt festgelegt. ✅ Alle anderen Entscheidungen bleiben unberührt. ❌ Der Treiber kann nicht gebaut werden, solange das offen ist.
+
+State: approved
+Actual answer: A) Aus Git schneiden und im Modul auswerten (Owner, D5, 2026-09-24)
+Accepted scope: Der Treiber liest `git show <Eltern-Commit von W3-Commit 1>:agent_base.py`, schneidet den f-String zwischen `system_prompt_template = f"""` und `""".strip()` heraus und wertet ihn mit `eval` im Namensraum von `agent_base` aus; das Ergebnis ist die alte Vorlage. Der Eltern-SHA wird als Konstante im Treiber gesetzt und ins Protokoll geschrieben (erfüllt R5 „Git-Commit je Vorlage"). Ein netzfreier Unit-Test prüft das Schneiden gegen den aktuellen `agent_base.py` (Ergebnis == aktuelles `system_prompt_template`).
+History: none
+
+### R7: Tool-Aufrufe je Chat sind nicht mitgeschnitten
+Finding: Außenstimme 2, P1, confidence 10/10 (bestätigt), `agent.py:477-491` (`call` gibt nur `event["data"]["reply"]` zurück, `tool_call`-Events verworfen), `agent.py:359-366` und `:412-419` loggen nur bei auffälligem `finish_reason` bzw. leerer Antwort; `from agent import call` in `tests/test_kundenfeedback_eval.py:70`, `test_agentur_faq.py:48`, `test_meinchamaeleon_faq.py:46`. Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: „Mitzuschneiden: Tool-Aufrufe je Chat. `agent.py:362` und `:415` loggen sie … Im verschränkten Lauf fällt sie beidseitig gratis an." Falsch: ein normaler Chat loggt nichts, und `call` liefert keine Zählung. Welle 3 Punkt 3 hängt daran. Keine Freigabe.
+Runtime evidence: `call_stream` liefert `tool_call`-Events (`agent.py`, Zweig „Check for tool calls in AI messages"), `call` iteriert sie und wirft sie weg. Da jedes Testmodul `call` per Import kopiert, greift ein Patch auf `agent.call` dort nicht; gepatcht werden muss der Name im jeweiligen Modul — oder der Treiber ersetzt `agent.call_stream`, das `call` intern über das Modulglobal aufruft.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R7 Zählung der Tool-Aufrufe | keine | Treiber wickelt `agent.call_stream` (Modulglobal, von `call` zur Laufzeit aufgelöst) und zählt `tool_call`-Events je Aufruf; Zahl je Seite ins Protokoll; Unit-Test mit gefälschtem Stream | Plansatz streichen: Welle 3 Punkt 3 misst Tool-Aufrufe getrennt per Stichprobe über `call_stream` | Erst prüfen, ob `call` das Modulglobal `call_stream` zur Laufzeit auflöst (ja, `agent.py:477`), dann A | diese Zeile offen lassen |
+| Welle 3 Punkt 3 (Overhead-Kontrolle) | verlangt Vorher/Nachher | erfüllt aus der Kampagne | eigener Lauf, ~10 Zusatzaufrufe | wie A | offen |
+| R1–R6 | approved | fix | fix | fix | fix |
+
+Question D6:
+D6 — Wie kommt die Zahl der Tool-Aufrufe je Chat in die Kampagne?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Der Plan behauptet, Tool-Aufrufe würden ohnehin geloggt. Stimmt nicht: geloggt wird nur bei Fehlern, und die Funktion, die die Tests rufen, wirft die Tool-Ereignisse weg. Der Treiber kann den Strom darunter einwickeln und zählen; das ist ein Patch an einer Stelle, weil die Testfunktion den Strom zur Laufzeit nachschlägt.
+Stakes if we pick wrong: Welle 3 Punkt 3 (Overhead durch Mehrseiten-Abruf) bleibt ohne Zahl, und der D13-Auslöser „Tool-Aufrufe steigen spürbar" ist nicht messbar.
+Recommendation: A, weil ein Wrapper um `call_stream` alle drei Suiten trifft, ohne deren Import zu berühren, und die Zahl je Seite gratis mitläuft.
+Completeness: A=10/10, B=6/10, C=8/10, D=0/10
+Pros / cons:
+A) `call_stream` im Treiber einwickeln und zählen (recommended)
+  ✅ Ein Patch auf `agent.call_stream` reicht, weil `call` den Namen erst zur Laufzeit auflöst (`agent.py:477`)
+  ✅ Zahl je Seite landet im selben Protokoll wie rot/grün, leer und Hash; Unit-Test mit gefälschtem Stream ist netzfrei
+  ❌ Der Treiber hängt an der Event-Form (`type == "tool_call"`); ändert W2 sie, bricht die Zählung still (human: ~1h / CC: ~10 min)
+B) Plansatz streichen, Stichprobe getrennt fahren
+  ✅ Treiber bleibt schlanker
+  ✅ Welle 3 Punkt 3 war ohnehin als Stichprobe formuliert
+  ❌ Zweite Messung außerhalb des Paares, mit genau den Störgrößen, die D20 vermeiden sollte
+C) Erst Laufzeitauflösung prüfen, dann A
+  ✅ Nimmt der Annahme in A das Restrisiko
+  ✅ Fünf Minuten Probe
+  ❌ Die Auflösung ist im Code bereits sichtbar (`for event in call_stream(` im Funktionskörper); die Probe bestätigt nur
+D) Diese Zeile offen lassen
+  ✅ Nichts wird festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Der falsche Plansatz bleibt stehen und wird vom W3-Agenten geglaubt
+Net: Wrapper im Treiber (A) gegen Extra-Messung (B) gegen bestätigende Probe (C) gegen Stillstand (D).
+Header: Tool-Aufrufe zählen
+Options:
+A) `call_stream` im Treiber einwickeln und zählen (recommended)
+✅ Ein Patch auf `agent.call_stream` reicht, weil `call` den Namen erst zur Laufzeit auflöst (`agent.py:477`). ✅ Zahl je Seite landet im selben Protokoll wie rot/grün, leer und Hash; Unit-Test mit gefälschtem Stream ist netzfrei. ❌ Der Treiber hängt an der Event-Form (`type == "tool_call"`); ändert W2 sie, bricht die Zählung still (human: ~1h / CC: ~10 min).
+B) Plansatz streichen, Stichprobe getrennt fahren
+✅ Treiber bleibt schlanker. ✅ Welle 3 Punkt 3 war ohnehin als Stichprobe formuliert. ❌ Zweite Messung außerhalb des Paares, mit genau den Störgrößen, die D20 vermeiden sollte.
+C) Erst Laufzeitauflösung prüfen, dann A
+✅ Nimmt der Annahme in A das Restrisiko. ✅ Fünf Minuten Probe. ❌ Die Auflösung ist im Code bereits sichtbar (`for event in call_stream(` im Funktionskörper); die Probe bestätigt nur.
+D) Diese Zeile offen lassen
+✅ Nichts wird festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Der falsche Plansatz bleibt stehen und wird vom W3-Agenten geglaubt.
+
+State: approved
+Actual answer: A) `call_stream` im Treiber einwickeln und zählen (Owner, D6, 2026-09-24)
+Accepted scope: Der Treiber ersetzt für die Dauer der Kampagne `agent.call_stream` durch einen Wrapper, der die `tool_call`-Events je Aufruf zählt und die Zahl je Seite (alt/neu) ins Protokoll und in die Vorher/Nachher-Tabelle schreibt. `agent.call` bleibt unberührt und löst den Namen zur Laufzeit auf (`agent.py:477`). Netzfreier Unit-Test mit gefälschtem Stream. Der Plansatz „fällt gratis an" wird durch diese Beschreibung ersetzt.
+History: none
+
+### R8: Drei Ausgänge je Seite statt rot/grün
+Finding: Außenstimme 3, P2, confidence 9/10 (bestätigt), `tests/test_agentur_faq.py:311-316` (`@pytest.mark.skipif(not os.getenv("AGENTUR_TEST_NUMMER"))`, direkt aufgerufen wird der Marker ignoriert), `test_agentur_faq.py:353-357` und `test_meinchamaeleon_faq.py:183-191` (`parametrize`), `test_kundenfeedback_eval.py:805` (`pytest.skip` → `Skipped`, kein `AssertionError`), Netz-/TourOne-Ausnahmen in `test_reiseunterlagen_link_ist_vollstaendig`. Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: R2 (D2): „fängt `AssertionError` als rot". Zu eng: Skip, Fehler und fehlende Umgebung fallen weder auf rot noch auf grün. Die Fallzahl „Agentur 32" und „zwölf Einzelfunktionen" sind zudem nicht deckungsgleich (32 = 22 `DONE` + 9 + 2 Deko − 1 Skip).
+Runtime evidence: Direkt aufgerufen wirft die skipif-Funktion `KeyError`/ruft ohne Nummer; `pytest.skip` wirft `_pytest.outcomes.Skipped`; ein Timeout aus `kundendaten` wirft `requests`-Ausnahmen. Ohne dritten Ausgang zählt der Treiber diese Seiten falsch oder stürzt ab.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R8 Ausgänge je Seite | rot / grün | rot / grün / **Fehler** (Skipped, Netz-/TourOne-Ausnahme, fehlende Umgebung); Paar mit ≥1 Fehlerseite aus b/c raus, eigene Spalte „Fehler alt / Fehler neu"; parametrisierte Funktionen über die Listen im Modul aufgerufen; skipif-Funktion nur mit gesetzter `AGENTUR_TEST_NUMMER`, sonst als „übersprungen" ausgewiesen; Fallzahl im Plan auf 31 + optional 1 korrigiert | rot/grün lassen, Fehler = rot | Erst zählen, wie oft Fehler in einem Probelauf auftreten, dann entscheiden | offen lassen |
+| R1 Leerantwort (D1) | approved | bleibt eigener Ausgang „leer" neben „Fehler" | fix | fix | fix |
+| R2–R7 | approved | fix | fix | fix | fix |
+
+Question D7:
+D7 — Wie geht der Treiber mit Seiten um, die weder rot noch grün sind?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Manche Testfunktionen überspringen sich selbst, brauchen eine Umgebungsvariable oder scheitern am Netz. Das ist keine Aussage über den Prompt. Wenn der Treiber nur rot und grün kennt, zählt er solche Seiten als Prompt-Fehler oder stürzt ab. Ein dritter Ausgang „Fehler" hält das Paar aus der Statistik heraus und macht es sichtbar.
+Stakes if we pick wrong: Ein TourOne-Timeout auf der neuen Seite wird zum „W3 hat die Regression verursacht" und sperrt Push 2; oder der Treiber bricht mitten im Block ab und der Prozessplan geht nicht auf.
+Recommendation: A, weil drei Ausgänge die einzige Form sind, in der b/c nur Prompt-Effekte zählen, und die Handhabung von Skip/Parametrize ohnehin gebaut werden muss.
+Completeness: A=10/10, B=4/10, C=6/10, D=0/10
+Pros / cons:
+A) Dritter Ausgang „Fehler", Skip/Parametrize/Umgebung explizit (recommended)
+  ✅ b/c enthalten nur Paare, bei denen beide Seiten wirklich geantwortet haben
+  ✅ Parametrisierte Funktionen werden über die Modul-Listen aufgerufen, skipif nur mit gesetzter Nummer, sonst sichtbar übersprungen (human: ~2h / CC: ~15 min)
+  ❌ Mehr Zustände im Protokoll; die Fallzahlen im Plan müssen einmal sauber neu gezählt werden
+B) Fehler als rot zählen
+  ✅ Einfachster Treiber
+  ✅ Konservativ: ein Fehler kann Push 2 nur sperren, nie freigeben
+  ❌ Netz und Umgebung landen in der Prompt-Statistik; genau die Vermengung, die D20 vermeiden sollte
+C) Erst Fehlerhäufigkeit im Probelauf messen
+  ✅ Entscheidet auf Daten
+  ✅ Ein Probelauf ist ohnehin nötig
+  ❌ Der Treiber muss Skip/Parametrize trotzdem können, um überhaupt zu laufen; C verschiebt nur die Frage
+D) Offen lassen
+  ✅ Nichts festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Der Treiber stürzt an der ersten skipif-Funktion ab
+Net: Sauberes b/c (A) gegen konservativ, aber vermengt (B) gegen vertagen (C) gegen Absturz (D).
+Header: Dritter Ausgang
+Options:
+A) Dritter Ausgang „Fehler", Skip/Parametrize/Umgebung explizit (recommended)
+✅ b/c enthalten nur Paare, bei denen beide Seiten wirklich geantwortet haben. ✅ Parametrisierte Funktionen werden über die Modul-Listen aufgerufen, skipif nur mit gesetzter Nummer, sonst sichtbar übersprungen (human: ~2h / CC: ~15 min). ❌ Mehr Zustände im Protokoll; die Fallzahlen im Plan müssen einmal sauber neu gezählt werden.
+B) Fehler als rot zählen
+✅ Einfachster Treiber. ✅ Konservativ: ein Fehler kann Push 2 nur sperren, nie freigeben. ❌ Netz und Umgebung landen in der Prompt-Statistik; genau die Vermengung, die D20 vermeiden sollte.
+C) Erst Fehlerhäufigkeit im Probelauf messen
+✅ Entscheidet auf Daten. ✅ Ein Probelauf ist ohnehin nötig. ❌ Der Treiber muss Skip/Parametrize trotzdem können, um überhaupt zu laufen; C verschiebt nur die Frage.
+D) Offen lassen
+✅ Nichts festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Der Treiber stürzt an der ersten skipif-Funktion ab.
+
+State: approved
+Actual answer: A) Dritter Ausgang „Fehler", Skip/Parametrize/Umgebung explizit (Owner, D7, 2026-09-24)
+Accepted scope: Jede Seite eines Paares hat einen von vier Ausgängen: grün, rot, leer (D1, nach Wiederholung), Fehler (`Skipped`, Netz-/TourOne-Ausnahme, fehlende Umgebung). Paare mit ≥1 Fehlerseite fallen aus b/c und stehen in einer eigenen Spalte „Fehler alt / Fehler neu". Parametrisierte Einzelfunktionen ruft der Treiber über die Listen im Modul auf; `test_buchungsstatus_mit_verifizierter_agentur` nur bei gesetzter `AGENTUR_TEST_NUMMER`, sonst sichtbar „übersprungen". Die Blocktabelle im Plan wird auf die tatsächliche Zählung korrigiert (Agentur: 22 `DONE` + 9 Einzelfunktionen + 2 Deko = 33, davon 1 nur mit Nummer). R2-Scope „`AssertionError` = rot" bleibt, wird um diese Ausgänge ergänzt.
+History: none
+
+### R9: `airline` und `nichtangeboten` sind keine importierbaren Listen
+Finding: Außenstimme 4, P2, confidence 10/10 (bestätigt), `tests/test_kundenfeedback_eval.py:796-817` (`test_airline` baut den Fall aus `reise_mit_airline(land)` innerhalb der Funktion), `:868` (`test_nichtangeboten` ebenso); Listen sind nur `FILTER`, `UNGEFRAGT`, `FACHWISSEN`, `ERFINDEN`, `FLUG`. Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: R2 (D2): „importiert die Fall-Listen (…, die Blöcke der neuen Suite)". Für `airline` (28) und `nichtangeboten` (4) gibt es keine Liste; ruft der Treiber stattdessen die Testfunktionen, bekommt er keine `pruefe()`-Befunde und damit keine Befund-Art (D3). Keine Freigabe.
+Runtime evidence: `fahre()` (Z. ~598) kapselt `call` + `pruefe`; `test_airline` ruft `fahre` mit einem vor Ort gebauten Fall-Dict, dessen Erwartung aus `reise_mit_airline` (lru_cache, parallele Seitenabrufe) stammt.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R9 Fallquelle für airline/nichtangeboten | unklar | Treiber baut die Fall-Dicts mit denselben Helfern (`reise_mit_airline`, `_nicht_angeboten`, `AIRLINE_LAENDER`, `NICHT_ANGEBOTEN`) nach und ruft für ALLE Fälle der neuen Suite `pruefe(fall, reply)` direkt (statt `fahre`), damit Befund-Art vorliegt; Seitenabrufe vor dem ersten Modellaufruf vorwärmen | Testfunktionen rufen, Befund-Art aus dem Assertion-Text parsen | Erst prüfen, ob ein `fahre`-Hook (z. B. Rückgabe der Befunde) billiger ist — Eingriff in W1-Datei | offen lassen |
+| D3 Befund-Art | approved | erfüllt | nur per Text-Parsing | offen | offen |
+| R1–R8 | approved | fix | fix | fix | fix |
+
+Question D8:
+D8 — Wie kommt der Treiber an die Fälle der Blöcke `airline` und `nichtangeboten`?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Fünf Blöcke der neuen Suite sind fertige Listen, zwei bauen ihre Fälle erst in der Testfunktion aus Webseiten. Der Treiber kann diese Bauschritte mit denselben Helfern nachmachen und dann die Prüfung selbst aufrufen; so bekommt er auch die Befund-Art, die D3 verlangt. Die Alternative ist, die Testfunktion zu rufen und den Fehlertext zu parsen.
+Stakes if we pick wrong: 32 der 62 Fälle der neuen Suite fehlen in der Kampagne, oder die Befund-Art-Spalte ist für sie leer.
+Recommendation: A, weil die Helfer öffentlich im Modul liegen, `pruefe` die Befunde strukturiert liefert und kein Text-Parsing nötig ist.
+Completeness: A=10/10, B=6/10, C=7/10, D=0/10
+Pros / cons:
+A) Fall-Dicts mit den Modul-Helfern nachbauen, `pruefe` direkt rufen (recommended)
+  ✅ Alle 62 Fälle der neuen Suite laufen durch denselben Pfad `call` → `pruefe`; Befund-Art liegt strukturiert vor
+  ✅ Vorwärmen der Seitenabrufe vor dem ersten Modellaufruf hält den Website-Timeout aus dem Paar heraus (human: ~2h / CC: ~15 min)
+  ❌ Der Treiber dupliziert ~15 Zeilen Fallbau aus `test_airline`/`test_nichtangeboten`; driften die, driftet die Kampagne
+B) Testfunktionen rufen, Assertion-Text parsen
+  ✅ Kein duplizierter Fallbau
+  ✅ Gleicher Weg wie für die Einzelfunktionen der alten Suiten
+  ❌ Befund-Art aus Fehlertext raten; `pytest.skip` in `test_airline` muss als Fehler-Ausgang gefangen werden
+C) Erst `fahre`-Hook in der W1-Datei prüfen
+  ✅ Könnte Duplizierung und Parsing beide vermeiden
+  ✅ Kleine Probe
+  ❌ Eingriff in `test_kundenfeedback_eval.py`, den D2 gerade vermieden hat
+D) Offen lassen
+  ✅ Nichts festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Der breiteste Block der Suite fällt aus der Kampagne
+Net: Nachbauen + strukturierte Befunde (A) gegen Text-Parsing (B) gegen Eingriff in W1 (C) gegen Verlust des Blocks (D).
+Header: airline-Fälle
+Options:
+A) Fall-Dicts mit den Modul-Helfern nachbauen, `pruefe` direkt rufen (recommended)
+✅ Alle 62 Fälle der neuen Suite laufen durch denselben Pfad `call` → `pruefe`; Befund-Art liegt strukturiert vor. ✅ Vorwärmen der Seitenabrufe vor dem ersten Modellaufruf hält den Website-Timeout aus dem Paar heraus (human: ~2h / CC: ~15 min). ❌ Der Treiber dupliziert ~15 Zeilen Fallbau aus `test_airline`/`test_nichtangeboten`; driften die, driftet die Kampagne.
+B) Testfunktionen rufen, Assertion-Text parsen
+✅ Kein duplizierter Fallbau. ✅ Gleicher Weg wie für die Einzelfunktionen der alten Suiten. ❌ Befund-Art aus Fehlertext raten; `pytest.skip` in `test_airline` muss als Fehler-Ausgang gefangen werden.
+C) Erst `fahre`-Hook in der W1-Datei prüfen
+✅ Könnte Duplizierung und Parsing beide vermeiden. ✅ Kleine Probe. ❌ Eingriff in `test_kundenfeedback_eval.py`, den D2 gerade vermieden hat.
+D) Offen lassen
+✅ Nichts festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Der breiteste Block der Suite fällt aus der Kampagne.
+
+State: approved
+Actual answer: A) Fall-Dicts mit den Modul-Helfern nachbauen, `pruefe` direkt rufen (Owner, D8, 2026-09-24)
+Accepted scope: Der Treiber baut die Fälle für `airline` und `nichtangeboten` mit den Modul-Helfern (`AIRLINE_LAENDER`, `reise_mit_airline`, `NICHT_ANGEBOTEN`, `_nicht_angeboten`) nach, wärmt alle Seitenabrufe vor dem ersten Modellaufruf vor und ruft für ALLE Fälle der neuen Suite `call` + `pruefe(fall, reply)` direkt statt `fahre`; die Befunde liefern die Befund-Art (D3). Ein netzfreier Unit-Test prüft, dass der nachgebaute `airline`-Fall strukturgleich zu dem aus `test_airline` ist (gleiche Schlüssel).
+History: none
+
+### R10: Signifikanz-Sprache und Block-Einteilung
+Finding: Außenstimme 5, P2, confidence 10/10 (Arithmetik geprüft), Plan-Abschnitt „Auswertung: gepaart": `p = 2·(1/2)^b` bei c=0 ergibt b=5 → 0,0625 (nicht < 0,05); erst b=6 → 0,031. Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: „ein Block mit weniger als 5 Fällen kann bei keiner Effektgröße signifikant werden" und Einteilung: `filter`/`fachwissen` als Quote, `flug`/`erfinden`/`ungefragt` als „kaputt / nicht kaputt". Nach eigener Arithmetik braucht `filter` (8) 6 von 8 Umschwünge in eine Richtung, gehört also in dieselbe Klasse wie die kleinen Blöcke. Ein α ist nicht genannt. Keine Freigabe.
+Runtime evidence: reine Rechnung, keine Codeabhängigkeit. Für das Push-2-Tor zählt ohnehin die Liste der Fälle mit c (alt grün / neu rot), nicht ein p-Wert.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R10 Auswertungsform | p-Wert-Sprache, zwei Klassen von Blöcken | Signifikanz-Sprache streichen; je Block b, c, Fallliste der c-Fälle mit Befund-Art; Entscheidungsregel wie D3 auf ganze Fälle für ALLE Blöcke; McNemar nur als Zusatzzeile für `airline` (28) und Agentur (33) mit α = 0,05 genannt | wie heute, Schwellenbeispiel auf b=6 korrigieren | Erst Owner fragen, ob p-Werte überhaupt gewünscht sind | offen lassen |
+| Push-2-Tor | „keine alte Suite schlechter" | unverändert: c-Liste der alten Suiten leer oder begründet | unverändert | unverändert | unverändert |
+| R1–R9 | approved | fix | fix | fix | fix |
+
+Question D9:
+D9 — Wie wird das gepaarte Ergebnis berichtet: p-Werte oder Fall-Listen?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Der Plan rechnet mit McNemar und behauptet, ab 5 Fällen könne ein Block „signifikant" werden. Die eigene Formel sagt: erst ab 6 Umschwüngen, also müsste `filter` mit 8 Fällen zu drei Vierteln kippen. Die Einteilung in „Quote"- und „kaputt/nicht kaputt"-Blöcke ist damit falsch. Ehrlicher ist: je Block b und c zählen, die gekippten Fälle namentlich auflisten, und nur bei den zwei großen Blöcken zusätzlich ein p nennen.
+Stakes if we pick wrong: Der Bericht suggeriert Statistik, die die Fallzahlen nicht tragen; ein „nicht signifikant" wird als „kein Effekt" gelesen, oder ein 5/8 als bewiesen.
+Recommendation: A, weil das Tor ohnehin auf der c-Liste entscheidet und p-Werte nur dort stehen sollten, wo n sie trägt.
+Completeness: A=10/10, B=6/10, C=5/10, D=0/10
+Pros / cons:
+A) Fall-Listen je Block, p nur für airline und Agentur (recommended)
+  ✅ Jede Zahl im Bericht ist mit der Fallzahl vereinbar; die c-Liste ist genau das, was Push 2 braucht
+  ✅ D3-Regel („ganze Fälle") gilt einheitlich für alle Blöcke, keine zwei Klassen mehr
+  ❌ Kein kompaktes „signifikant ja/nein" für kleine Blöcke; der Leser muss die Liste lesen
+B) Wie heute, nur b=6 korrigieren
+  ✅ Minimaler Texteingriff
+  ✅ Behält die McNemar-Zeile für alle Blöcke
+  ❌ `filter` bleibt in der falschen Klasse; ein p für n=4 ist Dekoration
+C) Erst fragen, ob p-Werte gewünscht sind
+  ✅ Vermeidet Statistik, die niemand liest
+  ✅ Kleine Rückfrage
+  ❌ Diese Frage IST die Rückfrage; C vertagt sie nur
+D) Offen lassen
+  ✅ Nichts festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Die falsche Arithmetik bleibt im Plan und wird in die Tabelle übernommen
+Net: Ehrliche Listen (A) gegen kosmetische Korrektur (B) gegen Vertagen (C, D).
+Header: Auswertungsform
+Options:
+A) Fall-Listen je Block, p nur für airline und Agentur (recommended)
+✅ Jede Zahl im Bericht ist mit der Fallzahl vereinbar; die c-Liste ist genau das, was Push 2 braucht. ✅ D3-Regel („ganze Fälle") gilt einheitlich für alle Blöcke, keine zwei Klassen mehr. ❌ Kein kompaktes „signifikant ja/nein" für kleine Blöcke; der Leser muss die Liste lesen.
+B) Wie heute, nur b=6 korrigieren
+✅ Minimaler Texteingriff. ✅ Behält die McNemar-Zeile für alle Blöcke. ❌ `filter` bleibt in der falschen Klasse; ein p für n=4 ist Dekoration.
+C) Erst fragen, ob p-Werte gewünscht sind
+✅ Vermeidet Statistik, die niemand liest. ✅ Kleine Rückfrage. ❌ Diese Frage IST die Rückfrage; C vertagt sie nur.
+D) Offen lassen
+✅ Nichts festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Die falsche Arithmetik bleibt im Plan und wird in die Tabelle übernommen.
+
+State: approved
+Actual answer: A) Fall-Listen je Block, p nur für airline und Agentur (Owner, D9, 2026-09-24)
+Accepted scope: Der Abschnitt „Auswertung: gepaart" wird umgeschrieben: je Block b, c und die namentliche Liste der c-Fälle (alt grün / neu rot) mit Befund-Art; Entscheidungsregel auf ganze Fälle (wie D3) für alle Blöcke; keine Einteilung in Quote-/kaputt-Blöcke mehr; McNemar exakt (zweiseitig, α = 0,05) nur als Zusatzzeile für `airline` und Agentur. Das Push-2-Tor bleibt: c-Liste der beiden alten Suiten leer oder je Fall begründet.
+History: none
+
+### R11: Zeitstempel und Wanddauer je Aufruf
+Finding: Außenstimme 6 und 8, P2/P3, confidence 8/10, `TODOS.md:80-88` (Kippe „bei ~30 Aufrufen am Stück", kein Nachweis einer Prozessgrenze) und `agent_base.py` (`chamaeleon_website_tool_base` per `ttl_cache` 24 h, erste Seite eines Paares kalt, zweite warm). Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: „~25 Aufrufe je Prozess" wird als Reset-Grenze angenommen; „alles konstant außer dem Prompt" übersieht die Cache-Asymmetrie innerhalb des Paares. Nichts davon ist im Protokoll sichtbar. Keine Freigabe.
+Runtime evidence: Ob die Leerantwort an der Aufrufdichte (Zeitfenster) oder an der Prozesslebensdauer hängt, ist ungemessen (Checkpoint-Notiz „ungeklärt"). Die Wanddauer je Seite zeigt Cache-kalt/warm und Website-Timeouts direkt.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R11 Protokoll je Aufruf | Ausgang, leer, Fehler, Tool-Aufrufe, Hash | zusätzlich: Zeitstempel (UTC) je Aufruf und Wanddauer je Seite; Bericht weist je Block Median-Dauer alt/neu und Leerantworten je Aufrufrate aus | wie bisher, keine Zeitdaten | erst prüfen, ob `call_stream` schon Zeiten liefert | offen lassen |
+| Kosten | — | 0 Aufrufe, ~10 Zeilen im Treiber | 0 | 0 | 0 |
+| R1–R10 | approved | fix | fix | fix | fix |
+
+Question D10:
+D10 — Zeitstempel und Wanddauer je Aufruf mitschreiben?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Zwei Annahmen im Plan sind ungeprüft: dass ein neuer Prozess die Leerantwort-Kippe zurücksetzt, und dass beide Seiten eines Paares gleiche Bedingungen haben (die erste Seite holt Webseiten kalt, die zweite aus dem Cache). Beides wird sichtbar, wenn der Treiber je Aufruf Uhrzeit und Dauer notiert. Kostet keine Modellaufrufe.
+Stakes if we pick wrong: Häufen sich Leerantworten trotz Blockteilung, weiß niemand, ob es an der Rate oder am Prozess lag; und ein Website-Timeout auf der kalten Seite bleibt als „Prompt-Effekt" unerkannt.
+Recommendation: A, weil es zehn Zeilen kostet und beide offenen Annahmen mit derselben Kampagne beantwortet.
+Completeness: A=10/10, B=3/10, C=5/10, D=0/10
+Pros / cons:
+A) Zeitstempel und Wanddauer je Seite protokollieren (recommended)
+  ✅ Leerantworten lassen sich gegen die Aufrufrate auftragen; die Prozessgrenzen-Frage wird mit der Kampagne beantwortet
+  ✅ Median-Dauer alt/neu je Block macht Cache-kalt/warm und Timeouts sichtbar, ohne die Messung zu ändern
+  ❌ Zwei Spalten mehr im Protokoll und im Bericht
+B) Keine Zeitdaten
+  ✅ Schlankstes Protokoll
+  ✅ Nichts zu bauen
+  ❌ Beide Annahmen bleiben ungeprüft; bei Leerantworten gibt es keine Diagnose
+C) Erst prüfen, ob der Stream Zeiten liefert
+  ✅ Vermeidet doppelte Messung, falls vorhanden
+  ✅ Kurze Probe
+  ❌ `call_stream` liefert keine Zeiten (nur `response`/`tool_call`/`error`-Events); der Treiber misst ohnehin außen
+D) Offen lassen
+  ✅ Nichts festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Wird beim Bau vergessen und ist nachträglich nicht zu holen
+Net: Billige Diagnose (A) gegen blindes Protokoll (B) gegen unnötige Probe (C) gegen Vergessen (D).
+Header: Zeitdaten je Aufruf
+Options:
+A) Zeitstempel und Wanddauer je Seite protokollieren (recommended)
+✅ Leerantworten lassen sich gegen die Aufrufrate auftragen; die Prozessgrenzen-Frage wird mit der Kampagne beantwortet. ✅ Median-Dauer alt/neu je Block macht Cache-kalt/warm und Timeouts sichtbar, ohne die Messung zu ändern. ❌ Zwei Spalten mehr im Protokoll und im Bericht.
+B) Keine Zeitdaten
+✅ Schlankstes Protokoll. ✅ Nichts zu bauen. ❌ Beide Annahmen bleiben ungeprüft; bei Leerantworten gibt es keine Diagnose.
+C) Erst prüfen, ob der Stream Zeiten liefert
+✅ Vermeidet doppelte Messung, falls vorhanden. ✅ Kurze Probe. ❌ `call_stream` liefert keine Zeiten (nur `response`/`tool_call`/`error`-Events); der Treiber misst ohnehin außen.
+D) Offen lassen
+✅ Nichts festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Wird beim Bau vergessen und ist nachträglich nicht zu holen.
+
+State: approved
+Actual answer: A) Zeitstempel und Wanddauer je Seite protokollieren (Owner, D10, 2026-09-24)
+Accepted scope: Der Treiber schreibt je Aufruf Zeitstempel (UTC) und Wanddauer der Seite ins Protokoll (Zeile je Fall × Seite: Fall-ID, Seite alt/neu, Ausgang, Befund-Art, leer-Wiederholung, Tool-Aufrufe, Dauer, Zeitstempel, Prozess-Nr.). Der Bericht weist je Block Median-Dauer alt/neu aus und trägt Leerantworten gegen die Aufrufrate auf.
+History: none
+
+### R12: Pause zwischen den Prozessen
+Finding: Außenstimme 6, P2, confidence 7/10 (Annahme, nicht belegt), `TODOS.md:80` („bei ~30 Gemini-Aufrufen am Stück"); ob ein Prozessneustart die Kippe zurücksetzt, ist nirgends gemessen. Reviewer: Claude-Subagent (Outside Voice)
+Plan baseline: „Blockgröße: ein Prozess darf höchstens ~12 Fälle fahren" — setzt voraus, dass der Prozess die Einheit ist. Läuft die Kippe über ein Zeitfenster, reproduzieren drei Prozesse Rücken an Rücken dieselbe Dichte, und D1 (Wiederholung) treibt jeden Prozess an die Kante. Keine Freigabe.
+Runtime evidence: Einzelne Läufe waren 6/6 grün, die Suite 0/3 (`TODOS.md:85-86`). Das ist mit beiden Erklärungen (Prozess oder Rate) vereinbar. Mit R11 wird die Frage nach der Kampagne beantwortbar.
+Comparison grid:
+
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R12 Pause zwischen Prozessen | keine | feste Pause von 60 s zwischen zwei Prozessen (Konstante im Treiber, per Umgebungsvariable überschreibbar); Pausen im Protokoll vermerkt | keine Pause, Prozesse Rücken an Rücken | erst einen Zwei-Prozess-Probelauf mit und ohne Pause fahren, dann wählen (~48 Aufrufe extra) | offen lassen |
+| Laufzeit der Kampagne | ~10 Prozesse | +~10 min | +0 | +~1 h Probelauf | — |
+| R1–R11 | approved | fix | fix | fix | fix |
+
+Question D11:
+D11 — Feste Pause zwischen den Kampagnen-Prozessen?
+Project/branch/task: chamaeleon-webbot auf main, Plan „Verschränkte Messung" für W3.
+ELI10: Der Plan teilt die Kampagne in kleine Prozesse, damit Gemini nicht in leere Antworten kippt. Ob die Kippe am Prozess oder an der Aufrufrate hängt, weiß niemand. Eine Minute Pause zwischen den Prozessen kostet zehn Minuten Laufzeit und nimmt der Rate-Erklärung den Zahn. Die Zeitdaten aus D10 zeigen hinterher, ob es nötig war.
+Stakes if we pick wrong: Ohne Pause und bei Rate-Erklärung häufen sich Leerantworten in jedem Prozess, die Wiederholungen aus D1 verschärfen es, und das Push-2-Tor läuft auf Rauschen.
+Recommendation: A, weil zehn Minuten Laufzeit die billigste Versicherung gegen eine ungemessene Annahme sind und die Pause per Variable auf null gesetzt werden kann.
+Completeness: A=9/10, B=4/10, C=10/10, D=0/10
+Pros / cons:
+A) 60 s Pause, überschreibbar (recommended)
+  ✅ Deckt beide Erklärungen ab, ohne die Messung zu verändern; im Protokoll sichtbar
+  ✅ Ein Zehntel Zusatzlaufzeit, keine Zusatzaufrufe (human: ~10 min / CC: ~2 min)
+  ❌ Bleibt eine Annahme (60 s statt gemessen); bei Rate-Erklärung mit längerem Fenster reicht sie eventuell nicht
+B) Keine Pause
+  ✅ Kürzeste Kampagne
+  ✅ Wenn die Prozess-Erklärung stimmt, völlig ausreichend
+  ❌ Setzt auf eine ungemessene Annahme, und D1 treibt jeden Prozess zusätzlich an die Grenze
+C) Probelauf mit und ohne Pause
+  ✅ Beantwortet die Frage empirisch vor der Kampagne
+  ✅ Liefert gleich die Kalibrierung der Pausenlänge
+  ❌ ~48 Zusatzaufrufe und eine Stunde, für eine Frage, die R11 aus der Kampagne selbst beantwortet
+D) Offen lassen
+  ✅ Nichts festgelegt
+  ✅ Andere Entscheidungen unberührt
+  ❌ Der W3-Agent fährt dann Rücken an Rücken, weil nichts anderes dasteht
+Net: Billige Versicherung (A) gegen Vertrauen (B) gegen teure Gewissheit (C) gegen Zufall (D).
+Header: Prozess-Pause
+Options:
+A) 60 s Pause, überschreibbar (recommended)
+✅ Deckt beide Erklärungen ab, ohne die Messung zu verändern; im Protokoll sichtbar. ✅ Ein Zehntel Zusatzlaufzeit, keine Zusatzaufrufe (human: ~10 min / CC: ~2 min). ❌ Bleibt eine Annahme (60 s statt gemessen); bei Rate-Erklärung mit längerem Fenster reicht sie eventuell nicht.
+B) Keine Pause
+✅ Kürzeste Kampagne. ✅ Wenn die Prozess-Erklärung stimmt, völlig ausreichend. ❌ Setzt auf eine ungemessene Annahme, und D1 treibt jeden Prozess zusätzlich an die Grenze.
+C) Probelauf mit und ohne Pause
+✅ Beantwortet die Frage empirisch vor der Kampagne. ✅ Liefert gleich die Kalibrierung der Pausenlänge. ❌ ~48 Zusatzaufrufe und eine Stunde, für eine Frage, die R11 aus der Kampagne selbst beantwortet.
+D) Offen lassen
+✅ Nichts festgelegt. ✅ Andere Entscheidungen unberührt. ❌ Der W3-Agent fährt dann Rücken an Rücken, weil nichts anderes dasteht.
+
+State: approved
+Actual answer: A) 60 s Pause, überschreibbar (Owner, D11, 2026-09-24)
+Accepted scope: Zwischen zwei Kampagnen-Prozessen wartet der Orchestrator 60 s (Konstante im Treiber, per `EVAL_PAUSE_S` überschreibbar, 0 erlaubt). Jede Pause wird mit Zeitstempel im Protokoll vermerkt.
+History: none
+
+Approval readiness: PASS — R1 (D1=C), R2 (D2=A, deckt R4), R3 (D3=A), R5 (D4=A), R6 (D5=A), R7 (D6=A), R8 (D7=A), R9 (D8=A), R10 (D9=A), R11 (D10=A), R12 (D11=A). Korrekturen ohne Frage: Außenstimme 7 und 9. Keine offenen Remedies.
 
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
-| Outside Review | Claude-Subagent (Rückfall; Codex `model_unusable`) | Independent 2nd opinion | 1 | unavailable (kein Fremdmodell) | 10 Befunde, 9 entschieden, 1 übersprungen |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open | 18 issues, 0 critical gaps |
+| Outside Review | Claude-Subagent (Rückfall; Codex `model_unusable`) | Independent 2nd opinion | 3 | unavailable (kein Fremdmodell) | 9 Befunde: 7 entschieden (R6–R12), 2 als Korrektur übernommen |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | issues_open | 14 issues (5 eigene + 9 Außenstimme), 0 critical gaps |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
-- **OUTSIDE COVERAGE:** codex, phase plan-review, unavailable (CLI kann die Modell-Liste nicht dekodieren). Native Rückfall-Prüfung durch einen Claude-Subagenten mit frischem Kontext lief durch und lieferte 10 Befunde; das ersetzt keine Fremdmodell-Abdeckung.
-- **VERDICT:** ENG REVIEW durchgeführt, 19 von 20 Entscheidungen eingearbeitet, 0 kritische Lücken. Nicht CLEAR, solange D18 offen ist — eng review required. Die Ausführung kann starten; D18 betrifft erst W3 (Welle 2).
+- **OUTSIDE COVERAGE:** codex, phase plan-review, unavailable (CLI kann die Modell-Liste nicht dekodieren, `MODEL_UNUSABLE`; Fix: `GSTACK_CODEX_MODEL=<unterstütztes Modell>`). Native Rückfall-Prüfung durch einen Claude-Subagenten (Plan-Agent, frischer Kontext) lief durch und lieferte 9 Befunde, davon 4 bestätigte Feasibility-Lücken im Treiber (alte Vorlage, Tool-Zählung, Fallquellen, Ausgänge). Das ersetzt keine Fremdmodell-Abdeckung.
+- **VERDICT:** ENG REVIEW durchgeführt (Abschnitt „Verschränkte Messung", 2026-09-24): 11 Entscheidungen D1–D11 vom Owner beantwortet und eingearbeitet, 2 Korrekturen ohne Frage, 0 kritische Lücken. Frühere Läufe: 2026-09-21 (20 Entscheidungen, D18 fallengelassen 2026-09-23). Nicht CLEAR, weil Befunde in Arbeit gemappt sind (T15–T20) — eng review required.
 
-**UNRESOLVED DECISIONS:** keine.
-
-- D18 — Längenregel (2–4 Sätze) gegen mehrteilige Pflichtantworten: **am 2026-09-23 vom Owner fallengelassen.** `system_prompt_template` behält die Regel unverändert (`agent_base.py:913`, wiederholt `:1025`), W3 startet damit. Die Frage wird nicht erneut gestellt; wer auf einen konkreten Fall stößt, der zwischen Pflichtinhalt und Satzzahl nicht auflösbar ist, legt **diesen Fall** vor — nicht die Grundsatzfrage.
-  Gemessen am 2026-09-23 (Probelauf W1, ohne jede W3-Änderung): das Modell hält 2–4 Sätze in allen Blöcken außer den Vergleichsantworten — `airline` durchweg 2–3 über 27 Länder, `fachwissen` 2–4, `ungefragt` 3–4, aber `filter` 8, 7, 3, 3. Der Konflikt ist also real und sitzt genau dort, wo Änderung A das Verhalten zur Regel macht.
+NO UNRESOLVED DECISIONS
