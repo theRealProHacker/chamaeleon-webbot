@@ -855,6 +855,80 @@ Besitzt nur `system_prompt_template`. Änderungen:
    ist unscharf (Ortsliste oder zweites Modell nötig).
 5. `/review` über den Gesamtdiff. **Kein Push** — der Owner entscheidet.
 
+### Ergebnis der verschränkten Messung (2026-09-24, T20)
+
+Treiber `tests/eval_paare.py` (`aba2ce9`), Protokoll
+`data/eval_paare/2026-09-24.jsonl`, 15 Prozesse, 18:06–18:47 UTC, 60 s Pause.
+Alt = Vorlage aus `a84f3f1` (Eltern von W3-Commit 1), Neu = `4825b64`
+(W3-Commit 4). Tausch-Nachweis: Prompt alt `c00b5c7abf06…`, neu
+`d43ba884bf05…` — verschieden, wie verlangt. `EVAL_N` = 1, das Paar ist die
+Wiederholung.
+
+| Block | Fälle | b (neu besser) | c (neu schlechter) | beide grün | beide rot | ausgefallen | leer alt/neu | Fehler alt/neu | Median s alt/neu | Tools Ø alt/neu | p |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `filter` | 8 | 2 | 2 | 0 | 3 | 1 | 0/0 | 1/1 | 4.5/4.1 | 2.4/7.6 |  |
+| `airline` | 31 | 5 | 0 | 26 | 0 | 0 | 0/0 | 0/0 | 2.0/1.9 | 3.9/3.2 | 0.062 |
+| `nichtangeboten` | 4 | 0 | 1 | 3 | 0 | 0 | 0/0 | 0/0 | 2.6/1.3 | 1.5/0.0 |  |
+| `ungefragt` | 4 | 1 | 1 | 2 | 0 | 0 | 0/0 | 0/0 | 2.9/2.7 | 4.5/3.8 |  |
+| `fachwissen` | 12 | 1 | 1 | 9 | 1 | 0 | 0/0 | 0/0 | 1.8/1.2 | 1.2/0.8 |  |
+| `erfinden` | 4 | 1 | 0 | 1 | 2 | 0 | 0/0 | 0/0 | 1.4/1.8 | 0.8/1.5 |  |
+| `flug` | 2 | 1 | 0 | 0 | 1 | 0 | 0/0 | 0/0 | 2.2/3.1 | 3.0/3.0 |  |
+| Agentur | 31 | 1 | 0 | 29 | 0 | 1 | 1/1 | 0/0 | 1.7/1.7 | 0.1/0.0 | 1.000 |
+| MeinChamäleon | 13 | 0 | 2 | 10 | 1 | 0 | 0/0 | 0/0 | 1.9/1.7 | 0.2/0.0 |  |
+
+Summe: b = 12, c = 7 über 109 Paare. Leerantworten: ein einziges Paar
+(Agentur `test_fluganfrage_mit_reise_nennt_die_durchwahl`, beide Seiten leer
+auch nach Wiederholung) — die Kippe hat bei ≤ 11 Fällen je Prozess nicht
+zugeschlagen.
+
+**c-Fälle (alt grün, neu rot), mit Befund-Art:**
+- `filter-namibia-teenager-14-tage` — Inhalt: nennt Sossusvlei nicht.
+- `filter-peru-ohne-amazonas-schwester` — Inhalt: verlinkt `/Amerika/Peru/Pachamama-ALL` (mit Amazonas).
+- `nichtangeboten-Nigeria` — Inhalt: Absage-Muster greift nicht (W3-Sichtprüfung sah dasselbe bei Afghanistan: „kein Reiseziel, das Chamäleon anbietet" ist eine richtige Absage, die `_ABSAGE` nicht kennt — Eval-Lücke, nicht Prompt).
+- `ungefragt-windhoek-sehenswuerdigkeiten` — Inhalt: „Mückenspray", „Geld".
+- `fachwissen-hatari-zusatztage` — Inhalt: kein Erlebnisberater, dazu „leider".
+- MeinChamäleon `rail-and-fly` — Link. **Nachmessung: alt 2/2, neu 2/2 grün → Rauschen.**
+- MeinChamäleon `unterlagen-ohne-vrrvorgang-testkunde` — Link (nur `/MeinChamaeleon`, Punkt 14). **Nachmessung:** alt 3/3 grün; neu insgesamt 2 von 7 rot. Je W3-Zwischenstand je 4 Läufe: `d4771ad` 0/4 rot, `23567b5` 2/4, `07c7119` 1/4, `4825b64` 0/4. Rot erst ab Regelgruppe 2 (FAQ-Nutzung), bei dieser Fallzahl aber nicht sauber zuzuordnen.
+
+**b-Fälle:** `filter-namibia-14-tage`, `filter-italien-ohne-rom-schwester`,
+fünf Airline-Länder (Argentinien-Chile, Madagaskar, Mexiko, Mongolei,
+Namibia-Südafrika), `ungefragt-marokko-infos`, `fachwissen-termine-2029-schwester`,
+`erfinden-passname`, `flug-non-stop`, Agentur `test_ansprechpartner_fragt_zurueck`.
+
+**Push-2-Tor (c-Liste der beiden alten Suiten):** Agentur leer. MeinChamäleon
+ein Fall nach Nachmessung: `unterlagen-ohne-vrrvorgang-testkunde`, neu 2/7 rot
+gegen alt 0/3. **Nicht begründet — das Tor ist damit nicht offen; Entscheidung
+beim Owner.** Die Satzzahl-Regel ist nicht gekippt (kein c-Fall mit Befund-Art
+Länge).
+
+**Welle 3 Punkt 2 — B1 mit Zahlen.** `ungefragt-marokko-infos` war in der
+Kampagne alt rot („Ramadan") und neu grün (b). In der W3-Sichtprüfung war er
+mit neuem Prompt dreimal rot, ebenfalls „Ramadan". Neu also 1 von 4 grün.
+Ramadan steht nicht auf der Kasbah-Seite, sondern in der automatisch
+eingehängten Marokko-FAQ (`FAQ_Afrika.csv:104`, `agent.py:205`). Die
+Prompt-Regel allein reicht nicht; Vorschlag wie geplant: Injektion streichen,
+Länder-FAQ nur noch über `country_faq_tool`. Entscheidung beim Owner.
+
+**Welle 3 Punkt 3 — Tool-Aufrufe.** Nur `filter` steigt spürbar (Ø 2,4 → 7,6
+je Chat), die Mediandauer bleibt gleich (4,5 → 4,1 s). Alle anderen Blöcke
+flach oder leicht fallend.
+
+**Welle 3 Punkt 4 — D13-Auslöser: erfüllt.** Neu rot in `filter`: beide
+Tansania-Fälle, Südafrika/Gartenroute, Namibia-Teenager, Peru — alle Inhalt,
+keiner nur Satzzahl. Dazu die Tool-Aufrufe. Eingetragen in `TODOS.md`.
+
+**Nicht vom Prompt lösbar, gefunden bei W3:**
+- F1: Länderseiten (`/Amerika/Costa-Rica`, `/Afrika/Namibia`) tragen keine
+  Erlebnisberater*in; `erlebnisberater_tool` liefert die Zentrale.
+  `erfinden-ansprechpartner-*` bleiben beidseitig rot, bis feststeht, woher
+  der Berater eines Landes kommt.
+- `filter-marokko-10-tage-schwester`: keine Marokko-Reise hat ≤ 10 Tage, die
+  Ableitung trennt nicht → beidseitig „Fehler". Fall umformulieren (z. B. 12
+  Tage) oder streichen.
+- Es gibt keine allgemeine Safari-Übersicht (`/Safari` ist 404); das neue
+  Stil-Beispiel „erste Safari" verlinkt `/Namibia-Safari`, `/Botswana-Safari`,
+  `/Safari-Suedafrika`.
+
 ### Nicht Teil dieses Plans
 
 Reisebüro-Suche nach PLZ, Retry-Logik bei leeren Antworten, Umbau der
@@ -1041,7 +1115,7 @@ finding above. Run with Claude Code or Codex; checkbox as you ship.
   - Files: `tests/test_kundenfeedback_eval.py`, `tests/test_meinchamaeleon_faq.py`
   - Verify: ohne Schalter alles `skipped`; Ankerwert-Test grün; `EVAL_N=3` meldet Quoten
 - [ ] ~~**T11** — Ausgangs- und Schlussmessung mit `EVAL_N=3`~~ — **ersetzt durch T15–T20 (D20 gedreht, 2026-09-23/24)**
-- [ ] **T12 (P1, human: ~30min / CC: ~5min)** — W3 — ein Commit je Regelgruppe; Stil-Beispiel „erste Safari" umschreiben
+- [x] **T12 (P1, human: ~30min / CC: ~5min)** — W3 — ein Commit je Regelgruppe; Stil-Beispiel „erste Safari" umschreiben
   - Surfaced by: Architektur D2, Außenstimme 9a / D17 — ein Commit für neun Regeln; Beispiel macht Etosha ohne Prüfung vor
   - Files: `agent_base.py`
   - Verify: vier Commits in `git log`; Eval-Block `filter` vorher/nachher
@@ -1049,34 +1123,34 @@ finding above. Run with Claude Code or Codex; checkbox as you ship.
   - Surfaced by: Architektur D2 — ein Push für alles macht einen Rückschritt unzuordenbar
   - Files: —
   - Verify: Owner-Go je Push; Blick auf Live-Chats nach Push 1
-- [ ] **T14 (P3, human: ~15min / CC: ~2min)** — Orchestrator — TODO „Vergleichstabelle je Land" mit Auslöser eintragen
+- [x] **T14 (P3, human: ~15min / CC: ~2min)** — Orchestrator — TODO „Vergleichstabelle je Land" mit Auslöser eintragen
   - Surfaced by: Außenstimme 5 / D13
   - Files: `TODOS.md`
   - Verify: Eintrag mit Auslöser und offener Frage „Orte im Verlauf"
 
 _Nachtrag /plan-eng-review „Verschränkte Messung", 2026-09-24:_
 
-- [ ] **T15 (P1, human: ~2h / CC: ~15min)** — Treiber — alte Vorlage aus Git schneiden und im `agent_base`-Namensraum auswerten; Eltern-SHA als Konstante; Unit-Test Schneiden == aktuelles Template
+- [x] **T15 (P1, human: ~2h / CC: ~15min)** — Treiber — alte Vorlage aus Git schneiden und im `agent_base`-Namensraum auswerten; Eltern-SHA als Konstante; Unit-Test Schneiden == aktuelles Template
   - Surfaced by: Außenstimme 1 / R6 (D5) — Quelle der alten Vorlage war unbenannt
   - Files: `tests/eval_paare.py` (neu), `tests/test_eval_paare.py` (neu)
   - Verify: `pytest tests/test_eval_paare.py -q`
-- [ ] **T16 (P1, human: ~1h / CC: ~10min)** — Treiber — Vorbedingung: beide Vorlagen rendern, `alt != neu`, SHA-256 + Commit ins Protokoll, sonst Abbruch; Unit-Test Abbruch bei Gleichheit
+- [x] **T16 (P1, human: ~1h / CC: ~10min)** — Treiber — Vorbedingung: beide Vorlagen rendern, `alt != neu`, SHA-256 + Commit ins Protokoll, sonst Abbruch; Unit-Test Abbruch bei Gleichheit
   - Surfaced by: Tests R5 (D4) — b = c = 0 wäre von „W3 wirkt nicht" nicht unterscheidbar
   - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
   - Verify: Unit-Test „identische Vorlagen → SystemExit vor erstem Aufruf"
-- [ ] **T17 (P1, human: ~3h / CC: ~20min)** — Treiber — Fallquellen: Listen importieren, `airline`/`nichtangeboten` mit Modul-Helfern nachbauen und vorwärmen, Einzelfunktionen direkt (parametrisierte über Modul-Listen, skipif nur mit Nummer); vier Ausgänge je Seite; Paare mit leer/Fehler aus b/c
+- [x] **T17 (P1, human: ~3h / CC: ~20min)** — Treiber — Fallquellen: Listen importieren, `airline`/`nichtangeboten` mit Modul-Helfern nachbauen und vorwärmen, Einzelfunktionen direkt (parametrisierte über Modul-Listen, skipif nur mit Nummer); vier Ausgänge je Seite; Paare mit leer/Fehler aus b/c
   - Surfaced by: Code Quality R2 (D2), Außenstimme 3/4 / R8 (D7), R9 (D8)
   - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
   - Verify: Unit-Tests mit gefälschtem `call`: AssertionError → rot, Skipped → Fehler, Fallback-Text → leer + eine Wiederholung; Fallzählung Agentur = 33
-- [ ] **T18 (P1, human: ~1h / CC: ~10min)** — Treiber — `agent.call_stream` zählend einwickeln; Tool-Aufrufe, Wanddauer, Zeitstempel, Prozess-Nr. je Seite protokollieren
+- [x] **T18 (P1, human: ~1h / CC: ~10min)** — Treiber — `agent.call_stream` zählend einwickeln; Tool-Aufrufe, Wanddauer, Zeitstempel, Prozess-Nr. je Seite protokollieren
   - Surfaced by: Außenstimme 2 / R7 (D6), Außenstimme 6+8 / R11 (D10)
   - Files: `tests/eval_paare.py`, `tests/test_eval_paare.py`
   - Verify: Unit-Test mit gefälschtem Stream (2 `tool_call`-Events → 2)
-- [ ] **T19 (P1, human: ~2h / CC: ~15min)** — Treiber/Bericht — Auswertung als Fall-Listen je Block (b, c, c-Fälle mit Befund-Art), McNemar nur für `airline` und Agentur; D13-Auslöser auf ganze Fälle; Befund-Art-Spalte
+- [x] **T19 (P1, human: ~2h / CC: ~15min)** — Treiber/Bericht — Auswertung als Fall-Listen je Block (b, c, c-Fälle mit Befund-Art), McNemar nur für `airline` und Agentur; D13-Auslöser auf ganze Fälle; Befund-Art-Spalte
   - Surfaced by: Tests R3 (D3), Außenstimme 5 / R10 (D9)
   - Files: `tests/eval_paare.py`, `docs/kundenfeedback-2026-09-plan.md` (Tabelle)
   - Verify: Unit-Test der Auswertung auf einem synthetischen Protokoll (b/c/leer/Fehler korrekt getrennt)
-- [ ] **T20 (P2, human: ~1 Tag / CC: ~1.5h Laufzeit)** — Orchestrator — Kampagne fahren: ≤ ~12 Fälle je Prozess, 60 s Pause (`EVAL_PAUSE_S`), Protokoll und Tabelle in den Plan
+- [x] **T20 (P2, human: ~1 Tag / CC: ~1.5h Laufzeit)** — Orchestrator — Kampagne fahren: ≤ ~12 Fälle je Prozess, 60 s Pause (`EVAL_PAUSE_S`), Protokoll und Tabelle in den Plan
   - Surfaced by: Architektur D20, Außenstimme 6 / R12 (D11)
   - Files: `docs/kundenfeedback-2026-09-plan.md`
   - Verify: Tabelle je Block mit b, c, leer, Fehler, Median-Dauer, Tool-Aufrufe; Hashes beider Vorlagen im Kopf
