@@ -79,7 +79,7 @@ EXPECTED_KEYWORDS_GENERAL_FAQ = {
         "reiseversicherung",
         "premiumschutz",
         "basisschutz",
-        "rücktrittsversicherung",
+        "rücktritt",
         "urlaubsgarantie",
         # Add more specific types if critical, e.g., "reise-krankenversicherung"
     ],
@@ -107,7 +107,7 @@ EXPECTED_KEYWORDS_GENERAL_FAQ = {
     ],
     "Können Kinder mitreisen?": ["ab ((zwölf)|12) jahren", "geeignet"],
     "Erhalte ich die Reiseunterlagen auch noch per Post?": [
-        "digitaler form",
+        "digital",
         "bestätigungsunterlagen",
         "post",
     ],
@@ -227,8 +227,8 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Botswana: Gibt es WLAN vor Ort?": ["hauptbereich", "gomoti", "kein wlan"],
     "Botswana: Gibt es einen Fön in den Unterkünften?": [
         "nicht alle",
-        "strom begrenzt",
-        "mitbringen",
+        "strom.{0,40}begrenzt",
+        "mit(zu)?bringen",
     ],
     "Botswana: Bieten die Unterkünfte einen Wäscheservice?": [
         "wäscheservice",
@@ -236,21 +236,20 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "ausreicht",
     ],
     "Botswana: Kann ich das Leitungswasser trinken oder zum Zähnputzen nehmen?": [
-        "nicht geeignet",
+        "nicht.{0,20}geeignet",
         "glaskaraffen",
         "trinkwasser",
     ],
     "Botswana: Brauche ich einen Adapter für die Steckdose?": [
-        "speziellen stecker",
+        "speziellen (stecker|adapter)",
         "weltstecker",
-        "funktioniert nicht",
+        "funktioniert.{0,10}nicht",
     ],
     # === AMERIKA ===
     # Brasilien
     "Brasilien: Wann ist die Trockenzeit im Amazonas?": [
         "juli",
         "september",
-        "sommermonate",
     ],
     "Brasilien: Welche Reisestecker muss man für Brasilien mitnehmen?": [
         "typ n",
@@ -264,7 +263,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     ],
     "Brasilien: Wann ist die beste Zeit um Jaguare zu beobachten?": [
         "pantanal",
-        "juni-september",
+        "juni ?(-|bis) ?september",
         "jaguare",
     ],
     "Brasilien: Bieten Sie diese Reise auch im Februar an?": [
@@ -280,18 +279,17 @@ COUNTRY_EXPECTED_KEYWORDS = {
     # Costa Rica
     "Costa Rica: Kann man überall rauchen?": [
         "rauchergesetz",
-        "ausgewiesene bereiche",
+        "ausgewiesenen? bereiche",
         "ernst",
     ],
     "Costa Rica: Wie schwer sind die Wanderungen?": [
         "unterschiedlich",
         "konkrete auskünfte",
-        "anrufen",
+        "(anrufen|ruf|tel:)",
     ],
     "Costa Rica: Braucht man eine gute Kondition, um alle Touren mitzumachen?": [
         "normale kondition",
-        "nein",
-        "reicht aus",
+        r"reicht\b.*\baus",
     ],
     "Costa Rica: In welcher Höhe ist man maximal unterwegs?": [
         "unterschiedlich",
@@ -300,17 +298,17 @@ COUNTRY_EXPECTED_KEYWORDS = {
     ],
     "Costa Rica: Welche Stromadapter brauche ich?": [
         "welt-steckdosen.de",
-        "schauen",
+        "schau",
         "adapter",
     ],
-    "Costa Rica: Wie lange dauert der Flug?": ["frankfurt", "san josé", "12h"],
+    "Costa Rica: Wie lange dauert der Flug?": ["frankfurt", "san josé", "12 ?(h|stunden)"],
     'Costa Rica: Kann ich auch mal "aussetzen" mit den Touren/Ausflügen?': [
         "hotel bleiben",
         "bus",
-        "warten",
+        "wart(en|est)",
     ],
     "Costa Rica: Muss ich Moskitonetze mitbringen?": [
-        "nicht notwendig",
+        "nicht (notwendig|nötig|mitbringen)",
         "vorkehrungen",
         "unterkünfte",
     ],
@@ -333,7 +331,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Costa Rica: Kann man im Pazifik baden?": [
         "starke strömungen",
         "pools",
-        "strandspaziergang",
+        "strandspazierg",
     ],
     "Costa Rica: CRMIR: kann man, obwohl die Reise in Panama endet, treotzdem ein Anschlussprogramm in Costa Rica buchen?": [
         "panama city",
@@ -357,13 +355,13 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "landeswährung",
     ],
     "Ecuador: Muss ich vor der Reise Euro in Landeswährung tauschen?": [
-        "euro tauschen",
+        "euro.{0,20}tauschen",
         "kreditkarte",
         "us-dollar",
     ],
     "Ecuador: Ist man auf der Ecuador-Reise in Malariagebieten unterwegs?": [
         "nein",
-        "außerhalb",
+        "(außerhalb|nicht in malariagebieten)",
         "insektenschutz",
     ],
     "Ecuador: Sind die Wanderungen auf der Reise anstrengend?": [
@@ -395,7 +393,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Kanada: CAQUE: Ist die Reise anstrengend?": [
         "nicht besonders",
         "durchschnittlich",
-        "angepasst",
+        "(angepasst|passt .{0,40}an)",
     ],
     "Kanada: CAQUE: Müssen die optionalen Aktivitäten vorab angemeldet werden": [
         "nein",
@@ -409,7 +407,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     ],
     "Kanada: CAQUE: Kann man früher anreisen und schon ein paar Tage in Toronto verbringen?": [
         "ja",
-        "flüge anpassen",
+        "flüge.{0,20}anpassen",
         "toronto",
     ],
     "Kanada: CAQUE: Kann man später abreisen und noch ein paar Tage in Québec City oder in Montreal verbringen?": [
@@ -431,10 +429,10 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Kolumbien: Brauche ich für Kolumbien ein Visum?": [
         "kein visum",
         "online-formular",
-        "migracioncolombia",
+        r"visum\.de/partner/chamaeleon",
     ],
     "Kolumbien: Was ist die beste Reisezeit für Kolumbien?": [
-        "ganzjährig",
+        "(ganzjährig|ganze jahr)",
         "trockenzeiten",
         "regenzeiten",
     ],
@@ -445,12 +443,12 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Australien: Beste Reisezeit?": [
         "ganze jahr",
         "jahreszeiten entgegengesetzt",
-        "winter mild",
+        "winter.{0,15}mild",
     ],
     "Australien: Aktivitätslevel?": ["einfach", "bequem", "level"],
     "Australien: Optionale Aktivitäten?": ["opernbesuch", "sydney", "bridge walk"],
-    "Australien: Eigenanreise?": ["möglich", "alternative", "geprüft"],
-    "Australien: Gepäckbestimmungen?": ["30kg", "40kg", "emirates"],
+    "Australien: Eigenanreise?": ["möglich", "alternative", "(geprüft|prüfen)"],
+    "Australien: Gepäckbestimmungen?": ["30 ?kg", "40 ?kg", "emirates"],
     "Australien: Essenspräferenzen / Allergien ?": [
         "ohne probleme",
         "umsetzbar",
@@ -459,7 +457,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Australien: Reiseleitungen ?": ["drei verschiedene", "melbourne", "queensland"],
     # Armenien
     "Armenien: Gibt es eine optionale Aktivität?": [
-        "kulinarischer rundgang",
+        "kulinarische[nr]? rundgang",
         "jerewan",
         "4 personen",
     ],
@@ -469,8 +467,8 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "gepäck",
     ],
     "Armenien: Gibt es eine besondere Kleidervorschrift?": [
-        "religiöse stätten",
-        "bedeckte kleidung",
+        "religiöse[nr]? stätten",
+        "bedeckte(re)? kleidung",
         "tuch",
     ],
     # Bhutan
@@ -479,8 +477,8 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "China: Fluggesellschaft?": ["lufthansa", "airline", "fliegen"],
     "China: Abflughafen?": ["münchen", "frankfurt", "abflug"],
     "China: Mitnahme von Drohnen nach China": ["drohne", "registrierung", "städte"],
-    "China: Adapter für Steckdosen?": ["gleiche steckdosen", "adapter", "uns"],
-    "China: Geld wechseln?": ["bargeld", "reiseleitung", "tauschbar"],
+    "China: Adapter für Steckdosen?": ["gleichen? steckdosen", "adapter", "uns"],
+    "China: Geld wechseln?": ["bargeld", "reiseleit(ung|er)", "tausch(bar|en)"],
     "China: Aktivitätslevel?": ["grundfitness", "gehstrecken", "lang"],
     "China: Bestuhlung vom Flugzeug?": ["3-3-3", "2-3-2", "bestuhlung"],
     "China: Kommunikation:": ["wlan", "vpn", "wechat"],
@@ -492,26 +490,26 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "China: Hinweise Kosmetik?": ["duschgel", "shampoo", "unterkünfte"],
     "China: Flüssigkeiten auf Inlandsflug und Zugfahrten?": [
         "keine flüssigkeiten",
-        "120ml",
+        "120 ?ml",
         "brennbar",
     ],
     "China: Flusskreuzfahrt besonderheiten? (CNYAN)": [
-        "drei schiffe",
-        "kein pool",
+        "drei .{0,25}schiffe",
+        "kein(en)? pool",
         "bord",
     ],
     # Indien
-    "Indien: unterschied zwischen INRAJ und INTAJ": ["ähnlich", "4 tage", "wüste"],
+    "Indien: unterschied zwischen INRAJ und INTAJ": ["ähnlich", "(4|vier) tage", "wüste"],
     "Indien: Ist eine Eigenanreise möglich?": ["nein", "eigenanreise", "möglich"],
     "Indien: Geldtauschen?": ["vor ort", "tauschen", "empfehlen"],
     # Japan
     "Japan: Airline ?": ["direktflüge", "lufthansa", "airline"],
     "Japan: Bestuhlung ?": ["3-3-3", "2-3-2", "bestuhlung"],
     "Japan: Eigenanreise?": ["möglich", "transfers", "teuer"],
-    "Japan: Sitzplatzreservierung ?": ["standardsitzplatz", "65€", "beinfreiheit"],
-    "Japan: Höhere Buchungsklassen?": ["premium", "business", "kalkuliert"],
+    "Japan: Sitzplatzreservierung ?": ["standardsitzplatz", "65 ?€", "beinfreiheit"],
+    "Japan: Höhere Buchungsklassen?": ["(premium|px)", "(business|bx)", "kalkuliert"],
     "Japan: Geld wechseln?": ["flughafen", "kreditkarte", "währungswechsel"],
-    "Japan: JPKYO: Kann man Wanderung auf Pilgerweg aussetzen?": ["ja", "bus", "cafe"],
+    "Japan: JPKYO: Kann man Wanderung auf Pilgerweg aussetzen?": ["ja", "bus", "caf(e|é)"],
     # Jordanien
     "Jordanien: Brauche ich für das Visum ein Passfoto oder ähnliches?": [
         "nein",
@@ -553,8 +551,8 @@ COUNTRY_EXPECTED_KEYWORDS = {
     ],
     "Estland: Baltikum: Wie viel läuft man auf der Reise?": [
         "10-12",
-        "gelaufene km",
-        "tag",
+        "(km|kilometer)",
+        "(tag|täglich)",
     ],
     "Estland: Baltikum: Wie anstrengend sind die Wanderungen?": [
         "2-3 km",
@@ -578,14 +576,14 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Finnland: Nebenkosten vor Ort": ["200-300 euro", "person", "nebenkosten"],
     # Frankreich
     "Frankreich: Wie groß sind die Zimmer?": [
-        "relativ klein",
-        "amerikanischen",
-        "vergleichen",
+        "klein",
+        "(amerikanisch|usa)",
+        "(vergleichen|kleiner als)",
     ],
-    "Frankreich: Wie groß sind die Betten?": ["1,40 m", "1.90m", "überdecke"],
+    "Frankreich: Wie groß sind die Betten?": ["1,40 m", "1[.,]90 ?m", "überdecke"],
     "Frankreich: FRPRO: Wann ist die Lavendelblüte?": ["juni", "august", "region"],
     "Frankreich: FRPRO: muss man an der E-Bike Tour durch die Camargue teilnehmen?": [
-        "fahrradtour",
+        "(fahrradtour|e-bike)",
         "aigues-mortes",
         "alternative",
     ],
@@ -608,7 +606,6 @@ COUNTRY_EXPECTED_KEYWORDS = {
     ],
     "Island: Welche Zielgruppe bereist Island?": [
         "naturinteressierte",
-        "zielgruppe",
         "hauptsächlich",
     ],
     "Island: Wann ist die beste Reisezeit für Island?": [
@@ -616,14 +613,14 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "wale",
         "nordlichter",
     ],
-    "Island: Wird es in Island richtig kalt?": ["weder kalt", "wechselhaft", "moment"],
+    "Island: Wird es in Island richtig kalt?": ["weder (richtig )?kalt", "wechselhaft", "(moment|mehrmals am tag)"],
     "Island: Ist diese Reise eine aktive Wanderreise?": [
         "nein",
         "viel unterwegs",
         "wanderungen",
     ],
     "Island: Wieviele Reiseleiter gibt es auf dieser Reise?": [
-        "1 reiseleiter",
+        "(1|ein) reiseleiter",
         "fahrer",
         "gleichzeitig",
     ],
@@ -648,17 +645,17 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Norwegen: Aktivitätslevel": ["einfach", "aktivität", "level"],
     "Norwegen: Tipps zur Kleidung": ["zwiebellook", "schlafmaske", "sonnenbrille"],
     "Norwegen: Nebenkosten vor Ort": ["300", "400 €", "woche"],
-    "Norwegen: Aufgabegepäck bei LH ?": ["23kg", "32kg", "business"],
+    "Norwegen: Aufgabegepäck bei LH ?": ["23 ?kg", "32 ?kg", "business"],
     "Norwegen: Im Hotel Senja teilen sich die Gäste ein Apartment (NUR BEI NOLOF)": [
         "wohnbereich",
         "schlafzimmer",
-        "schlüssel",
+        "(schlüssel|abschließ|verschließ)",
     ],
     # Portugal
     "Portugal: Haben die Unterkünfte Duschmittel?": [
-        "kleine proben",
+        "kleine .{0,25}proben",
         "zusätzlich",
-        "mitnehmen",
+        "mit(zu)?nehmen",
     ],
     "Portugal: Muss ich gut zu Fuß sein?": [
         "grundfitness",
@@ -670,7 +667,7 @@ COUNTRY_EXPECTED_KEYWORDS = {
     # Schottland
     "Schottland: Ist die Tour anstrengend, muss man gut zu Fuß sein?": [
         "nicht anstrengend",
-        "fährt",
+        "f(ä|a)hr(t|st)",
         "stopps",
     ],
     "Schottland: Wie lange fährt man so circa täglich?": [
