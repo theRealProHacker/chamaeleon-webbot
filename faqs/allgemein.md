@@ -134,7 +134,7 @@ A: Im Allgemeinen sind Chamäleon-Reisen für Kinder ab zwölf Jahren geeignet.
 A: 12 Teilnehmer.
 
 **F: Mein gewünschter Termin ist online nicht mehr sichtbar.**
-A: Der Termin ist leider ausgebucht bzw. wurde vorübergehend geschlossen. Schreibe eine Mail an das Chamäleon-Team.
+A: Der Termin ist ausgebucht oder vorübergehend geschlossen. Schreib dem Chamäleon-Team eine Mail.
 
 **F: Was für Gepäck kann ich mitnehmen?**
 A: Wir bitten dich, wenn möglich, auf Hartschalenkoffer zu verzichten, da diese im Bus viel Platz wegnehmen. Du musst dir aber kein neues Gepäck kaufen! Du darfst auch Stoffkoffer mit Rollen mitnehmen. Für deine Reise müssen es keine Reisetaschen sein. Feste Maße für Koffer mit Rollen gibt es bei Chamäleon nicht. Die Gewichts- und Größenbeschränkungen für deinen Flug findest du in den Vorgaben der jeweiligen Fluggesellschaft.
