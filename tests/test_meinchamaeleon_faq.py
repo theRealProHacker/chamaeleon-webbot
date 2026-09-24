@@ -168,6 +168,12 @@ def test_koffergroesse_verweist_auf_die_fluggesellschaft():
 # weder Login noch echte Buchung — mit VRRVORGANG reicht eine ausgedachte
 # Nummer in der Endpoint-URL, ohne laeuft der Fall als Testkunde 999999999
 # (wie in tests/test_kundendaten.py), dessen Buchungen das Tool liefert.
+#
+# Der Testkunde hat genau eine Buchung: 2025, vergangen, storniert (gemessen
+# 2026-09-24). Es gibt also keine Reise, deren Unterlagen Leon verlinken
+# koennte — die Uebersicht ist dort die richtige Antwort. Frueher war dieser
+# Fall "gruen", weil Leon sich eine eigene VRRVORGANG-URL baute; genau das
+# prueft er jetzt als Fehler.
 
 TESTKUNDE = "999999999"
 UEBERSICHT_ENDPOINT = "https://www.chamaeleon-reisen.de/MeinChamaeleon"
@@ -180,28 +186,35 @@ def meinchamaeleon_hrefs(reply: str) -> list[str]:
     return [ziel for ziel in _HREF.findall(reply) if "MeinChamaeleon" in ziel]
 
 
-@pytest.mark.parametrize(
-    "endpoint,kunden_id",
-    [
-        (ENDPOINT, KUNDEN_ID),
-        (UEBERSICHT_ENDPOINT, TESTKUNDE),
-    ],
-    ids=["mit-vrrvorgang", "ohne-vrrvorgang-testkunde"],
-)
-def test_reiseunterlagen_link_ist_vollstaendig(endpoint, kunden_id):
-    """Punkt 14: der Link zu den Reiseunterlagen, nie der nackte Übersichtslink.
-
-    Ohne VRRVORGANG in der URL muss die gemeinte Reise aus den Buchungen des
-    Kunden kommen; bis das gebaut ist, faellt Leon hier auf /MeinChamaeleon
-    zurueck und der Fall ist rot — genau das ist der Befund.
-    """
+def test_reiseunterlagen_link_ist_vollstaendig():
+    """Punkt 14: der Link zu den Reiseunterlagen, nie der nackte Übersichtslink."""
     reply = call(
         [{"role": "user", "content": "Wo finde ich meine Reiseunterlagen?"}],
-        endpoint,
-        kunden_id=kunden_id,
+        ENDPOINT,
+        kunden_id=KUNDEN_ID,
     )
     links = meinchamaeleon_hrefs(reply)
     assert links, f"gar kein MeinChamäleon-Link\n--- reply ---\n{reply}"
     assert any("#unterlagen" in ziel for ziel in links), (
         f"kein Link auf die Reiseunterlagen, nur {links}\n--- reply ---\n{reply}"
+    )
+
+
+def test_ohne_offene_reise_nur_die_uebersicht():
+    """Punkt 14, Kehrseite: ohne offene Reise gibt es keinen Unterlagen-Link.
+
+    Der Testkunde hat nur eine vergangene, stornierte Buchung. Leon muss auf
+    die Übersicht verweisen und darf keine VRRVORGANG-URL selbst bauen.
+    """
+    reply = call(
+        [{"role": "user", "content": "Wo finde ich meine Reiseunterlagen?"}],
+        UEBERSICHT_ENDPOINT,
+        kunden_id=TESTKUNDE,
+    )
+    links = meinchamaeleon_hrefs(reply)
+    assert any(ziel.rstrip("/").endswith("/MeinChamaeleon") for ziel in links), (
+        f"kein Link auf die Übersicht, nur {links}\n--- reply ---\n{reply}"
+    )
+    assert "VRRVORGANG" not in reply, (
+        f"selbst gebaute Reise-URL\n--- reply ---\n{reply}"
     )
