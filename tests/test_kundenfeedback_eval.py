@@ -744,10 +744,14 @@ FILTER = [
         **spaeter(ohne_merkmal, "Peru", "Amazonas"),
     },
     {
-        "id": "filter-marokko-10-tage-schwester",
-        "frage": "Wir haben höchstens 10 Tage frei und würden gern nach Marokko.",
+        # 11 und nicht 10 Tage: gemessen 2026-09-24 ist die kuerzeste
+        # Marokko-Reise der Sitemap Atlas mit 11 Tagen (Indigo 15, Marrakesch
+        # 17). Bei 10 passte keine, die Erwartung trennte nicht und der Fall
+        # war auf beiden Seiten "Fehler" statt einer Messung.
+        "id": "filter-marokko-11-tage-schwester",
+        "frage": "Wir haben nur 11 Tage Urlaub und würden gern nach Marokko.",
         "endpoint": "/Afrika/Marokko",
-        **spaeter(passt_in, "Marokko", 10),
+        **spaeter(passt_in, "Marokko", 11),
     },
     {
         "id": "filter-italien-ohne-rom-schwester",
@@ -857,10 +861,20 @@ NICHT_ANGEBOTEN = _nicht_angeboten()
 # "Wir haben dazu keine Reise" in den Formen, die im Chamaeleon-Ton vorkommen.
 _ABSAGE = [
     r"(haben|bieten|gibt es)[^.]{0,40}(kein|nicht)",
-    r"(kein|nicht)[^.]{0,20}im (Programm|Angebot)",
+    # "nicht im Programm", aber auch "nicht in unserem Reiseprogramm" und
+    # "nicht unter unseren Reisezielen" (gemessen 2026-09-24, Nigeria und
+    # Turkmenistan).
+    r"(kein|nicht)[^.]{0,30}(Programm|Angebot|Reiseziel)",
     r"keine? Reisen? (nach|in)",
     r"(steht|stehen)[^.]{0,30}nicht",
     r"noch nicht im Programm",
+    # "Afghanistan ist kein Reiseziel, das Chamäleon anbietet" — eine richtige
+    # Absage, die keines der Muster oben traf (W3-Sichtpruefung und Kampagne
+    # 2026-09-24, Afghanistan und Nigeria).
+    r"\bkein\w*\s+(Reiseziel|Ziel|Reise)",
+    # "bieten ... nicht an" in jeder Form: "bietet Chamäleon derzeit nicht an"
+    # (Ruanda, 2026-09-24).
+    r"(biete\w*|führ\w*|fuehr\w*)[^.]{0,40}nicht an",
 ]
 
 
