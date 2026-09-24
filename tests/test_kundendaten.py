@@ -90,6 +90,7 @@ def fake_tourone(monkeypatch, handlers):
     # den vorigen Test und der Fake käme gar nicht zum Zug. Die Cache-Tests
     # weiter unten leeren zusätzlich selbst, wo sie es genau festnageln.
     kd._buchungen_roh.cache_clear()
+    kd.buchungsstatus.cache_clear()
     return calls
 
 
@@ -774,7 +775,8 @@ def test_ohne_url_nummer_gewinnt_die_naechste_offene_reise(monkeypatch):
         {"/get/adresse": adresse_mit([
             _buchung("ALT", VERGANGEN_VON, VERGANGEN_BIS),
             _buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS),
-        ])},
+        ]),
+         "/get/buchung": {"status": "OK"}},
     )
     vorgang, label = agent.reise_fuer_links(UEBERSICHT_URL, "999999999")
     assert vorgang == "126001"
@@ -792,6 +794,13 @@ def test_ohne_offene_reise_nur_uebersichts_links(monkeypatch):
     )
     assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
     assert agent_base._trip_links_block("", "") == ""
+
+
+def test_unsichere_buchungsnummer_ergibt_keine_links():
+    """Die Nummer landet in einem Markdown-Link im Prompt. Alles ausser
+    ``[A-Za-z0-9_-]{1,64}`` zaehlt als "keine Nummer" (_VRRVORGANG_SAFE)."""
+    assert agent_base._trip_links_block("AB)](javascript:x)", "Ziel") == ""
+    assert agent_base._trip_links_block("A" * 65, "") == ""
 
 
 def test_ausfall_ohne_url_nummer_laesst_den_chat_laufen(monkeypatch):
@@ -819,12 +828,67 @@ def test_vorwaermen_und_prompt_pfad_teilen_den_cache_eintrag(monkeypatch):
     _titel_map(monkeypatch, {})
     calls = fake_tourone(
         monkeypatch,
-        {"/get/adresse": adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)])},
+        {"/get/adresse": adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)]),
+         "/get/buchung": {"status": "OK"}},
     )
     kd._buchungen_roh("999999999")  # das tut der Daemon-Thread in /kunde/auth
     vorgang, _ = agent.reise_fuer_links(UEBERSICHT_URL, "999999999")
     assert vorgang == "126001"
-    assert len(calls) == 1
+    assert [c["path"] for c in calls].count("/get/adresse") == 1
+
+
+def test_stornierte_reise_ist_nie_die_naechste(monkeypatch):
+    """Review 2026-09-24: Hop 1 kennt keinen Status. Wer A storniert und B
+    gebucht hat, bekommt die Links zu B — nie zur toten Buchung A."""
+    import agent
+
+    _titel_map(monkeypatch, {})
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([
+            _buchung("STORNO", ZUKUNFT_VON, ZUKUNFT_BIS),
+            _buchung("LEBT", "2099-06-01", "2099-06-14"),
+        ]),
+         "/get/buchung": lambda p: {"status": "XX" if p["vorgangsNummer"] == "STORNO" else "OK"}},
+    )
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999")[0] == "LEBT"
+
+
+def test_scheiternde_statuspruefung_gibt_keine_reise_links(monkeypatch):
+    """Lieber nur die Uebersichts-Links als ein Link auf eine womoeglich
+    stornierte Buchung."""
+    import agent
+
+    _titel_map(monkeypatch, {})
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)]),
+         "/get/buchung": RuntimeError("boom")},
+    )
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
+
+
+def test_abruf_laeuft_nach_dem_timeout_zu_ende(monkeypatch):
+    """Review 2026-09-24: der Chat wartet nicht, aber der Cache fuellt sich —
+    die naechste Nachricht bekommt die Links ohne neuen Abruf."""
+    import agent
+
+    _titel_map(monkeypatch, {})
+
+    def langsam(path, params, timeout=20):
+        gevent.sleep(0.2)
+        if path == "/get/buchung":
+            return {"status": "OK"}
+        return adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)])
+
+    kd._buchungen_roh.cache_clear()
+    kd.buchungsstatus.cache_clear()
+    monkeypatch.setattr(kd, "_tourone_get", langsam)
+    monkeypatch.setattr(agent, "REISE_TIMEOUT_S", 0.05)
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
+    gevent.sleep(0.6)  # der Hintergrund-Abruf laeuft zu Ende
+    monkeypatch.setattr(kd, "_tourone_get", lambda *a, **k: 1 / 0)
+    assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999")[0] == "126001"
 
 
 def test_haengendes_tourone_blockiert_den_chat_nicht(monkeypatch):
@@ -842,9 +906,12 @@ def test_haengendes_tourone_blockiert_den_chat_nicht(monkeypatch):
 
     kd._buchungen_roh.cache_clear()
     monkeypatch.setattr(kd, "_tourone_get", haengt)
+    # Kurze Schranke, damit der Test nicht an der Maschinenlast haengt: der
+    # Fake schlaeft 5 s, die Marge bleibt also gross.
+    monkeypatch.setattr(agent, "REISE_TIMEOUT_S", 0.05)
     start = time.monotonic()
     assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")
-    assert time.monotonic() - start < 1.5
+    assert time.monotonic() - start < 1.0
 
 
 # --- Vorwärmen beim Login (app.py /kunde/auth) -------------------------------

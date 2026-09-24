@@ -456,7 +456,23 @@ def _buchungen_roh(kunden_id: str) -> list | None:
     ]
 
 
-def naechste_offene_reise(buchungen: list, heute: str) -> tuple[str, str]:
+# Hop 1 traegt keinen Status — storniert (XX) steht erst in Hop 2. Gemessen
+# 2026-09-09: 217 von 1200 Buchungen sind storniert. Ohne diese Pruefung
+# bekaeme, wer Reise A storniert und B gebucht hat, die Links zur toten
+# Buchung A (Review 2026-09-24). Gecacht wie Hop 1 (10 min), nur der Status —
+# und wie dort WIRFT ein Ausfall und wird nie gecacht.
+@ttl_cache(maxsize=1024, ttl=600)
+def buchungsstatus(vorgang: str) -> str:
+    """Der Status einer Buchung aus Hop 2; "" wenn TourOne keinen liefert."""
+    buchung = _tourone_get(
+        "/get/buchung", {"vorgangsNummer": vorgang}, timeout=TIMEOUT
+    )
+    return str(buchung.get("status") or "") if isinstance(buchung, dict) else ""
+
+
+def naechste_offene_reise(
+    buchungen: list, heute: str, storniert=lambda vorgang: False
+) -> tuple[str, str]:
     """Die nächste noch nicht abgeschlossene Reise als ``(vorgang, label)``.
 
     Beantwortet für die MeinChamäleon-Links im Prompt: welche Reise meint der
@@ -474,6 +490,9 @@ def naechste_offene_reise(buchungen: list, heute: str) -> tuple[str, str]:
     zwei Funktionen, und ``reiseinfo_vorgang`` bleibt unverändert.
 
     Rein und ohne Netz: arbeitet auf der bereits geholten (gecachten) Liste.
+    ``storniert(vorgang)`` entscheidet, ob eine offene Reise zaehlt — die grobe
+    Liste kennt keinen Status (siehe ``buchungsstatus``). Der Aufrufer bringt die
+    Pruefung mit; gefragt wird der Reihe nach, also meist genau einmal.
     """
     offen = [
         b
@@ -481,10 +500,10 @@ def naechste_offene_reise(buchungen: list, heute: str) -> tuple[str, str]:
         if zeit_marker(str(b.get("vonDat") or ""), str(b.get("bisDat") or ""), heute)
         in ("kommend", "läuft gerade")
     ]
-    if not offen:
-        return "", ""
     offen.sort(key=lambda b: str(b.get("vonDat") or ""))  # näheste zuerst
-    naechste = offen[0]
+    naechste = next((b for b in offen if not storniert(str(b.get("vorgang") or ""))), None)
+    if naechste is None:
+        return "", ""
     code = naechste.get("reiseCode")
     titel = buchung_titel(naechste, _titel_aus_code(code) or code or "deine Reise")
     von = str(naechste.get("vonDat") or "")

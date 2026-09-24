@@ -200,24 +200,42 @@ def reise_fuer_links(endpoint: str, kunden_id: str) -> tuple[str, str]:
     if seiten_vorgang:
         return seiten_vorgang, ""
 
-    buchungen = None
+    # Eigener Greenlet statt Timeout um den Aufruf (Review 2026-09-24): der
+    # Chat wartet hoechstens REISE_TIMEOUT_S, der Abruf laeuft aber zu Ende und
+    # fuellt die Caches. Mit einem Timeout um den Aufruf wuerde er abgebrochen,
+    # nichts landete im Cache, und bei einem TourOne ueber 1 s zahlte JEDE
+    # Nachricht die volle Sekunde aufs Neue.
+    auflosung = gevent.spawn(_naechste_reise, kunden_id)
     try:
-        # exception=False: der Timeout verlässt den Block still. Sonst käme hier
-        # eine BaseException heraus, die das except darunter nicht fängt — und
-        # der Kunde sähe statt einer Antwort einen Fehler.
-        with gevent.Timeout(REISE_TIMEOUT_S, False):
-            buchungen = kundendaten._buchungen_roh(kunden_id)
+        return auflosung.get(timeout=REISE_TIMEOUT_S)
+    except gevent.Timeout:
+        return "", ""
+
+
+def _naechste_reise(kunden_id: str) -> tuple[str, str]:
+    """Hop 1 (gecacht), dann die erste offene, nicht stornierte Reise.
+
+    Scheitert ein Abruf — auch die Statuspruefung —, bleiben nur die
+    Uebersichts-Links, nie ein Link auf eine womoeglich tote Buchung. Gefangen
+    wird HIER und nicht beim Warten: die Exception eines Greenlets schreibt
+    gevent sonst samt Traceback ins Log, und die requests-Exception traegt die
+    volle Request-URL und damit die Kundennummer.
+    """
+    try:
+        buchungen = kundendaten._buchungen_roh(kunden_id)
+        if not buchungen:
+            return "", ""
+        return kundendaten.naechste_offene_reise(
+            buchungen,
+            kundendaten.heute_berlin(),
+            storniert=lambda v: kundendaten.ist_storniert(kundendaten.buchungsstatus(v)),
+        )
     except Exception as e:
-        # Nur der Typ: die requests-Exception trägt die volle Request-URL und
-        # damit die Kundennummer (gleicher Grund wie in kundendaten).
         print(
             f"[agent] buchungen für die Reise-Links nicht abrufbar: "
             f"{type(e).__name__}"
         )
         return "", ""
-    if not buchungen:
-        return "", ""
-    return kundendaten.naechste_offene_reise(buchungen, kundendaten.heute_berlin())
 
 
 def call_stream(
