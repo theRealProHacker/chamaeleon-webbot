@@ -462,8 +462,9 @@ def _normalisiere_pfad(url_path: str) -> str:
     bevor gecacht oder abgerufen wird, sonst liegt dieselbe Seite unter zwei
     Schluesseln im Cache.
     """
-    if url_path.startswith("https://chamaeleon-reisen.de"):
-        url_path = url_path[len("https://chamaeleon-reisen.de") :]
+    for host in (BASE_URL, "https://chamaeleon-reisen.de"):  # www and bare
+        if url_path.startswith(host):
+            url_path = url_path[len(host) :]
 
     if "#" in url_path:
         url_path = url_path.split("#", 1)[0]

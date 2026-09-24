@@ -314,3 +314,18 @@ def test_echter_pfad_wird_geholt(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda url, **_k: geholt.append(url) or antwort)
     _ECHTER_ABRUF("/Afrika/Tansania/Ruaha")
     assert geholt == ["https://www.chamaeleon-reisen.de/Afrika/Tansania/Ruaha"]
+
+
+@pytest.mark.parametrize(
+    "eingabe",
+    [
+        "https://www.chamaeleon-reisen.de/Afrika/Namibia",
+        "https://chamaeleon-reisen.de/Afrika/Namibia",
+        "https://www.chamaeleon-reisen.de/Afrika/Namibia#termine",
+        "/Afrika/Namibia",
+    ],
+)
+def test_pfad_normalisierung_kennt_beide_hosts(eingabe):
+    """Review 2026-09-25: die volle www-URL blieb stehen, und der Abruf lief
+    auf ``BASE_URL + BASE_URL + pfad`` gegen den Host-Check."""
+    assert agent_base._normalisiere_pfad(eingabe) == "/Afrika/Namibia"

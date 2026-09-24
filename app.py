@@ -9,6 +9,7 @@ import requests
 from flask import Flask, Response, abort, request, send_from_directory
 from flask_cors import CORS
 
+import agent
 from agent import call_stream
 from agent_base import markdownify_page_html
 import kundendaten
@@ -264,10 +265,12 @@ def _vorwaermen_buchungen(session_id: str) -> None:
         try:
             kunden_id = kunden_auth.resolve(session_id) or ""
             if kunden_id:
-                # Absichtlich die private Funktion: gewärmt werden soll genau
-                # der Cache-Eintrag, den der Prompt-Bau später liest — jede
-                # andere Einstiegsstelle formatiert nur zusätzlich.
-                kundendaten._buchungen_roh(kunden_id)
+                # Absichtlich die private Funktion: gewärmt werden sollen genau
+                # die Cache-Einträge, die der Prompt-Bau später liest — Hop 1
+                # (Buchungen) UND Hop 2 (Status der gemeinten Reise). Nur Hop 1
+                # zu wärmen liess die erste Nachricht die Statusprüfung kalt
+                # zahlen, im 1-s-Budget von reise_fuer_links (Review 2026-09-25).
+                agent._naechste_reise(kunden_id)
         except Exception as e:
             print(f"[app] kunden warm failed: {type(e).__name__}")
 
