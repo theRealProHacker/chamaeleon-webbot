@@ -12,6 +12,8 @@ liest sie, und die Reihenfolge acht Leerzeichen vor dem Markdown ist Teil davon.
     pytest tests/test_website_tool.py -v
 """
 
+from types import SimpleNamespace
+
 import pytest
 import requests
 
@@ -287,3 +289,28 @@ def test_beschreibung_nennt_beide_argumente():
     assert "url_paths" in beschreibung
     assert "abschnitt" in beschreibung
     assert "reiseverlauf" in beschreibung
+
+
+# Die echte Abruffunktion, festgehalten vor der autouse-Fixture oben, die sie
+# fuer alle anderen Tests durch einen Fake ersetzt.
+_ECHTER_ABRUF = agent_base.get_chamaeleon_website_html
+
+
+@pytest.mark.parametrize("pfad", ["@evil.com/x", ".evil.com/x", "%40evil.com"])
+def test_pfad_fuehrt_nie_auf_einen_fremden_host(monkeypatch, pfad):
+    """Review 2026-09-24: der Pfad kommt vom Modell; mit "@" davor waere der
+    Rest der Host. Kein Abruf, sondern ein Fehler vor dem Request."""
+    geholt = []
+    monkeypatch.setattr(requests, "get", lambda url, **_k: geholt.append(url))
+    with pytest.raises(ValueError):
+        _ECHTER_ABRUF(pfad)
+    assert geholt == []
+
+
+def test_echter_pfad_wird_geholt(monkeypatch):
+    geholt = []
+
+    antwort = SimpleNamespace(text="<html></html>", raise_for_status=lambda: None)
+    monkeypatch.setattr(requests, "get", lambda url, **_k: geholt.append(url) or antwort)
+    _ECHTER_ABRUF("/Afrika/Tansania/Ruaha")
+    assert geholt == ["https://www.chamaeleon-reisen.de/Afrika/Tansania/Ruaha"]

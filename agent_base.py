@@ -5,7 +5,9 @@ import locale
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from urllib3.util import parse_url
 
+import gevent
 import markdownify
 import pytz
 import requests
@@ -287,6 +289,14 @@ BASE_URL = "https://www.chamaeleon-reisen.de"
 # daneben waere genau das, was hier weggeraeumt wird.
 def get_chamaeleon_website_html(url_path: str) -> str:
     full_url = BASE_URL + url_path
+    # Der Pfad kommt vom Modell. "@evil.com/x" ergaebe mit dem BASE_URL davor
+    # "https://www.chamaeleon-reisen.de@evil.com/x" — der Teil vor dem "@" ist
+    # dann Benutzerinfo, geholt wuerde evil.com (Review 2026-09-24). Geprueft
+    # wird die fertige URL, nicht der Pfad, und zwar mit dem Parser, den
+    # requests selbst benutzt (urllib3) — so pruefen wir genau den Host, der
+    # geholt wuerde.
+    if parse_url(full_url).host != parse_url(BASE_URL).host:
+        raise ValueError(f"Pfad fuehrt nicht auf {BASE_URL}: {url_path!r}")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -498,6 +508,13 @@ def _termine_anhang(url_path: str) -> str:
         return ""
 
 
+# Die Fehlermeldungen der Seitenabrufe sind Text, keine Ausnahme. Beide
+# Praefixe stehen hier einmal, weil website_tool_multi Fehler an genau diesem
+# Anfang erkennt — wer eine Meldung umformuliert, aendert sie hier fuer beide.
+FEHLER_ABRUF = "Fehler beim Abrufen der Seite:"
+FEHLER_UNERWARTET = "Unerwarteter Fehler:"
+
+
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators.
@@ -517,9 +534,9 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
         return result
 
     except requests.RequestException as e:
-        return f"Fehler beim Abrufen der Seite: {str(e)}"
+        return f"{FEHLER_ABRUF} {str(e)}"
     except Exception as e:
-        return f"Unerwarteter Fehler: {str(e)}"
+        return f"{FEHLER_UNERWARTET} {str(e)}"
 
 
 WEBSITE_TOOL_MAX_PATHS = 8
@@ -537,7 +554,7 @@ _KUERZUNGSMARKER = (
 # Die Fehlermeldungen der Ein-Seiten-Funktion sind Text, keine Ausnahme. Wer
 # daraus einen Abschnitt schneiden wollte, bekaeme None und wuerde den Fehler
 # durch den Hinweis "Abschnitt fehlt" ersetzen — also erst pruefen.
-_FEHLER_PRAEFIXE = ("Fehler beim Abrufen der Seite:", "Unerwarteter Fehler:")
+_FEHLER_PRAEFIXE = (FEHLER_ABRUF, FEHLER_UNERWARTET)
 
 
 def _abschnitt_anweisung(grund: str) -> str:
@@ -557,18 +574,13 @@ def _abschnitt_anweisung(grund: str) -> str:
 
 
 def _kurz_abgeben() -> None:
-    """Dem gevent-Hub zwischen zwei Seiten die Kontrolle geben (Review D14).
+    """Dem gevent-Hub nach jeder umgewandelten Seite die Kontrolle geben (D14).
 
     Gemessen 2026-09-21: HTML→Markdown kostet 153 ms je Seite im Median (75–191
     ms), reine Rechenzeit. Acht kalte Seiten sind ~1,2 s, in denen der einzige
     Worker (``WEB_CONCURRENCY=1``, gunicorn -k gevent) sonst keinen anderen
-    Chat-Stream bedient. Der Import liegt absichtlich in der Funktion, damit
-    die Unit-Tests auch ohne gevent laufen.
+    Chat-Stream bedient.
     """
-    try:
-        import gevent
-    except ImportError:
-        return
     gevent.sleep(0)
 
 
@@ -587,7 +599,7 @@ def _auf_anteil_kuerzen(text: str, anteil: int) -> str:
 #     je Pfad (parallel holen, Ausgabe in Eingabereihenfolge):
 #         Seite → Titel + Markdown (Cache)
 #         seiten_abschnitt(...)     → None? Hinweis nur fuer diese Seite
-#         gevent.sleep(0)           → andere Chats kommen zwischen den Seiten dran
+#         gevent.sleep(0)           → nach jeder Umwandlung: andere Chats kommen dran
 #     Summe ueber WEBSITE_TOOL_MAX_CHARS? → anteilig kuerzen + Marker
 def website_tool_multi(url_paths, abschnitt: str = "") -> str:
     """Eine bis acht Seiten, wahlweise nur ein Abschnitt je Seite.
@@ -639,6 +651,14 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
     eindeutig = list(dict.fromkeys(_normalisiere_pfad(p) for p in pfade))
 
     def _hole(pfad: str) -> str:
+        # Abgegeben wird HIER, direkt nach der Umwandlung: die Rechenzeit
+        # (HTML→Markdown) faellt in diesen Abruf, nicht in die Schleife unten,
+        # die nur noch fertigen Text schneidet.
+        inhalt = _hole_seite(pfad)
+        _kurz_abgeben()
+        return inhalt
+
+    def _hole_seite(pfad: str) -> str:
         if not abschnitt:
             # Genau ein Pfad, ganze Seite: unveraendert die alte Funktion,
             # samt Sitemap-Warnung und Termine-Anhang.
@@ -649,9 +669,9 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
         try:
             return _seite_formatiert(pfad)
         except requests.RequestException as e:
-            return f"Fehler beim Abrufen der Seite: {str(e)}"
+            return f"{FEHLER_ABRUF} {str(e)}"
         except Exception as e:
-            return f"Unerwarteter Fehler: {str(e)}"
+            return f"{FEHLER_UNERWARTET} {str(e)}"
 
     # Parallel geholt wird die Wartezeit, nicht die Rechenzeit (Vorbild
     # ``REISEINFO_FETCH_PARALLEL``). Eingesammelt wird in Eingabereihenfolge.
@@ -675,7 +695,6 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
             else:
                 inhalt = ausschnitt
         teile.append(inhalt)
-        _kurz_abgeben()
 
     if sum(len(t) for t in teile) > WEBSITE_TOOL_MAX_CHARS:
         anteil = WEBSITE_TOOL_MAX_CHARS // len(teile)
