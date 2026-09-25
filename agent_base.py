@@ -1156,6 +1156,18 @@ def _vrrvorgang_from_url(url: str) -> str:
 # Die Nummer wird genommen, wie sie dasteht. In denselben 25 Seiten kamen drei
 # Schreibweisen vor (+49 30 347996-901, +49 30-347996-903, 030347996905) — wer
 # hier normalisiert, erfindet eine Nummer, die so auf der Seite nicht steht.
+#
+# Dritte Form, Laenderseiten (gemessen 2026-09-25, /Amerika/Costa-Rica,
+# /Afrika/Namibia): statt einer Person ein Team; der Name der Teamleitung steht
+# nur im Bild-alt. Genommen wird, was als Text dasteht (Owner): "Team Amerika".
+#
+#       **Team Amerika**
+#
+#       Ich bin für dich da.
+#
+#       [+49 30 347996-228](tel:+49 30 347996-228 "Anruf starten")
+#
+# Sie steht zuletzt: eine Reiseseite mit benannter Berater*in gewinnt.
 _BERATER_PATTERNS = (
     re.compile(
         r"Erlebnisberater\\\*in\s*\n+\s*(?P<name>[^\n\[\]]+?)\s*\n+\s*"
@@ -1164,6 +1176,10 @@ _BERATER_PATTERNS = (
     re.compile(
         r"\*\*(?P<name>[^*\n]+?)\*\*\s*\n+\s*Erlebnisberater(?:in)?\b"
         r"[\s\S]{0,120}?\[\s*(?P<tel>[+0-9][0-9 \-]{5,})\s*\]\(tel:"
+    ),
+    re.compile(
+        r"\*\*(?P<name>Team[ \xa0][^*\n]+?)\*\*\s*\n+\s*Ich bin f(?:ü|ue)r dich da\.?"
+        r"\s*\n+\s*\[\s*(?P<tel>[+0-9][0-9 \-]{5,})\s*\]\(tel:"
     ),
 )
 
@@ -1258,6 +1274,8 @@ def berater_tool_base(url_path: str) -> str:
         )
 
     name, telefon = berater_von_seite(url_path)
+    if name and telefon and name.startswith("Team"):
+        return f"Ansprechpartner für dieses Land: {name}, Telefon {telefon}"
     if name and telefon:
         return f"Erlebnisberater*in dieser Reise: {name}, Telefon {telefon}"
     return (
@@ -1565,13 +1583,23 @@ def format_system_prompt(
         agentur_block=agentur_block,
         page_content_block=page_content_block,
         laenderspezifische_faqs=laenderspezifische_faqs,
+        # Uebersichtsseiten (-ALL) tragen oft nur die Team-Box (berater_von_seite,
+        # dritte Form): dann ist das Team zustaendig, nicht "der Erlebnisberater".
         kundenberater_name=(
-            "Bei dieser Reise heißt der Erlebnisberater " + kundenberater_name + ". "
+            (
+                "Für diese Seite ist die Erlebnisberatung " + kundenberater_name + " zuständig. "
+                if kundenberater_name.startswith("Team")
+                else "Bei dieser Reise heißt der Erlebnisberater " + kundenberater_name + ". "
+            )
         )
         if kundenberater_name
         else "",
         kundenberater_telefon=(
-            "Die Telefonnummer des Erlebnisberaters ist " + kundenberater_telefon + ". "
+            (
+                "Die Telefonnummer ist " + kundenberater_telefon + ". "
+                if kundenberater_name.startswith("Team")
+                else "Die Telefonnummer des Erlebnisberaters ist " + kundenberater_telefon + ". "
+            )
         )
         if kundenberater_telefon
         else "",

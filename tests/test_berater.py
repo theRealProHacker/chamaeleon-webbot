@@ -48,6 +48,21 @@ Ich bin fuer dich da.
 Was Gaeste ueber unsere Marokko-Reisen sagen
 """
 
+# Laenderseite, wortgetreu aus /Amerika/Costa-Rica, gezogen 2026-09-25: ein
+# Team statt einer Person, die Teamleitung nur im Bild-alt.
+LAENDERSEITE = """![Teamleitung Vasco da Silva](/data/thumbs/8ccf4490e5a53d078909908f38fae36a/Vasco-Silva.jpg)
+
+![Teamleitung Vasco da Silva](/data/thumbs/7eccae3fd39d76f185f1c1616f225c57/Vasco-Silva.jpg)
+
+**Team Amerika**
+
+Ich bin für dich da.
+
+[+49 30 347996-228](tel:+49 30 347996-228 "Anruf starten")
+
+Was Gäste über unsere Costa Rica-Reise sagen
+"""
+
 OHNE_BERATER = """Buche die Reise deines Lebens
 -----------------------------
 
@@ -97,6 +112,31 @@ def test_uebersichtsseite(seite):
     assert agent_base.berater_von_seite("/Afrika/Marokko/Marrakesch-ALL") == (
         "Jonas Wehrle",
         "+49 30 347996-902",
+    )
+
+
+def test_laenderseite_nennt_das_team(seite):
+    """Dritte Form: das Team, wie es als Text dasteht — nicht der Name aus dem alt."""
+    seite(LAENDERSEITE)
+    assert agent_base.berater_von_seite("/Amerika/Costa-Rica") == (
+        "Team Amerika",
+        "+49 30 347996-228",
+    )
+
+
+def test_benannte_beraterin_gewinnt_vor_dem_team(seite):
+    """Traegt eine Seite beides, ist die Person die Antwort, nicht das Team."""
+    seite(LAENDERSEITE + "\n" + REISESEITE)
+    assert agent_base.berater_von_seite("/Asien/X/Y") == (
+        "Mira Feldmann",
+        "+49 30 347996-901",
+    )
+
+
+def test_tool_nennt_das_team_als_ansprechpartner_des_landes(seite):
+    seite(LAENDERSEITE)
+    assert agent_base.berater_tool_base("/Amerika/Costa-Rica") == (
+        "Ansprechpartner für dieses Land: Team Amerika, Telefon +49 30 347996-228"
     )
 
 
