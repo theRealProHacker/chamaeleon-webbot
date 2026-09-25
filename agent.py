@@ -112,7 +112,13 @@ def convert_messages_to_langchain(messages: list) -> list:
 # "Berater*innen"), not Markdown emphasis. Escape it so mistune doesn't render
 # the text between two such stars as italics, but only outside HTML tags so
 # that '*' inside e.g. an href stays untouched.
-_genderstern_pattern = re.compile(r"(?<=\w)\*(?=\w)")
+#
+# Als HTML-Entity, nicht als "\*" (2026-09-25): schreibt Gemini selbst HTML
+# ("<p>…</p>"), reicht mistune den Block unveraendert durch, und der Backslash
+# stand sichtbar im Chat ("Mitarbeiter\*innen"). &#42; zeigt der Browser in
+# beiden Faellen als Stern. Ein Backslash, den das Modell schon selbst
+# davorgesetzt hat, faellt dabei mit weg.
+_genderstern_pattern = re.compile(r"(?<=\w)\\?\*(?=\w)")
 _html_tag_pattern = re.compile(r"(<[^>]*>)")
 
 
@@ -120,7 +126,7 @@ def escape_genderstern(text: str) -> str:
     """Escape Genderstern asterisks outside HTML tags before Markdown rendering."""
     parts = _html_tag_pattern.split(text)
     for i in range(0, len(parts), 2):  # even indices are text outside tags
-        parts[i] = _genderstern_pattern.sub(r"\\*", parts[i])
+        parts[i] = _genderstern_pattern.sub("&#42;", parts[i])
     return "".join(parts)
 
 
