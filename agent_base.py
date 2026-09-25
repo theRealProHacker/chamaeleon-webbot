@@ -1532,12 +1532,31 @@ def format_system_prompt(
             "--- Seiteninhalt Ende ---\n\n"
         )
 
+    # Die Nur-auf-Frage-Regel steht vor UND nach den Eintraegen (B1, Owner
+    # 2026-09-25): ohne sie leerte Leon bei "Infos über Marokko" die Marokko-FAQ
+    # aus (Ramadan). Die Injektion selbst bleibt — ohne sie fielen die
+    # Laender-Faelle aus test_faq.py von 119/135 auf 41/135.
+    nur_auf_frage = (
+        "WICHTIG: Nutze einen dieser Einträge NUR, wenn der Kunde ausdrücklich "
+        "nach genau diesem Thema fragt (z. B. Ramadan, Geld wechseln, Steckdosen, "
+        "Leitungswasser). Fragt er allgemein nach dem Land oder einer Reise "
+        "(„Erzähl mir was über [Land]“, „Was gibt es zu dieser Reise zu wissen?“), "
+        "erwähnst du keinen dieser Einträge – die Antwort kommt dann von der "
+        "Reise- oder Länderseite."
+    )
     laenderspezifische_faqs = ""
     if countries:
-        laenderspezifische_faqs += "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, auf die du auch durch das country_faq_tool hättest zugreifen können:\n\n"
+        laenderspezifische_faqs += (
+            "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, "
+            "auf die du auch durch das country_faq_tool hättest zugreifen können.\n"
+            f"{nur_auf_frage}\n\n"
+        )
 
     for country in countries:
         laenderspezifische_faqs += laender_faqs[country] + "\n\n"
+
+    if countries:
+        laenderspezifische_faqs += f"{nur_auf_frage}\n\n"
 
     return system_prompt_template.format(
         **time_info,

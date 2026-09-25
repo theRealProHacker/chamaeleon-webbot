@@ -909,6 +909,31 @@ eingehängten Marokko-FAQ (`FAQ_Afrika.csv:104`, `agent.py:205`). Die
 Prompt-Regel allein reicht nicht; Vorschlag wie geplant: Injektion streichen,
 Länder-FAQ nur noch über `country_faq_tool`. Entscheidung beim Owner.
 
+**B1 gemessen (2026-09-25) — Injektion bleibt.** Schalter: ein pytest-Plugin
+setzt `agent.laender_faqs = {}` (nur die Erkennung; `country_faq_tool` gleich in
+beiden Armen), beide Arme je Block direkt hintereinander.
+
+| Block | mit Injektion | ohne |
+|---|---|---|
+| Länder-Fälle `test_faq.py` (135, je 1 Lauf) | 119/135 | 41/135 |
+| `ungefragt-marokko-infos` (EVAL_N=3) | 0/3 | 1/3 |
+| `ungefragt-vietnam-infos-schwester` | 3/3 | 1/3 |
+| Windhoek, Hanoi | 3/3, 3/3 | 3/3, 3/3 |
+| `fachwissen-hatari` (Kontrolle, nennt kein Land) | 0/3 | 3/3 |
+
+Ohne Injektion ruft Leon `country_faq_tool` kaum auf, sucht im Website-Tool,
+findet nichts und verweist auf die Reiseseite — teils falsch (Australien
+Eigenanreise: „musst dich nicht kümmern“). Blöcke dauern 2–3× so lang.
+Hatari bekommt in beiden Armen denselben Prompt und schwankt trotzdem 0/3 ↔
+3/3: bei N=3 ist das Rauschen so groß wie der Marokko-Effekt.
+Entscheidung (Owner): Injektion bleibt; der eingehängte Block sagt vor und
+nach den Einträgen, dass sie nur auf ausdrückliche Frage zum Thema gelten,
+nie bei allgemeinen Fragen zum Land oder zur Reise.
+Nachmessung mit der Regel: `ungefragt-marokko-infos` 10/10 (3–4 Sätze, kein
+Ramadan), `ungefragt-vietnam-infos-schwester` 10/10, Länder-Fälle 117/135
+(10 neu rot, 8 neu grün; alle 18 roten Antworten beantworten die gestellte
+Frage — Rauschen und Schlüsselwort-Wortlaut, keine unterdrückte Antwort).
+
 **Welle 3 Punkt 3 — Tool-Aufrufe.** Nur `filter` steigt spürbar (Ø 2,4 → 7,6
 je Chat), die Mediandauer bleibt gleich (4,5 → 4,1 s). Alle anderen Blöcke
 flach oder leicht fallend.
