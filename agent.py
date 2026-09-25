@@ -11,6 +11,7 @@ from langgraph.prebuilt import create_react_agent
 from agent_base import (
     GEMINI_API_KEY,
     _vrrvorgang_from_url,
+    all_sites,
     country_faq_tool_base,
     country_faq_tool_description,
     detect_recommendation_links,
@@ -128,6 +129,42 @@ def escape_genderstern(text: str) -> str:
     for i in range(0, len(parts), 2):  # even indices are text outside tags
         parts[i] = _genderstern_pattern.sub("&#42;", parts[i])
     return "".join(parts)
+
+
+# Der Prompt sagt "Verwende einfach die relativen URLs, z.B. "/Impressum"" — mal
+# setzt Gemini daraus einen Link, mal steht der Pfad nackt im Satz
+# ("… findest du unter /Afrika/Uganda/Gorilla."), und dann war er nicht
+# anklickbar (Owner, 2026-09-25). Verlinkt wird nur ein Pfad, den es auf der
+# Website gibt (all_sites), nur ausserhalb von Tags und von bestehenden <a>,
+# und ohne das Satzzeichen dahinter: der Pfad-Zeichensatz kennt keinen Punkt.
+_nackter_pfad = re.compile(
+    r"(?<![\w/\\.:=\"'#-])(/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*)(#[A-Za-z0-9_-]+)?(?![\w/])"
+)
+_bekannte_pfade = frozenset(p for p in all_sites if p != "/")
+
+
+def verlinke_nackte_pfade(html: str) -> str:
+    """Bekannte Website-Pfade im Fliesstext als Link setzen; alles andere bleibt."""
+    teile = _html_tag_pattern.split(html)
+    in_link = 0
+    for i, teil in enumerate(teile):
+        if i % 2:  # Tag
+            if re.match(r"<a[\s>]", teil, re.I):
+                in_link += 1
+            elif re.match(r"</a\s*>", teil, re.I):
+                in_link = max(0, in_link - 1)
+            continue
+        if in_link:
+            continue
+
+        def _link(m: re.Match) -> str:
+            pfad, anker = m.group(1), m.group(2) or ""
+            if pfad not in _bekannte_pfade:
+                return m.group(0)
+            return f'<a href="{pfad}{anker}" target="_blank">{pfad}{anker}</a>'
+
+        teile[i] = _nackter_pfad.sub(_link, teil)
+    return "".join(teile)
 
 
 _NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn"}
@@ -457,6 +494,8 @@ def call_stream(
         reply = mistune.markdown(
             reply, escape=False
         )  # Convert markdown to HTML if needed
+
+        reply = verlinke_nackte_pfade(reply)
 
         # Yield final response
         result = {"reply": reply, "recommendations": list(recommendations)}
