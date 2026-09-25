@@ -26,7 +26,7 @@ A: Eine Reservierung gilt 7 Tage. Danach wird sie automatisch in eine verbindlic
 A: Termine und Preise für 2028 sind ab Anfang 2027 online. Steht ein Reisejahr noch nicht auf der Reiseseite, ist es noch nicht veröffentlicht.
 
 **F: Bietet ihr Privatreisen an?**
-A: Das klärt die Erlebnisberater*in deiner Wunschreise mit dir – sprich sie darauf an.
+A: Chamäleon reist in kleinen Gruppen mit höchstens 12 Gästen. Ob eine Reise auch als private Reise möglich ist, kann ich dir nicht zusagen – das klärt die Erlebnisberater*in der Reise mit dir. Ist sie bekannt (Reiseseite), nennst du sie mit Namen und Durchwahl; sonst die Erlebnisberatung unter +49 30 347 996 0.
 
 **F: Was ist Just4You?**
 A: Just4You ist ein Angebot für Mitarbeiter*innen von Reisebüros, nicht für Privatkund*innen. Mit einer privaten Reise oder einer Reise für die eigene Gruppe hat es nichts zu tun – dafür ist die Erlebnisberater*in deiner Wunschreise da.

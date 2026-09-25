@@ -590,6 +590,14 @@ def fahre(fall: dict) -> None:
     Messung ist "2 von 3" die Zahl, die zaehlt, und ein Abbruch beim ersten
     roten Durchgang haette sie nie erhoben.
     """
+    if fall.get("braucht_index"):
+        # Produktion baut den Reiseindex beim Start; erst damit steht die
+        # Erlebnisberater*in der Reiseseite im Prompt. Ohne ihn misst der Fall
+        # einen Zustand, den es live nie gibt (gemessen 2026-09-25: 1/5 ohne,
+        # alle fuenf Antworten mit Name und Durchwahl mit Index).
+        import travel_index
+
+        travel_index.ensure_built()
     bestanden = 0
     letzte_befunde: list[str] = []
     letzte_antwort = ""
@@ -1008,8 +1016,14 @@ FACHWISSEN = [
         "frage": "Ist es möglich ihreAngebotenurfür maximal 4 Personenals "
         "privateRundreise zu buchen",
         "endpoint": RUAHA,
-        "muss": _BERATER,
-        "darf_nicht": ["Just4You"],
+        # "Ja, das klaert die Erlebnisberater*in …" klingt nach Zusage (Owner,
+        # 2026-09-25); und auf einer Reiseseite ist die Berater*in bekannt —
+        # ihre Durchwahl statt "Kontaktdaten findest du unter #termine". Die
+        # Durchwahl ersetzt das Wort "Erlebnisberat": "klärt Jona Reimann unter
+        # +49 30 347996-221" ist die bessere Antwort, nicht die schlechtere.
+        "darf_nicht": ["Just4You", r"^\s*(<p>)?\s*Ja\b"],
+        "muss_durchwahl": True,
+        "braucht_index": True,
     },
     {
         # Punkt 9

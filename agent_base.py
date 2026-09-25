@@ -1594,11 +1594,21 @@ def format_system_prompt(
         )
         if kundenberater_name
         else "",
+        # Der Verweis-Satz (Owner 2026-09-25): sonst schrieb Leon die FAQ-Antwort
+        # "klärt die Erlebnisberater*in deiner Wunschreise" wortgleich ab, obwohl
+        # Name und Durchwahl hier im Prompt stehen.
         kundenberater_telefon=(
             (
                 "Die Telefonnummer ist " + kundenberater_telefon + ". "
                 if kundenberater_name.startswith("Team")
                 else "Die Telefonnummer des Erlebnisberaters ist " + kundenberater_telefon + ". "
+            )
+            + (
+                "Verweist du auf die Erlebnisberatung oder die Erlebnisberater*in, "
+                "nenne immer " + kundenberater_name + " mit dieser Telefonnummer – "
+                "nie nur allgemein „die Erlebnisberater*in deiner Wunschreise“. "
+                if kundenberater_name
+                else ""
             )
         )
         if kundenberater_telefon
