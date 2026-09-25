@@ -1000,14 +1000,14 @@ FACHWISSEN = [
         "darf_nicht": ["Just4You"],
     },
     {
-        # Punkt 11, korrigiert (Owner 2026-09-25): Just4You ist ein Angebot fuer
-        # Mitarbeiter*innen von Reisebueros, keine Privatreise. Frueher verlangte
-        # der Fall nur den Erlebnisberater und war mit der falschen Gleichsetzung
-        # gruen.
+        # Punkt 11, korrigiert (Owner 2026-09-25): Just4You ist eine Reise, die
+        # ein Reisebuero seinen Kund*innen anbietet, damit eine Mitarbeiter*in
+        # mitreisen kann — keine Privatreise. Frueher verlangte der Fall nur den
+        # Erlebnisberater und war mit der falschen Gleichsetzung gruen.
         "id": "fachwissen-just4you",
         "frage": "Kann ich diese Reise als Just4You für uns allein buchen?",
         "endpoint": RUAHA,
-        "muss": ["Reisebür", "Mitarbeiter"],
+        "muss": ["Reisebür", "Kund", r"mitreis|reist\W.{0,40}\bmit\b"],
     },
     {
         # Wortgetreu aus dem Chat, den der Owner am 2026-09-25 zeigte: Leon

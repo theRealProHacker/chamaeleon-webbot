@@ -1371,6 +1371,11 @@ def format_system_prompt(
     seite_name, seite_telefon = (
         berater_von_seite(endpoint) if _ist_reise_url(endpoint) else ("", "")
     )
+    # Die Team-Box ("**Team Amerika** / Ich bin für dich da.") ist nur der
+    # Rueckfall fuer Seiten ohne benannte Person: nennt das Widget eine
+    # Berater*in, gewinnt sie. Telefon mit, damit Name und Nummer zusammenpassen.
+    if seite_name.startswith("Team") and kundenberater_name:
+        seite_name, seite_telefon = "", ""
     index_berater = _berater_aus_index(endpoint)
     kundenberater_name = (
         seite_name or kundenberater_name or index_berater.get("name", "")
