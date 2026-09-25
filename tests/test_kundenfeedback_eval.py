@@ -987,13 +987,29 @@ FACHWISSEN = [
         "frage": "Können wir diese Reise als Privatreise buchen?",
         "endpoint": RUAHA,
         "muss": _BERATER,
+        # Owner 2026-09-25: Privatreise und Just4You haben nichts miteinander
+        # zu tun — Leon warf beides zusammen.
+        "darf_nicht": ["Just4You"],
     },
     {
-        # Punkt 11
+        # Punkt 11, korrigiert (Owner 2026-09-25): Just4You ist ein Angebot fuer
+        # Mitarbeiter*innen von Reisebueros, keine Privatreise. Frueher verlangte
+        # der Fall nur den Erlebnisberater und war mit der falschen Gleichsetzung
+        # gruen.
         "id": "fachwissen-just4you",
         "frage": "Kann ich diese Reise als Just4You für uns allein buchen?",
         "endpoint": RUAHA,
+        "muss": ["Reisebür", "Mitarbeiter"],
+    },
+    {
+        # Wortgetreu aus dem Chat, den der Owner am 2026-09-25 zeigte: Leon
+        # antwortete "was im Rahmen von Just4You möglich ist".
+        "id": "fachwissen-private-rundreise-4-personen-schwester",
+        "frage": "Ist es möglich ihreAngebotenurfür maximal 4 Personenals "
+        "privateRundreise zu buchen",
+        "endpoint": RUAHA,
         "muss": _BERATER,
+        "darf_nicht": ["Just4You"],
     },
     {
         # Punkt 9

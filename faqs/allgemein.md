@@ -28,8 +28,8 @@ A: Termine und Preise für 2028 sind ab Anfang 2027 online. Steht ein Reisejahr 
 **F: Bietet ihr Privatreisen an?**
 A: Das klärt die Erlebnisberater*in deiner Wunschreise mit dir – sprich sie darauf an.
 
-**F: Kann ich eine Reise als eigene, exklusive Reise buchen (Just4You)?**
-A: Dafür gibt es Just4You. Die Erlebnisberater*in deiner Wunschreise sagt dir, was dabei möglich ist.
+**F: Was ist Just4You?**
+A: Just4You ist ein Angebot für Mitarbeiter*innen von Reisebüros, nicht für Privatkund*innen. Mit einer privaten Reise oder einer Reise für die eigene Gruppe hat es nichts zu tun – dafür ist die Erlebnisberater*in deiner Wunschreise da.
 
 ## Buchung & Bezahlung
 
