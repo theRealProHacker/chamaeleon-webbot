@@ -322,7 +322,9 @@ def airline_der_seite(url_path: str) -> str:
     if not leistungen:
         return ""
     treffer = _AIRLINE.search(leistungen)
-    return treffer.group(1).strip() if treffer else ""
+    # Die Seite setzt teils ein geschuetztes Leerzeichen ("Ethiopian\xa0Airlines"),
+    # Leon schreibt ein normales — gemessen 2026-09-25 auf /Afrika/Simbabwe/Matobo.
+    return treffer.group(1).replace("\xa0", " ").strip() if treffer else ""
 
 
 # Verlaengerungs- und Vorprogrammseiten kommen als Kandidat nicht in Frage.
@@ -638,7 +640,7 @@ KASBAH_AIRLINE = "Discover Airlines"
 ETOSHA = "/Afrika/Namibia/Etosha"
 ETOSHA_TAGE = 19
 GORILLA = "/Afrika/Uganda/Gorilla"
-OUTENIQUA = "/Afrika/Suedafrika/Outeniqua-ALL"
+OUTENIQUA = "/Afrika/Suedafrika/Outeniqua"
 ULURU = "/Ozeanien/Australien/Uluru"
 
 
@@ -1122,7 +1124,10 @@ ERFINDEN = [
         "frage": "In meinem Pass ist mein Vorname anders geschrieben als in der "
         "Buchung. An wen wende ich mich?",
         "endpoint": "/",
-        "muss_eines": _BERATER,
+        # Owner 2026-09-25: die Rueckfrage nach der gebuchten Reise ist in
+        # Ordnung — ohne sie kennt Leon die zustaendige Berater*in nicht. Der
+        # Fehler aus der Mail war die erfundene Nummer (keine_nummern).
+        "muss_eines": [*_BERATER, r"(welche|deine|gebuchte)\W.{0,40}Reise"],
         "keine_nummern": True,
     },
     # --- Schwesterfaelle ---------------------------------------------------
