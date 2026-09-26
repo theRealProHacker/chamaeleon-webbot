@@ -535,9 +535,11 @@ FEHLER_UNERWARTET = "Unerwarteter Fehler:"
 # Dauer, Laender und Pfad stehen also da — aber verstreut in ~18.000 Zeichen
 # Bildlinks, und Leon verlor sie gemessen: Moremi (Botswana, Simbabwe &
 # Namibia) als Namibia-Reise, Mahango (15 Tage) fuer 14 Tage.
+# Der Link wird nur im eigenen Teaser gesucht: fehlt er dort, sprang ".*?" in
+# den naechsten, und Reise A bekam den Pfad von B (Review 2026-09-26).
 _REISE_TEASER = re.compile(
     r"^[ \t]*### (?P<name>[^\n*]+?)\s*\*\*(?P<tage>\d+) Tage[^*\n]*\*\*"
-    r".*?\]\((?P<pfad>/[^\s)\"]+) \"(?P<titel>[^\"\n]+)\"\)",
+    r"(?:(?!^[ \t]*### ).)*?\]\((?P<pfad>/[^\s)\"]+) \"(?P<titel>[^\"\n]+)\"\)",
     re.S | re.M,
 )
 
@@ -663,20 +665,33 @@ def _auf_anteil_kuerzen(text: str, anteil: int) -> str:
 
 
 def _ortsformen(text: str) -> tuple[str, str]:
-    """Vergleichsformen ohne Gross/klein, Leer- und Satzzeichen: einmal mit
-    ae/oe/ue, einmal mit a/o/u — "Krüger", "Krueger" und "Kruger" treffen sich."""
+    """Vergleichsformen ohne Gross/klein und Satzzeichen, Woerter durch ein
+    Leerzeichen getrennt: einmal mit ae/oe/ue, einmal mit a/o/u — "Krüger",
+    "Krueger" und "Kruger" treffen sich. Klebt markdownify Woerter zusammen
+    ("KrügerNationalpark4", "KapWeinland"), trennen Gross- und Ziffernwechsel."""
+    text = re.sub(r"(?<=[a-zäöüß])(?=[A-ZÄÖÜ])|(?<=[^\W\d_])(?=\d)|(?<=\d)(?=[^\W\d_])", " ", text)
     text = text.casefold().replace("ß", "ss")
     mit_e = text.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
     ohne_e = text.replace("ä", "a").replace("ö", "o").replace("ü", "u")
-    return re.sub(r"[^a-z0-9]", "", mit_e), re.sub(r"[^a-z0-9]", "", ohne_e)
+    return (
+        re.sub(r"[^a-z0-9]+", " ", mit_e).strip(),
+        re.sub(r"[^a-z0-9]+", " ", ohne_e).strip(),
+    )
+
+
+def _wortanfang(variante: str) -> re.Pattern:
+    # Nur am Wortanfang: sonst traf "Wein" in "zwei Nächte" und "Rom" in
+    # "Aroma" (Review 2026-09-26). Leerzeichen der Variante sind optional,
+    # "Garden Route" trifft auch "Gardenroute".
+    return re.compile(r"(?<![a-z0-9])" + " ?".join(map(re.escape, variante.split())))
 
 
 def ort_im_text(ort: str, text: str) -> bool:
-    """Kommt einer der Varianten ("Gartenroute|Garden Route") im Text vor?"""
+    """Beginnt ein Wort im Text mit einer der Varianten ("Gartenroute|Garden Route")?"""
     text_e, text_u = _ortsformen(text)
     for variante in ort.split("|"):
         v_e, v_u = _ortsformen(variante)
-        if v_e and (v_e in text_e or v_u in text_u):
+        if v_e and (_wortanfang(v_e).search(text_e) or _wortanfang(v_u).search(text_u)):
             return True
     return False
 

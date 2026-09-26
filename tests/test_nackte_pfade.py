@@ -42,3 +42,17 @@ def test_anker_bleibt_am_link():
 def test_bleibt_unveraendert(reply):
     vorher = mistune.markdown(reply, escape=False).strip()
     assert gerendert(reply) == vorher
+
+
+def test_sitemap_sync_gilt_sofort():
+    """Der naechtliche Sync tauscht all_sites in place; der Linker sieht das."""
+    import agent_base
+
+    neu = [p for p in agent_base.all_sites if p != "/Afrika/Uganda/Gorilla"] + ["/Afrika/Neu/Reise"]
+    alt = list(agent_base.all_sites)
+    try:
+        agent_base.all_sites[:] = neu
+        assert 'href="/Afrika/Neu/Reise"' in gerendert("Siehe /Afrika/Neu/Reise.")
+        assert "href" not in gerendert("Siehe /Afrika/Uganda/Gorilla.")
+    finally:
+        agent_base.all_sites[:] = alt

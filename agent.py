@@ -151,10 +151,11 @@ def entferne_escapte_anfuehrungszeichen(text: str) -> str:
 # anklickbar (Owner, 2026-09-25). Verlinkt wird nur ein Pfad, den es auf der
 # Website gibt (all_sites), nur ausserhalb von Tags und von bestehenden <a>,
 # und ohne das Satzzeichen dahinter: der Pfad-Zeichensatz kennt keinen Punkt.
+# Geprueft wird gegen all_sites selbst, nicht gegen eine Kopie: der naechtliche
+# Sitemap-Sync tauscht die Liste in place aus.
 _nackter_pfad = re.compile(
     r"(?<![\w/\\.:=\"'#-])(/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*)(#[A-Za-z0-9_-]+)?(?![\w/])"
 )
-_bekannte_pfade = frozenset(p for p in all_sites if p != "/")
 
 
 def verlinke_nackte_pfade(html: str) -> str:
@@ -173,7 +174,7 @@ def verlinke_nackte_pfade(html: str) -> str:
 
         def _link(m: re.Match) -> str:
             pfad, anker = m.group(1), m.group(2) or ""
-            if pfad not in _bekannte_pfade:
+            if pfad == "/" or pfad not in all_sites:
                 return m.group(0)
             return f'<a href="{pfad}{anker}" target="_blank">{pfad}{anker}</a>'
 
@@ -202,9 +203,21 @@ _ANSTOSS = (
 )
 
 
+# Nur der letzte Satz zaehlt, und nur ohne Frage und ohne Bedingung: "Nenn mir
+# deine Buchungsnummer, dann prüfe ich das" und "Hast du einen Moment Zeit?"
+# sind gute Rueckfragen, "Ich suche dir gern etwas raus: Da passen …" hat schon
+# das Ergebnis (Review 2026-09-26). Die ersetzte ein Anstoss sonst.
+_BEDINGUNG = re.compile(r"\b(?:dann|sobald|wenn|falls)\b", re.IGNORECASE)
+
+
 def kuendigt_nur_an(reply: str) -> bool:
-    """Kündigt die Antwort ein Nachsehen an? Nur sinnvoll, wenn kein Tool lief."""
-    return bool(_ANKUENDIGUNG.search(reply))
+    """Endet die Antwort mit der Ankündigung, nachzusehen? Nur sinnvoll, wenn kein Tool lief."""
+    text = re.sub(r"<[^>]+>", " ", reply).strip()
+    if "?" in text:
+        return False
+    saetze = [s for s in re.split(r"(?<=[.!…:])\s+", text) if s.strip()]
+    letzter = saetze[-1] if saetze else ""
+    return bool(_ANKUENDIGUNG.search(letzter)) and not _BEDINGUNG.search(letzter)
 
 _MAX_VERSUCHE = 3
 

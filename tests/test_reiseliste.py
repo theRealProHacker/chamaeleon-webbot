@@ -97,6 +97,38 @@ def test_ort_im_text(ort, gefunden):
     assert ort_im_text(ort, "Safari im Krüger-Nationalpark, dann die Garden Route.") is gefunden
 
 
+@pytest.mark.parametrize(
+    "ort, text",
+    [("Wein", "Am Abend zwei Nächte im Camp."), ("Rom", "Das Aroma des Kaffees."),
+     ("Kap", "Im Westkap-Gebirge.")],
+)
+def test_ort_nur_am_wortanfang(ort, text):
+    assert not ort_im_text(ort, text)
+
+
+@pytest.mark.parametrize(
+    "ort, text",
+    [("Wein", "Fahrt durchs KapWeinland1516."), ("Krüger", "KrügerNationalpark4"),
+     ("Garden Route", "Weiter auf der Gardenroute."), ("Wein", "Besuch eines Weinguts.")],
+)
+def test_ort_in_zusammengeklebtem_text(ort, text):
+    assert ort_im_text(ort, text)
+
+
+def test_teaser_ohne_link_nimmt_nicht_den_pfad_des_naechsten():
+    seite = """  ### Reise A **10 Tage Erlebnisreise**
+
+  + ohne Bildlink
+
+  ### Reise B **12 Tage Erlebnisreise**
+
+  ![Details zu B](/html/img/btn.svg)](/Afrika/Namibia/B "Reise B - Namibia")
+"""
+    assert reiseliste(seite) == [
+        {"name": "Reise B", "tage": 12, "laender": "Namibia", "pfad": "/Afrika/Namibia/B"}
+    ]
+
+
 def test_ortspruefung_nennt_die_reisen_mit_allen_orten_und_reine_zuerst():
     out = website_tool_multi(
         [

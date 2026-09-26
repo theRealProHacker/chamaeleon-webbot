@@ -78,6 +78,12 @@ def test_normale_antwort_laeuft_einmal(monkeypatch):
         ("Da prüfe ich kurz die Termine.", True),
         ("Für 14 Tage passt Sossusvlei.", False),
         ("Schau mal hier: Sossusvlei.", False),
+        ("Super, Namibia ist eine tolle Wahl! Ich schaue mal, welche Reisen passen.", True),
+        ("<p>Ich sehe kurz nach. Einen Moment bitte!</p>", True),
+        # Rueckfragen und Antworten mit Ergebnis bleiben (Review 2026-09-26)
+        ("Nenn mir bitte deine Buchungsnummer, dann prüfe ich das gern für dich.", False),
+        ("Hast du einen Moment Zeit für ein Telefonat mit Noelle?", False),
+        ("Ich suche dir gern etwas raus: Da passen Outeniqua (15 Tage) und Pinotage.", False),
     ],
 )
 def test_kuendigt_nur_an(text, erwartet):
