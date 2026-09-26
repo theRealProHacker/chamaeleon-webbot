@@ -133,6 +133,18 @@ def escape_genderstern(text: str) -> str:
     return "".join(parts)
 
 
+# Gemini schreibt Attribute gelegentlich JSON-escaped: <a href=\"…\">
+# (gemessen 2026-09-25, 1 von 5 Laeufen im Koffer-Fall). Das ist kein gueltiges
+# HTML, mistune maskiert den Tag, und der Kunde sieht "<a href=…>" als Text statt
+# des Links. Repariert wird nur innerhalb von Tags.
+def entferne_escapte_anfuehrungszeichen(text: str) -> str:
+    """``\\"`` und ``\\'`` in HTML-Tags zu schlichten Anführungszeichen."""
+    teile = _html_tag_pattern.split(text)
+    for i in range(1, len(teile), 2):  # ungerade Indizes sind Tags
+        teile[i] = teile[i].replace('\\"', '"').replace("\\'", "'")
+    return "".join(teile)
+
+
 # Der Prompt sagt "Verwende einfach die relativen URLs, z.B. "/Impressum"" — mal
 # setzt Gemini daraus einen Link, mal steht der Pfad nackt im Satz
 # ("… findest du unter /Afrika/Uganda/Gorilla."), und dann war er nicht
@@ -531,6 +543,8 @@ def call_stream(
 
         # Extract recommendations
         recommendations.update(detect_recommendation_links(reply))
+
+        reply = entferne_escapte_anfuehrungszeichen(reply)
 
         # Genderstern (z.B. "Berater*innen") nicht als Markdown-Kursiv rendern
         reply = escape_genderstern(reply)
