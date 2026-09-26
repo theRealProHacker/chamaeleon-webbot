@@ -171,6 +171,29 @@ def verlinke_nackte_pfade(html: str) -> str:
 
 _NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn"}
 
+# Gemini kuendigt gelegentlich an, nachzusehen, und beendet dann den Zug ohne
+# Tool-Aufruf: "Super, Namibia ist eine fantastische Wahl! Ich schaue mal,
+# welche Reisen für euch passen." (gemessen 2026-09-25, trotz Prompt-Regel 1
+# von 5 Laeufen; schon 2026-08-10 beim Reiseinfo-Tool). Der Kunde wartet dann
+# auf etwas, das nie kommt. Erkannt wird nur die Ankuendigung OHNE Tool-Aufruf
+# im selben Zug; dann gibt es genau einen Anstoss.
+_ANKUENDIGUNG = re.compile(
+    r"\b(?:ich schaue|schaue ich|ich sehe (?:mal |kurz |gleich )?nach"
+    r"|sehe ich (?:mal |kurz |gleich )?nach|ich prüfe|prüfe ich|ich suche"
+    r"|suche ich|einen (?:kleinen |kurzen )?moment)\b",
+    re.IGNORECASE,
+)
+
+_ANSTOSS = (
+    "(Hinweis an dich: Du hast angekündigt nachzusehen, aber kein Tool aufgerufen. "
+    "Ruf jetzt das passende Tool auf und antworte direkt mit dem Ergebnis, ohne Ankündigung.)"
+)
+
+
+def kuendigt_nur_an(reply: str) -> bool:
+    """Kündigt die Antwort ein Nachsehen an? Nur sinnvoll, wenn kein Tool lief."""
+    return bool(_ANKUENDIGUNG.search(reply))
+
 _MAX_VERSUCHE = 3
 
 _MAX_VORFALL_ZEILEN = 5
@@ -374,7 +397,9 @@ def call_stream(
 
     try:
         start = time.monotonic()
+        angestossen = False
         for versuch in range(1, _MAX_VERSUCHE + 1):
+            tool_aufgerufen = False
             # Nur das LETZTE Event wird gebraucht (die Endantwort). Eine Liste
             # aller Events hielte bei stream_mode="values" jeden Zwischenstand
             # inklusive der vollen Tool-Ergebnisse bis zum Turn-Ende am Leben.
@@ -430,6 +455,7 @@ def call_stream(
 
                         # Check for tool calls in AI messages
                         if hasattr(message, "tool_calls") and message.tool_calls:
+                            tool_aufgerufen = True
                             for tool_call in message.tool_calls:
                                 yield {
                                     "type": "tool_call",
@@ -466,6 +492,22 @@ def call_stream(
                 else None
             )
             reply = text_aus_content(getattr(letzte, "content", ""))
+
+            if (
+                reply.strip()
+                and not tool_aufgerufen
+                and not angestossen
+                and versuch < _MAX_VERSUCHE
+                and kuendigt_nur_an(reply)
+                and time.monotonic() - start <= _RETRY_ZEITBUDGET_S
+            ):
+                print(f"[agent] Ankündigung ohne Tool-Aufruf, Anstoß (versuch={versuch})")
+                chat_history = chat_history + [
+                    AIMessage(content=reply),
+                    HumanMessage(content=_ANSTOSS),
+                ]
+                angestossen = True
+                continue
 
             if reply.strip():
                 break
