@@ -1,4 +1,4 @@
-"""Live-Eval zum Kundenfeedback September 2026 (docs/kundenfeedback-2026-09-plan.md).
+"""Live-Eval zum Kundenfeedback September 2026.
 
 Aufbau wie tests/test_agentur_faq.py: eine echte Frage an Leon, die Antwort vom
 Live-Modell, und dann beide Richtungen — was drinstehen muss und was nie

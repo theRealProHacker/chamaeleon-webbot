@@ -1,4 +1,4 @@
-"""Verschraenkte Messung alt/neu fuer W3 (docs/kundenfeedback-2026-09-plan.md).
+"""Verschraenkte Messung alt/neu fuer W3.
 
 Jeder Fall wird im selben Prozess zweimal unmittelbar nacheinander gestellt:
 einmal mit dem ALTEN `system_prompt_template` (vor W3), einmal mit dem NEUEN,
