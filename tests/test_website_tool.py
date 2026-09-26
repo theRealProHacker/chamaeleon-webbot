@@ -230,8 +230,8 @@ def test_anker_und_https_praefix_je_pfad():
         ],
         "reiseverlauf",
     )
-    assert "# /Afrika/Tansania/Ruaha\n" in out
-    assert "# /Afrika/Tansania/Cheetah\n" in out
+    assert "# /Afrika/Tansania/Ruaha — " in out
+    assert "# /Afrika/Tansania/Cheetah — " in out
     assert "#termine" not in out
     assert "Ruaha-Nationalpark" in out
     assert "Sansibar" in out

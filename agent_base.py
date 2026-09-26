@@ -242,8 +242,15 @@ Args:
         Anker oben. Leer heißt ganze Seite samt Terminen und geht nur bei EINEM
         Pfad; ab zwei Pfaden ist der Abschnitt Pflicht, sonst sind die Seiten
         zusammen zu lang.
+    orte (list[str]): Optional. Die Orte, die der Kunde sich wünscht, z.B.
+        ["Kapstadt", "Gartenroute|Garden Route", "Krüger", "Wein"]. Das Tool
+        sucht jedes Wort wörtlich im Reiseverlauf: nimm kurze Wortstämme
+        ("Wein" statt "Weinroute") und trenne Schreibvarianten mit |. Oben
+        stehen dann die Reisen, die ALLE Orte enthalten. Mit orte ist der
+        Abschnitt immer reiseverlauf.
 
 Beispiel: url_paths=["/Afrika/Tansania/Ruaha", "/Afrika/Tansania/Cheetah"], abschnitt="reiseverlauf"
+Beispiel: url_paths=["/Afrika/Suedafrika/Outeniqua", "/Afrika/Suedafrika/Pinotage"], orte=["Kapstadt", "Krüger"]
 
 Returns:
     str: Die Seiten als Markdown in der Reihenfolge der Anfrage; bei mehreren
@@ -516,6 +523,70 @@ FEHLER_ABRUF = "Fehler beim Abrufen der Seite:"
 FEHLER_UNERWARTET = "Unerwarteter Fehler:"
 
 
+# Laender- und Uebersichtsseiten zeigen jede Reise als Teaser, den markdownify
+# so schreibt (gemessen 2026-09-25 auf /Afrika/Suedafrika und /Afrika/Namibia):
+#
+#     ### Outeniqua **15 Tage Erlebnisreise**
+#
+#       + 5 Safaris im offenen Geländewagen
+#       …
+#       ![Details zu Outeniqua](…)](/Afrika/Suedafrika/Outeniqua "Outeniqua - Südafrika")
+#
+# Dauer, Laender und Pfad stehen also da — aber verstreut in ~18.000 Zeichen
+# Bildlinks, und Leon verlor sie gemessen: Moremi (Botswana, Simbabwe &
+# Namibia) als Namibia-Reise, Mahango (15 Tage) fuer 14 Tage.
+_REISE_TEASER = re.compile(
+    r"^[ \t]*### (?P<name>[^\n*]+?)\s*\*\*(?P<tage>\d+) Tage[^*\n]*\*\*"
+    r".*?\]\((?P<pfad>/[^\s)\"]+) \"(?P<titel>[^\"\n]+)\"\)",
+    re.S | re.M,
+)
+
+
+def reiseliste(markdown: str) -> list[dict]:
+    """Die Reise-Teaser einer Seite als ``[{name, tage, laender, pfad}]``, ohne Doppel."""
+    reisen: dict[str, dict] = {}
+    for m in _REISE_TEASER.finditer(markdown):
+        _name, _, laender = m.group("titel").partition(" - ")
+        reisen.setdefault(
+            m.group("pfad"),
+            {
+                "name": m.group("name").strip(),
+                "tage": int(m.group("tage")),
+                "laender": laender.strip(),
+                "pfad": m.group("pfad"),
+            },
+        )
+    return list(reisen.values())
+
+
+def _ist_kombireise(laender: str) -> bool:
+    return bool(re.search(r",|&| und ", laender))
+
+
+def reiseliste_markdown(reisen: list[dict]) -> str:
+    zeilen = [
+        f"- {r['name']} · {r['tage']} Tage · "
+        f"{'Kombireise: ' if _ist_kombireise(r['laender']) else ''}{r['laender']} · {r['pfad']}"
+        for r in reisen
+    ]
+    return (
+        "## Alle Reisen auf dieser Seite (Name · Dauer · Länder · Pfad)\n"
+        + "\n".join(zeilen)
+        + "\n\nFür Wünsche zu Orten oder MIT/OHNE etwas reicht diese Liste nicht: "
+        "die Länderangabe sagt nicht, wohin der Reiseverlauf führt. Ruf dafür die "
+        "Reisen mit orte=[…] ab, zuerst die ohne „Kombireise“."
+    )
+
+
+def _mit_reiseliste(seite: str) -> str:
+    """Setzt die Reiseliste unter den Titel einer Seite ohne eigenen Reiseverlauf."""
+    reisen = reiseliste(seite)
+    if not reisen or seiten_abschnitt(seite, "reiseverlauf") is not None:
+        return seite
+    titel, _, rest = seite.partition("\n")
+    return f"{titel}\n\n{reiseliste_markdown(reisen)}\n{rest}"
+
+
 # Base website tool (without decorator)
 def chamaeleon_website_tool_base(url_path: str) -> str:
     """Base website tool function without framework-specific decorators.
@@ -527,7 +598,7 @@ def chamaeleon_website_tool_base(url_path: str) -> str:
     url_path = _normalisiere_pfad(url_path)
     _warne_wenn_unbekannt(url_path)
     try:
-        result = _seite_formatiert(url_path)
+        result = _mit_reiseliste(_seite_formatiert(url_path))
 
         termine_md = _termine_anhang(url_path)
         if termine_md:
@@ -591,6 +662,57 @@ def _auf_anteil_kuerzen(text: str, anteil: int) -> str:
     return text[: max(0, anteil - len(_KUERZUNGSMARKER))].rstrip() + _KUERZUNGSMARKER
 
 
+def _ortsformen(text: str) -> tuple[str, str]:
+    """Vergleichsformen ohne Gross/klein, Leer- und Satzzeichen: einmal mit
+    ae/oe/ue, einmal mit a/o/u — "Krüger", "Krueger" und "Kruger" treffen sich."""
+    text = text.casefold().replace("ß", "ss")
+    mit_e = text.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+    ohne_e = text.replace("ä", "a").replace("ö", "o").replace("ü", "u")
+    return re.sub(r"[^a-z0-9]", "", mit_e), re.sub(r"[^a-z0-9]", "", ohne_e)
+
+
+def ort_im_text(ort: str, text: str) -> bool:
+    """Kommt einer der Varianten ("Gartenroute|Garden Route") im Text vor?"""
+    text_e, text_u = _ortsformen(text)
+    for variante in ort.split("|"):
+        v_e, v_u = _ortsformen(variante)
+        if v_e and (v_e in text_e or v_u in text_u):
+            return True
+    return False
+
+
+def _ortspruefung(orte: list[str], verlaeufe: dict[str, tuple[str, str]]) -> str:
+    """Der Kopf der Ausgabe bei ``orte``: je Reise Treffer, oben die vollstaendigen.
+
+    ``verlaeufe``: Pfad -> (Name, ungekuerzter Reiseverlauf). Geprueft wird vor
+    dem Kuerzen auf den Zeichendeckel, sonst fiele ein Ort am Ende weg.
+    """
+    zeilen, alle = [], []
+    for pfad, (name, verlauf) in verlaeufe.items():
+        treffer = [(ort, ort_im_text(ort, verlauf)) for ort in orte]
+        if all(ok for _, ok in treffer):
+            alle.append(f"{name} ({pfad})")
+        zeilen.append(
+            f"- {name} ({pfad}): "
+            + " · ".join(
+                f"{ort.split('|')[0]} {'ja' if ok else 'nicht gefunden'}" for ort, ok in treffer
+            )
+        )
+    kopf = (
+        "Alle gewünschten Orte im Reiseverlauf: " + ", ".join(alle)
+        if alle
+        else "Keine dieser Reisen enthält alle gewünschten Orte im Reiseverlauf."
+    )
+    return (
+        "## Ortsprüfung (Reiseverlauf)\n"
+        + kopf
+        + "\n"
+        + "\n".join(zeilen)
+        + "\n„nicht gefunden“ heißt nur: dieses Wort steht nicht im Reiseverlauf. "
+        "Behaupte nicht, dass etwas fehlt, ohne es im Text unten geprüft zu haben."
+    )
+
+
 # Reihenfolge der Schranken in website_tool_multi (Plan A, Review D8/D14):
 #
 #     einzelner String statt Liste  → wird toleriert, Gemini schickt das
@@ -602,7 +724,7 @@ def _auf_anteil_kuerzen(text: str, anteil: int) -> str:
 #         seiten_abschnitt(...)     → None? Hinweis nur fuer diese Seite
 #         gevent.sleep(0)           → nach jeder Umwandlung: andere Chats kommen dran
 #     Summe ueber WEBSITE_TOOL_MAX_CHARS? → anteilig kuerzen + Marker
-def website_tool_multi(url_paths, abschnitt: str = "") -> str:
+def website_tool_multi(url_paths, abschnitt: str = "", orte=None) -> str:
     """Eine bis acht Seiten, wahlweise nur ein Abschnitt je Seite.
 
     Bei genau einem Pfad ohne Abschnitt ist die Ausgabe zeichengleich mit
@@ -637,6 +759,11 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
     # "#" (der Anker aus der Tool-Beschreibung) sind zu erwarten. Mehr wird
     # nicht geraten — alles Unbekannte fuehrt zur Anweisung.
     abschnitt = str(abschnitt or "").strip().lstrip("#").strip().casefold()
+    if isinstance(orte, str):
+        orte = [orte]
+    orte = [str(o).strip() for o in (orte or []) if str(o).strip()]
+    if orte:
+        abschnitt = "reiseverlauf"
 
     if len(pfade) > 1 and not abschnitt:
         return _abschnitt_anweisung(
@@ -682,11 +809,25 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
         geholt = dict(zip(eindeutig, pool.map(_hole, eindeutig)))
 
     teile: list[str] = []
+    titel: dict[str, str] = {}
     for pfad in eindeutig:
         inhalt = geholt[pfad]
         if abschnitt and not inhalt.startswith(_FEHLER_PRAEFIXE):
+            # Der Seitentitel traegt Dauer und Laender ("Panorama - 20 Tage
+            # Erlebnisreise | Südafrika, Eswatini & Lesotho | Chamäleon"); der
+            # Abschnitt allein nicht mehr. Er kommt deshalb in die Kopfzeile.
+            titel[pfad] = inhalt.partition("\n")[0].lstrip("# ").strip()
             ausschnitt = seiten_abschnitt(inhalt, abschnitt)
-            if ausschnitt is None:
+            reisen = reiseliste(inhalt) if ausschnitt is None else []
+            if reisen:
+                # Eine Laenderseite: statt "gibt es nicht" die Reisen darauf,
+                # damit der naechste Aufruf die richtigen Pfade nimmt.
+                inhalt = (
+                    f"Die Seite {pfad} ist eine Übersicht ohne Abschnitt „{abschnitt}“. "
+                    "Für den Abschnitt ruf die Reisen selbst ab.\n\n"
+                    + reiseliste_markdown(reisen)
+                )
+            elif ausschnitt is None:
                 # Laender- und Verlaengerungsseiten tragen die Ueberschrift
                 # nicht. Der Hinweis gilt nur fuer diese eine Seite.
                 inhalt = (
@@ -697,13 +838,41 @@ def website_tool_multi(url_paths, abschnitt: str = "") -> str:
                 inhalt = ausschnitt
         teile.append(inhalt)
 
+    def _kombi(pfad: str) -> bool:
+        teile_titel = titel.get(pfad, "").split("|")
+        return len(teile_titel) >= 3 and _ist_kombireise(teile_titel[1])
+
+    def _name(pfad: str) -> str:
+        name = titel.get(pfad, pfad).split(" - ")[0].strip()
+        return f"{name}, Kombireise" if _kombi(pfad) else name
+
+    verlaeufe = {
+        pfad: (_name(pfad), teil)
+        for pfad, teil in zip(eindeutig, teile)
+        if orte and teil.lstrip().startswith("Reiseverlauf")
+    }
+
     if sum(len(t) for t in teile) > WEBSITE_TOOL_MAX_CHARS:
         anteil = WEBSITE_TOOL_MAX_CHARS // len(teile)
         teile = [_auf_anteil_kuerzen(t, anteil) for t in teile]
 
-    if len(teile) == 1:
+    if len(teile) == 1 and not verlaeufe:
         return teile[0]
-    return "\n\n".join(f"# {pfad}\n\n{teil}" for pfad, teil in zip(eindeutig, teile))
+    # Reine Reisen eines Landes vor den Kombireisen, sonst in Eingabereihenfolge:
+    # gemessen 2026-09-25 las Flash die Seiten der Reihe nach, empfahl die ersten
+    # beiden (Panorama, Rainbow — beide Kombireisen) und liess Outeniqua weg,
+    # obwohl der Prompt reine Reisen zuerst verlangt.
+    reihenfolge = sorted(range(len(eindeutig)), key=lambda i: _kombi(eindeutig[i]))
+
+    def _kopf(pfad: str) -> str:
+        if not titel.get(pfad):
+            return f"# {pfad}"
+        return f"# {pfad} — " + ("Kombireise: " if _kombi(pfad) else "") + titel[pfad]
+
+    seiten = "\n\n".join(f"{_kopf(eindeutig[i])}\n\n{teile[i]}" for i in reihenfolge)
+    if verlaeufe:
+        return _ortspruefung(orte, verlaeufe) + "\n\n" + seiten
+    return seiten
 
 
 # The Agenturbereich sits behind a login, so get_chamaeleon_website_html can
@@ -965,12 +1134,18 @@ Reiseempfehlungen:
 
 Reisen vergleichen und empfehlen:
 - Nennt der Kunde harte Kriterien – Land, Dauer, bestimmte Orte oder eine Reise MIT oder OHNE etwas (ohne Sansibar, ohne Badeaufenthalt, reine Safari, mit Gorillas …) –, dann prüfe sie an den Seiten, bevor du einen Reisenamen nennst. Rate nie.
-- Dauer und Überblick: Rufe die Übersichtsseite des Landes ab (die `…-ALL`-Seite bzw. die Länderseite) oder die Reisen mit `abschnitt="uebersicht"`.
-- Inhalt (Orte, mit oder ohne etwas): Rufe ALLE Reisen des gewünschten Landes in EINEM Aufruf mit `abschnitt="reiseverlauf"` ab und empfiehl nur, was der Reiseverlauf belegt.
+- Sucht der Kunde eine Reise und nennt dafür ein Reiseland – auch erst in einer späteren Nachricht, etwa als Antwort auf deine Rückfrage –, dann rufe SOFORT die Länderseite ab (/Kontinent/Land, z.B. /Afrika/Namibia), bevor du antwortest. Oben steht dort die Liste aller Reisen des Landes mit Dauer, Ländern und Pfad. Verweise nie nur allgemein auf „unsere Namibia-Reisen“, ohne die Liste geprüft zu haben.
+- Dauer: Wer n Tage Zeit hat, bekommt nur Reisen mit höchstens n Tagen laut dieser Liste.
+- Inhalt (Orte, mit oder ohne etwas): Nimm aus der Liste der Länderseite zuerst nur die Reisen OHNE „Kombireise“ und rufe ihre Pfade mit `abschnitt="reiseverlauf"` in einem Aufruf ab. Erst wenn keine davon alle Wünsche erfüllt, rufe auch die Kombireisen ab. Empfiehl nur, was der Reiseverlauf belegt. Sag nie „beinhaltet all deine Wünsche“, wenn du das nicht im Reiseverlauf gesehen hast.
+- Nennt der Kunde Orte, die er sehen möchte, oder etwas, das MIT oder OHNE sein soll (ohne Sansibar, ohne Rom, mit Gorillas …), dann übergib es dem Website-Tool als `orte` (kurze Wortstämme, Schreibvarianten mit |, z.B. "Gartenroute|Garden Route", "Wein") zusammen mit den Pfaden der Reisen aus der Liste. Die Liste der Länderseite allein reicht dafür nie.
+  - MIT: Empfiehl nur Reisen, die unter „Alle gewünschten Orte im Reiseverlauf“ stehen, reine Reisen vor Kombireisen. Steht dort keine, nenne die Reise mit den meisten Treffern und sag, welcher Ort ihr fehlt.
+  - OHNE: Empfiehl nur Reisen, bei denen das Unerwünschte „nicht gefunden“ ist. Steht es bei einer Reise auf „ja“, führt die Reise dorthin – empfiehl sie nicht.
 - Verlängerungen zählen nicht zur Reise. Was nur unter „Verlängerungen" steht, gehört nicht zum Reiseverlauf.
-- Bleib im gewünschten Land. Wer Tansania oder Kenia sagt, bekommt kein Namibia.
+- Bleib im gewünschten Land. Wer Tansania oder Kenia sagt, bekommt kein Namibia. Nennt der Kunde ein Land, empfiehl Reisen, die nur in diesem Land sind. Eine Kombireise (Länderangabe mit mehreren Ländern, z.B. „Botswana, Simbabwe & Namibia“) nennst du nur, wenn der Kunde mehrere Länder möchte oder keine reine Reise passt – und dann sagst du dazu, durch welche Länder sie führt.
+- Prüfe jede Reise gegen ALLE Wünsche zugleich (Land, Dauer, jeder genannte Ort). Empfiehl nur Reisen, die alle erfüllen, reine Reisen des Landes vor Kombireisen, und nenne höchstens zwei. Passt keine ganz, nenne die beste und sag in einem Satz, was ihr fehlt.
+- Kündige nie an, dass du nachsiehst („Ich schaue mal …“, „Einen Moment …“), sondern rufe das Tool direkt auf. Deine Antwort ist immer das Ergebnis, nie die Ankündigung.
 - Wenn ein Kunde deiner Auskunft zu einer Reise widerspricht, rufe die Seiten erneut ab und richte dich nach dem Ergebnis – genau wie bei den Terminen. Bestätigen die Seiten deine Auskunft, dann bleib freundlich dabei.
-- Beispiel: Tansania ohne Sansibar → alle Tansania-Reisen abrufen, Reiseverlauf auf Sansibar prüfen.
+- Beispiel: Tansania ohne Sansibar → Länderseite /Afrika/Tansania abrufen, dann die Tansania-Reisen daraus mit orte=["Sansibar"] prüfen.
 
 Termine, Verfügbarkeit und Preise:
 - Nenne Termine, freie Plätze und Preise ausschließlich auf Basis von `termine_tool()`. Rufe es auf, bevor du dazu etwas sagst — auch wenn du die Zahlen aus dem bisherigen Gespräch zu kennen glaubst. Rate nie und rechne nie selbst.
@@ -1063,7 +1238,7 @@ Frage: „Welche Reise passt für meine erste Safari?"
 Antwort: Wie schön, deine erste Safari! Welches Land reizt dich, und wie viel Zeit hast du? Stöbere schon mal hier: /Namibia-Safari, /Botswana-Safari oder /Safari-Suedafrika.
 
 Frage: „Ich suche eine Tansania-Reise ohne Sansibar."
-Antwort (erst nachdem du die Reiseverläufe aller Tansania-Reisen in einem Aufruf geprüft hast; die Namen und Tage kommen aus diesem Abruf, nie aus dem Gedächtnis): Da passen [Reise A] ([n] Tage) und [Reise B] ([n] Tage) – beide bleiben auf dem Festland, Sansibar gibt es dort nur als Verlängerung. Schau mal hier: [Link A] und [Link B]. Was reizt dich mehr?
+Antwort (erst nachdem du die Liste der Länderseite /Afrika/Tansania geholt und die Reiseverläufe der Tansania-Reisen daraus geprüft hast; die Namen und Tage kommen aus diesen Abrufen, nie aus dem Gedächtnis): Da passen [Reise A] ([n] Tage) und [Reise B] ([n] Tage) – beide bleiben auf dem Festland, Sansibar gibt es dort nur als Verlängerung. Schau mal hier: [Link A] und [Link B]. Was reizt dich mehr?
 
 Frage: „Wie groß sind die Reisegruppen?"
 Antwort: Bei Chamäleon reist du in kleinen Gruppen mit maximal 12 Teilnehmenden – persönlich und intensiv. Magst du wissen, welche Reise dazu am besten passt?

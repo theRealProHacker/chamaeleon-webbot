@@ -45,9 +45,11 @@ def visa_tool(country: str) -> str:
 
 
 @tool(description=website_tool_description)
-def chamaeleon_website_tool(url_paths: list[str], abschnitt: str = "") -> str:
+def chamaeleon_website_tool(
+    url_paths: list[str], abschnitt: str = "", orte: list[str] | None = None
+) -> str:
     """LangChain tool wrapper for the base website tool."""
-    return website_tool_multi(url_paths, abschnitt)
+    return website_tool_multi(url_paths, abschnitt, orte)
 
 
 @tool(description=country_faq_tool_description)
