@@ -152,15 +152,16 @@ def test_build_index_unmatched_is_not_indexed():
 
 def test_build_index_live_adds_page_missing_from_sitemap(monkeypatch):
     # A travel WITH termine whose page is not in the sitemap but returns 200
-    # gets added; one whose page 404s does not.
-    calls = {"/Amerika/Bolivien/Uyuni": True, "/Amerika/Bolivien/Ghost": False}
+    # gets added; one whose page 404s does not. Made-up slug: the real sitemap
+    # follows the website and may list any real trip.
+    calls = {"/Amerika/Bolivien/Fiktiv": True, "/Amerika/Bolivien/Ghost": False}
     monkeypatch.setattr(ti, "_page_exists", lambda path, **k: calls.get(path, False))
     travels = [
-        _travel("BOUYU", "Uyuni", "Amerika/Bolivien", seo="Uyuni", termine=[{"von": "2026-01-01"}]),
+        _travel("BOUYU", "Fiktiv", "Amerika/Bolivien", seo="Fiktiv", termine=[{"von": "2026-01-01"}]),
         _travel("GHOST", "Ghost", "Amerika/Bolivien", seo="Ghost", termine=[{"von": "2026-01-01"}]),
     ]
     index, _n, summary = ti._build_index(travels, check_live=True)
-    assert "/Amerika/Bolivien/Uyuni" in index and "BOUYU" in index["/Amerika/Bolivien/Uyuni"]["codes"]
+    assert "/Amerika/Bolivien/Fiktiv" in index and "BOUYU" in index["/Amerika/Bolivien/Fiktiv"]["codes"]
     assert "/Amerika/Bolivien/Ghost" not in index
     assert summary["live_added"] == 1
 
@@ -169,9 +170,9 @@ def test_build_index_live_skipped_without_termine(monkeypatch):
     # No termine -> never a 200-check candidate, even if the page would 200.
     monkeypatch.setattr(ti, "_page_exists", lambda path, **k: True)
     index, _n, summary = ti._build_index(
-        [_travel("NOTM", "Uyuni", "Amerika/Bolivien", seo="Uyuni")], check_live=True
+        [_travel("NOTM", "Fiktiv", "Amerika/Bolivien", seo="Fiktiv")], check_live=True
     )
-    assert "/Amerika/Bolivien/Uyuni" not in index
+    assert "/Amerika/Bolivien/Fiktiv" not in index
     assert summary["live_added"] == 0
 
 

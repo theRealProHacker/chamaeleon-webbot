@@ -13,7 +13,10 @@ Rules:
 - Additions (live URLs not in the current set) are merged in, labelled by
   continent (Reiseziele) or an auto-added section.
 - A baseline URL missing from the live sitemap is NOT dropped on that basis
-  alone: it is HEAD-checked, and only removed if it no longer serves 200.
+  alone: it is checked, and only removed if it is dead (``is_alive``).
+- A baseline URL that only matches the live sitemap through the "-ALL"
+  comparison is checked too, and a dead one is replaced by its live form
+  (``verdeckt``).
 - The diff is logged to stdout (Railway logs).
 
 Run `python sitemap_sync.py` for a dry-run diff against sitemap.txt (no
@@ -101,14 +104,70 @@ def compute_diff(live: set[str], static: list[str]) -> tuple[list[str], list[str
     return additions, would_remove
 
 
+def verdeckt(live: set[str], static: list[str]) -> list[str]:
+    """Baseline-URLs, die nur ueber den "-ALL"-Vergleich als live gelten.
+
+    ``compute_diff`` haelt "/X-ALL" und "/X" fuer dieselbe Seite. Ist die
+    Baseline-Form tot, faellt sie so weder unter die Entfernungen noch kommt
+    die lebende Form dazu — gemessen 2026-09-25: "/Afrika/Suedafrika/Outeniqua-ALL"
+    stand in der Sitemap, die Reise liegt unter ".../Outeniqua", und Leon fand
+    sie nie. Diese URLs muessen deshalb genauso geprueft werden.
+    """
+    live_canon = {canonical(p) for p in live}
+    return sorted(p for p in static if p not in live and canonical(p) in live_canon)
+
+
+def _ist_reise_pfad(path: str) -> bool:
+    segs = path.strip("/").split("/")
+    return len(segs) >= 3 and segs[0] in CONTINENTS
+
+
+# Jede echte Reiseseite traegt <link rel="canonical">. Die Website liefert fuer
+# eine geloeschte oder umbenannte Reise aber keine 404, sondern mit Status 200
+# die Laenderuebersicht oder eine Sammelseite — beide ohne canonical. Gemessen
+# 2026-09-25: 60 von 322 Reise-URLs der Sitemap waren solche Attrappen (u. a.
+# Outeniqua-ALL, Sossusvlei-ALL, Moremi-ALL), alle 262 echten trugen das Tag.
+_CANONICAL = re.compile(rb"<link\b[^>]*\brel=[\"']canonical[\"']", re.IGNORECASE)
+_KOPF_MAX_BYTES = 256_000
+
+
+def _hat_canonical(response) -> bool:
+    """Liest nur den Seitenkopf: die Seiten sind bis zu 700 KB gross."""
+    gelesen = b""
+    for block in response.iter_content(chunk_size=16_384):
+        gelesen += block
+        if _CANONICAL.search(gelesen):
+            return True
+        if b"</head>" in gelesen or len(gelesen) >= _KOPF_MAX_BYTES:
+            return False
+    return False
+
+
 def is_alive(path: str, timeout: int = 10) -> bool:
     """True if path serves a 200 (following redirects).
+
+    Reisepfade (/Kontinent/Land/Reise) muessen zusaetzlich eine echte Reiseseite
+    sein (siehe ``_CANONICAL``) und werden deshalb per GET geprueft.
 
     Conservative: any network error returns True, so a transient failure never
     drops a page.
     """
+    return _lebt(path, timeout) is not False
+
+
+def _lebt(path: str, timeout: int = 10) -> bool | None:
+    """Wie ``is_alive``, aber ``None`` bei Netzfehler statt True."""
     url = BASE_URL + path
     try:
+        if _ist_reise_pfad(path):
+            with requests.get(
+                url,
+                headers=_HEADERS,
+                timeout=timeout,
+                allow_redirects=True,
+                stream=True,
+            ) as r:
+                return r.status_code == 200 and _hat_canonical(r)
         r = requests.head(
             url, headers=_HEADERS, timeout=timeout, allow_redirects=True
         )
@@ -123,7 +182,14 @@ def is_alive(path: str, timeout: int = 10) -> bool:
             r.close()
         return r.status_code == 200
     except requests.RequestException:
-        return True
+        return None
+
+
+def ersatz_fuer(tote: list[str], live: set[str], static: list[str]) -> list[str]:
+    """Die lebenden Formen toter, verdeckter URLs, soweit noch nicht in der Sitemap."""
+    tote_canon = {canonical(p) for p in tote}
+    vorhanden = set(static)
+    return sorted(p for p in live if canonical(p) in tote_canon and p not in vorhanden)
 
 
 def _continent_of(path: str) -> str | None:
@@ -201,18 +267,40 @@ def _log_summary(summary: dict) -> None:
     for p in summary["added"]:
         print(f"[sitemap-sync]   + {p}")
     for p in summary["dropped_404"]:
-        print(f"[sitemap-sync]   - {p}  (no longer 200)")
+        print(f"[sitemap-sync]   - {p}  (tot: kein 200 oder keine echte Reiseseite)")
 
 
 def _check_removals(would_remove: list[str]) -> tuple[list[str], list[str]]:
-    """Split would-be removals into (dead, kept) by live status code."""
+    """Split would-be removals into (dead, kept) by live status code.
+
+    Netzfehler werden einmal mit wenig Parallelitaet wiederholt: die
+    Ersatzseite fuer geloeschte Reisen ist ~700 KB gross, und mit 16 Abrufen
+    zugleich liefen gemessen 2026-09-25 genau diese 15 Seiten in den Timeout
+    und blieben so stehen. Einzeln geprueft waren alle 15 in 9 s tot.
+    """
     if not would_remove:
         return [], []
     with ThreadPoolExecutor(max_workers=16) as ex:
-        checked = list(ex.map(lambda p: (p, is_alive(p)), would_remove))
-    dead = [p for p, alive in checked if not alive]
-    kept = [p for p, alive in checked if alive]
+        checked = dict(zip(would_remove, ex.map(_lebt, would_remove)))
+    offen = [p for p, lebt in checked.items() if lebt is None]
+    if offen:
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            checked.update(zip(offen, ex.map(lambda p: _lebt(p, 30), offen)))
+    dead = [p for p in would_remove if checked[p] is False]
+    kept = [p for p in would_remove if checked[p] is not False]
     return dead, kept
+
+
+def plane(live: set[str], static: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """(additions, dead, kept) — was ein Sync mit der Baseline macht. Prueft live."""
+    additions, would_remove = compute_diff(live, static)
+    dead, kept = _check_removals(would_remove)
+    verdeckt_tot, _ = _check_removals(verdeckt(live, static))
+    return (
+        additions + ersatz_fuer(verdeckt_tot, live, static),
+        dead + verdeckt_tot,
+        kept,
+    )
 
 
 _lock = threading.Lock()
@@ -233,8 +321,7 @@ def sync(verbose: bool = True) -> dict:
             print(f"[sitemap-sync] fetch failed, keeping current sitemap: {e}")
             return {"error": str(e)}
 
-        additions, would_remove = compute_diff(live, static)
-        dead, kept = _check_removals(would_remove)
+        additions, dead, kept = plane(live, static)
 
         new_text = merge_text(current_text, additions, dead)
         new_desc = agent_base.apply_sitemap(new_text)
@@ -365,19 +452,23 @@ def start_scheduler():
 
 if __name__ == "__main__":
     # Dry run against sitemap.txt: show the diff, no in-memory mutation.
+    # Mit --schreiben landet das Ergebnis in sitemap.txt (die Baseline, mit der
+    # Produktion startet, bevor der erste naechtliche Sync laeuft).
+    import sys
+
     with open("sitemap.txt", encoding="utf-8") as f:
         static_text = f.read()
     static = static_paths(static_text)
     live = fetch_live_sitemap()
-    additions, would_remove = compute_diff(live, static)
-    dead, kept = _check_removals(would_remove)
+    additions, dead, kept = plane(live, static)
     print(f"live paths: {len(live)}   static paths: {len(static)}")
     print(f"\nadditions ({len(additions)}):")
     for p in additions:
         print("  +", p)
-    print(
-        f"\nwould-remove: {len(would_remove)}  ->  gone/404: {len(dead)}  "
-        f"kept (still 200): {len(kept)}"
-    )
+    print(f"\ndead: {len(dead)}   kept despite absent: {len(kept)}")
     for p in dead:
-        print("  -", p, "(gone)")
+        print("  -", p)
+    if "--schreiben" in sys.argv:
+        with open("sitemap.txt", "w", encoding="utf-8") as f:
+            f.write(merge_text(static_text, additions, dead))
+        print("\nsitemap.txt geschrieben")
