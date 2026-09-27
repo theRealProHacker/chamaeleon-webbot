@@ -16,8 +16,20 @@ import common as _  # noqa: F401  (adds repo root to sys.path)
 
 import agent_base
 import kundendaten as kd
+import travel_index
 
 # --- fixtures ----------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _hop2_folgt_kd_patch(monkeypatch):
+    """Hop 2 (``kd._buchung_roh``) ruft ``travel_index._tourone_get`` spät
+    gebunden auf, Hop 1 den in kd importierten Namen. Die Tests hier patchen
+    ``kd._tourone_get`` für BEIDE Hops — also leitet travel_index zur Laufzeit
+    dorthin weiter, und jeder Patch auf kd greift auch für Hop 2."""
+    monkeypatch.setattr(
+        travel_index, "_tourone_get", lambda *a, **k: kd._tourone_get(*a, **k)
+    )
 
 ZUKUNFT_VON = "2099-01-01 00:00:00"
 ZUKUNFT_BIS = "2099-01-15 00:00:00"
@@ -663,6 +675,49 @@ def test_cache_haelt_nur_die_buchungen(monkeypatch):
     gecacht = repr(list(kd._buchungen_roh.cache.values()))
     for feld in ("Testperson", "Teststraße", "example.org"):
         assert feld not in gecacht
+
+
+# --- Hop-2-Cache (_buchung_roh) -----------------------------------------------
+#
+# Vier Aufrufer holen dieselbe Buchung: Detail-Block, Status (Reise-Links),
+# Reisecode für reiseinfo_tool und der Agenturpfad. Einer zahlt, die anderen
+# lesen den Cache.
+
+
+def test_hop2_ein_abruf_je_vorgang(monkeypatch):
+    calls = fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung()]),
+            "/get/buchung": {**volle_buchung(), "reiseCode": "NAWDH"},
+        },
+    )
+    assert "8.198,00 €" in kd.fetch_buchungen_text("999999999", details=True)
+    assert kd.buchungsstatus("126001") == "OK"
+    assert agent_base._reise_code_for_vorgang("126001") == "NAWDH"
+    hop2 = [c for c in calls if c["path"] == "/get/buchung"]
+    assert len(hop2) == 1
+    assert hop2[0]["timeout"] == kd.TIMEOUT
+
+
+def test_hop2_ausfall_wird_nicht_gecacht(monkeypatch):
+    """Wie bei Hop 1: ein einzelner Timeout darf die Buchung nicht 10 Minuten
+    unsichtbar machen."""
+    zustand = {"kaputt": True}
+
+    def wechselhaft(params):
+        if zustand["kaputt"]:
+            raise RuntimeError("timeout")
+        return volle_buchung()
+
+    calls = fake_tourone(monkeypatch, {"/get/buchung": wechselhaft})
+    with pytest.raises(RuntimeError):
+        kd._buchung_roh("126001")
+    assert kd._hop2_alle([eingebettete_buchung()]) == [None]  # Aufrufer fängt
+    zustand["kaputt"] = False
+    assert kd._hop2_alle([eingebettete_buchung()]) == [volle_buchung()]
+    assert kd.buchungsstatus("126001") == "OK"  # aus dem Cache, kein vierter Abruf
+    assert len(calls) == 3
 
 
 # --- naechste_offene_reise (Review D10) --------------------------------------

@@ -24,7 +24,8 @@ enthält ausschließlich whitelisted Felder.
             │                  NUR Hop 1, kein Hop 2
             └─ details=true  → je Buchung, OHNE Deckel, nebenläufig
                                                        (DETAIL_PARALLEL):
-                 GET /get/buchung?vorgangsNummer=…       (Hop 2)
+                 GET /get/buchung?vorgangsNummer=…       (Hop 2, timeout=8; 10 min
+                                                          gecacht, siehe ``_buchung_roh``)
                  → Whitelist → Status, Reisende, Zahlstand, Flüge
 
 Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
@@ -53,6 +54,8 @@ from typing import Literal
 import pytz
 from cachetools.func import ttl_cache
 from langchain_core.tools import tool
+
+import travel_index
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
 # Implementierung geben, und die lebt in travel_index (Entscheidung 2A).
@@ -390,11 +393,7 @@ def _hop2_alle(ausgewaehlt: list) -> list:
 
     def hole(eingebettet: dict):
         try:
-            return _tourone_get(
-                "/get/buchung",
-                {"vorgangsNummer": eingebettet["vorgang"]},
-                timeout=TIMEOUT,
-            )
+            return _buchung_roh(eingebettet["vorgang"])
         except Exception as e:
             print(f"[kundendaten] buchung lookup failed: {e}")
             return None
@@ -456,6 +455,28 @@ def _buchungen_roh(kunden_id: str) -> list | None:
     ]
 
 
+# Hop 2 hat vier Aufrufer: beide ``_hop2_alle`` (Kunde, Agentur),
+# ``buchungsstatus`` und ``agent_base._reise_code_for_vorgang``. Früher holte
+# jeder dieselbe Buchung selbst, mit 8 oder 5 s Timeout; jetzt ein Abruf je
+# Vorgang, ein Timeout, und das Vorwärmen beim Login füllt alle zugleich.
+# Gleiche Regeln wie ``_buchungen_roh``: TTL 10 min, Schlüssel NUR die
+# Vorgangsnummer, Fehler werden NICHT gefangen (ttl_cache merkt sich keine
+# Exceptions — ein einzelner Timeout bleibt nicht 10 Minuten hängen).
+@ttl_cache(maxsize=1024, ttl=600)
+def _buchung_roh(vorgang: str) -> object:
+    """Die rohe Buchung aus Hop 2 — gecacht. WIRFT bei Ausfall.
+
+    Das Objekt gehört dem Cache; Aufrufer lesen es, verändern es nie.
+    """
+    # Bewusst spät über das Modul gebunden, nicht über den oben importierten
+    # Namen: agent_base ruft hierher, und dessen Tests patchen
+    # ``travel_index._tourone_get`` — der importierte Name ginge am Patch vorbei
+    # ins Netz.
+    return travel_index._tourone_get(
+        "/get/buchung", {"vorgangsNummer": vorgang}, timeout=TIMEOUT
+    )
+
+
 # Hop 1 traegt keinen Status — storniert (XX) steht erst in Hop 2. Gemessen
 # 2026-09-09: 217 von 1200 Buchungen sind storniert. Ohne diese Pruefung
 # bekaeme, wer Reise A storniert und B gebucht hat, die Links zur toten
@@ -464,9 +485,7 @@ def _buchungen_roh(kunden_id: str) -> list | None:
 @ttl_cache(maxsize=1024, ttl=600)
 def buchungsstatus(vorgang: str) -> str:
     """Der Status einer Buchung aus Hop 2; "" wenn TourOne keinen liefert."""
-    buchung = _tourone_get(
-        "/get/buchung", {"vorgangsNummer": vorgang}, timeout=TIMEOUT
-    )
+    buchung = _buchung_roh(vorgang)
     return str(buchung.get("status") or "") if isinstance(buchung, dict) else ""
 
 

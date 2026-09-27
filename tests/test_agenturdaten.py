@@ -10,6 +10,20 @@ import pytest
 import common as _  # noqa: F401
 
 import agenturdaten
+import travel_index
+
+
+@pytest.fixture(autouse=True)
+def _hop2_folgt_agentur_patch(monkeypatch):
+    """Hop 2 läuft über ``kundendaten._buchung_roh``, das
+    ``travel_index._tourone_get`` spät gebunden aufruft. Die Tests hier patchen
+    ``agenturdaten._tourone_get`` für BEIDE Hops — also leitet travel_index zur
+    Laufzeit dorthin weiter, und jeder Patch greift auch für Hop 2."""
+    monkeypatch.setattr(
+        travel_index,
+        "_tourone_get",
+        lambda *a, **k: agenturdaten._tourone_get(*a, **k),
+    )
 
 
 def _leistung(anf="P", bez="Rundreise Namibia Etosha", von="2027-05-01 00:00:00",

@@ -1875,18 +1875,19 @@ _REISEINFO_KEYS = (
 # 20 Baustein-Requests; mit PARALLEL=8 wären das drei Wellen, macht im
 # Timeout-Worst-Case 2*8s (Buchung, Reise) + 3*8s = 40s — allein das Tool reißt
 # die Frist. Deshalb: kürzeres Timeout je Request und genug Parallelität, dass
-# eine Welle reicht. Worst Case jetzt 5s + 5s + 5s = 15s.
+# eine Welle reicht. Worst Case jetzt 8s (Buchung, geteilter Hop-2-Cache aus
+# kundendaten) + 5s + 5s = 18s.
 REISEINFO_TIMEOUT = 5
 REISEINFO_FETCH_PARALLEL = 20
 
 
 def _reise_code_for_vorgang(vorgangsnummer: str) -> str | None:
     """reiseCode der Buchung, oder None wenn die Buchung fehlt/leer ist."""
-    import travel_index
+    import kundendaten
 
-    buchung = travel_index._tourone_get(
-        "/get/buchung", {"vorgangsNummer": vorgangsnummer}, timeout=REISEINFO_TIMEOUT
-    )
+    # Derselbe gecachte Hop 2 wie Buchungsdetail und Status (Timeout 8 s, nicht
+    # REISEINFO_TIMEOUT): meist hat ihn das Vorwärmen beim Login schon geholt.
+    buchung = kundendaten._buchung_roh(vorgangsnummer)
     if not isinstance(buchung, dict):
         return None
     code = buchung.get("reiseCode")

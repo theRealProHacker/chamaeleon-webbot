@@ -56,6 +56,7 @@ from typing import Literal
 from langchain_core.tools import tool
 
 from kundendaten import (
+    _buchung_roh,
     buchung_titel,
     flug_zeile,
     fmt_datum,
@@ -351,9 +352,7 @@ def _hop2_alle(ausgewaehlt: list) -> list:
 
     def hole(b: dict):
         try:
-            return _tourone_get(
-                "/get/buchung", {"vorgangsNummer": b["vorgang"]}, timeout=TIMEOUT
-            )
+            return _buchung_roh(b["vorgang"])
         except Exception as e:
             print(f"[agenturdaten] buchung lookup failed: {type(e).__name__}")
             return None
