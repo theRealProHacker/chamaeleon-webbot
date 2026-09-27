@@ -71,6 +71,8 @@ from kundendaten import (
 )
 from travel_index import _tourone_get, get_titel_for_code
 
+import unterlagen
+
 TIMEOUT = 8
 
 # Ab wie vielen Buchungen ``details=true`` verweigert wird. Die bindende
@@ -388,7 +390,7 @@ def _hop2_freigeben(detail: object, agentur_id: str) -> dict | None:
     return detail
 
 
-def _detail_block(b: dict, detail: dict | None) -> str:
+def _detail_block(b: dict, detail: dict | None, heute: str) -> str:
     """Ein Detailblock je Buchung: Hop-1-Inhalt, um Hop 2 ergänzt.
 
     ``detail=None`` (Abruf fehlgeschlagen oder G3 verworfen) kostet nur den
@@ -470,6 +472,10 @@ def _detail_block(b: dict, detail: dict | None) -> str:
     if posten:
         zeilen.append("- Leistungen:")
         zeilen.extend(posten)
+    # Dieselben Dokumente wie im Kundenpfad — die Agentur sieht sie ohnehin im
+    # Agenturbereich („Buchungen & Dokumente“). Storniert: keine (auch per Hop 1).
+    if detail and not storniert:
+        zeilen.extend(unterlagen.dokumente_zeilen(detail, heute))
     return "\n".join(zeilen)
 
 
@@ -535,7 +541,7 @@ def fetch_buchungen_text(
     for b, roh_detail in zip(ausgewaehlt, _hop2_alle(ausgewaehlt)):
         detail = _hop2_freigeben(roh_detail, agentur_id)
         details_fehlen = details_fehlen or detail is None
-        bloecke.append(_detail_block(b, detail))
+        bloecke.append(_detail_block(b, detail, heute))
 
     text = "Buchungen dieser Agentur im Detail:\n\n" + "\n\n".join(bloecke)
     if details_fehlen:
@@ -608,7 +614,9 @@ def make_buchungen_agentur_tool(agentur_id: str):
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer,
           Besteller). true = Detailansicht, zusätzlich mit Reisenden,
           Personenzahl, Gesamtpreis, Zahlstand (Anzahlung, offener Betrag,
-          bereits eingegangen), Provision, Flügen und Einzelleistungen.
+          bereits eingegangen), Provision, Flügen, Einzelleistungen und den
+          Dokumenten der Buchung mit Links (Reiseunterlagen, Rechnung,
+          Ausfüllhilfen …) samt Link zu den aktuellen Einreisebestimmungen.
           details=true ist deutlich teurer und die Ausgabe deutlich länger:
           hol immer erst die grobe Liste und fasse dann mit auswahl/anzahl
           eingegrenzt nach. Ob eine Buchung bezahlt ist, steht NUR in der

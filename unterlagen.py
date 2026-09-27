@@ -209,7 +209,12 @@ def dokumente_zeilen(buchung: dict, heute: str) -> list[str]:
     if zeilen:
         zeilen.insert(0, "- Dokumente:")
 
-    if not any(dokument_art(e.get("name")) == "reiseunterlagen" for e in eintraege):
+    # Nach der Reise ist „noch nicht bereitgestellt“ keine Auskunft mehr, sondern
+    # eine falsche Fährte (alte Buchungen vor Einführung der ``unterlagen``).
+    vorbei = str(buchung.get("bisDat") or "")[:10] < heute if buchung.get("bisDat") else False
+    if not vorbei and not any(
+        dokument_art(e.get("name")) == "reiseunterlagen" for e in eintraege
+    ):
         von = str(buchung.get("vonDat") or "")
         tage = _tage_bis(von, heute)
         if tage is not None and tage >= 0:

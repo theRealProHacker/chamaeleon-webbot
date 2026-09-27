@@ -150,6 +150,12 @@ def test_dokumente_leere_liste_nur_hinweiszeile():
     ]
 
 
+def test_dokumente_vergangene_reise_ohne_ulas_kein_hinweis():
+    """Alte Buchungen ohne ``unterlagen``: „noch nicht bereitgestellt“ wäre falsch."""
+    vorbei = buchung([], von="2025-05-01 00:00:00", bis="2025-05-15 00:00:00")
+    assert ul.dokumente_zeilen(vorbei, HEUTE) == []
+
+
 def test_dokumente_mit_ulas_kein_hinweis():
     zeilen = ul.dokumente_zeilen(buchung([eintrag(1, "Reiseunterlagen.pdf")]), HEUTE)
     assert not any("Schlussunterlagen" in z for z in zeilen)

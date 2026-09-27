@@ -26,7 +26,9 @@ enthält ausschließlich whitelisted Felder.
                                                        (DETAIL_PARALLEL):
                  GET /get/buchung?vorgangsNummer=…       (Hop 2, timeout=8; 10 min
                                                           gecacht, siehe ``_buchung_roh``)
-                 → Whitelist → Status, Reisende, Zahlstand, Flüge
+                 → Whitelist → Status, Reisende, Zahlstand, Flüge, Dokumente
+                   (``unterlagen.dokumente_zeilen``: Links, Hinweis bei fehlenden
+                   Schlussunterlagen, tripurl bis Reiseende)
 
 Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
   Grobe Liste: Titel, vonDat, bisDat, vorgang. Der Titel kommt aus
@@ -34,7 +36,10 @@ Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
   reiseCode, sonst der reiseCode selbst — siehe ``_titel_aus_code``.
   Detail zusätzlich: status, persAdult/persChild/persBaby, die sechs
   FLUG_FELDER sowie der Zahlstand (preis, anzahlungBetrag/-Dat, restBetrag,
-  schlussZahlungDat, eingangBetrag).
+  schlussZahlungDat, eingangBetrag), unterlagen[] (name, beschreibung, link
+  — AUSSER Teilnehmerdaten.pdf: dafür nur der Hinweis auf den Bereich
+  „Unterlagen“ in MeinChamäleon, weil es Passnummern und Geburtsdaten aller
+  Mitreisenden trägt und jede Antwort im Chat-Log liegt) und tripurl.
 Bewusst DRAUSSEN: Mitreisende-PII (teilnehmerliste), Notfallkontakt
 (adrNotfallKontakt), interne Notizen (chroniken), Provision/Agentur/Berater,
 Steuer-/Währungs-Details (*Cy, steuer*), pnrFileKey/interne IDs.
@@ -56,6 +61,7 @@ from cachetools.func import ttl_cache
 from langchain_core.tools import tool
 
 import travel_index
+import unterlagen
 
 # Bewusster Import der privaten TourOne-Plumbing-Funktion: es soll genau eine
 # Implementierung geben, und die lebt in travel_index (Entscheidung 2A).
@@ -375,6 +381,7 @@ def _detail_block(emb: dict, buchung: dict, heute: str) -> str:
         zeilen.extend(flug_zeile(f) for f in fluege)
     else:
         zeilen.append("- Flüge: noch nicht eingebucht (oft erst kurz vor Abreise)")
+    zeilen.extend(unterlagen.dokumente_zeilen(buchung, heute))
     return "\n".join(zeilen)
 
 
@@ -654,7 +661,11 @@ def make_buchungen_tool(kunden_id: str):
           Welche Reise die nächste ist, musst du NICHT aus der Reihenfolge
           erschließen: genau diese Zeile ist mit „nächste Reise" markiert.
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer). true =
-          Detailansicht je Buchung (Status, Reisende, Zahlstand, Flüge). Erst
+          Detailansicht je Buchung (Status, Reisende, Zahlstand, Flüge,
+          Dokumente mit Links, Stand der Schlussunterlagen, Link zu den
+          aktuellen Einreisebestimmungen). Für Fragen nach Unterlagen und
+          Dokumenten (wo, ob schon da, wann): auswahl="kommende", anzahl=1,
+          details=True — außer der Kunde meint erkennbar eine andere Reise. Erst
           die grobe Liste holen, dann bei Bedarf mit details=true nachfassen.
           Beide Ansichten sind vollständig — sie kürzen nicht. Die Detailansicht
           kostet aber einen Abruf je Buchung, also grenze mit auswahl/anzahl

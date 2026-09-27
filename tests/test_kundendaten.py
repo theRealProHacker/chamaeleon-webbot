@@ -373,6 +373,66 @@ def test_detail_zeigt_zahlstand_und_haelt_whitelist(monkeypatch):
     assert all(c["timeout"] == kd.TIMEOUT for c in calls)
 
 
+UNTERLAGEN = [
+    {"id": "11", "name": "Rechnung.pdf", "beschreibung": "", "link": "https://unterlagen.chamaeleon-reisen.de/r.pdf"},
+    {"id": "12", "name": "Teilnehmerdaten.pdf", "beschreibung": "", "link": "https://unterlagen.chamaeleon-reisen.de/tn.pdf"},
+    {"id": "13", "name": "Reiseunterlagen.pdf", "beschreibung": "", "link": "https://unterlagen.chamaeleon-reisen.de/ulas.pdf"},
+]
+TRIPURL = "https://travel-details.eu/de?tid=TEST-TEST-TEST"
+
+
+def test_detail_zeigt_dokumente_und_tripurl(monkeypatch):
+    buchung = volle_buchung()
+    buchung.update(unterlagen=UNTERLAGEN, tripurl=TRIPURL, bisDat=ZUKUNFT_BIS)
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]), "/get/buchung": buchung},
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "[Reiseunterlagen](https://unterlagen.chamaeleon-reisen.de/ulas.pdf)" in text
+    assert "[Rechnung](https://unterlagen.chamaeleon-reisen.de/r.pdf)" in text
+    assert TRIPURL in text
+    # Teilnehmerdaten: genannt, aber nie verlinkt (Passnummern im Chat-Log).
+    assert "Teilnehmerdaten" in text and "tn.pdf" not in text
+    assert "noch nicht bereitgestellt" not in text
+
+
+def test_detail_storniert_ohne_dokumente(monkeypatch):
+    buchung = volle_buchung(status="XX")
+    buchung.update(unterlagen=UNTERLAGEN, tripurl=TRIPURL)
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]), "/get/buchung": buchung},
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "unterlagen.chamaeleon-reisen.de" not in text and TRIPURL not in text
+
+
+def test_detail_vergangen_dokumente_ja_tripurl_nein(monkeypatch):
+    buchung = volle_buchung()
+    buchung.update(unterlagen=UNTERLAGEN, tripurl=TRIPURL, vonDat=VERGANGEN_VON, bisDat=VERGANGEN_BIS)
+    fake_tourone(
+        monkeypatch,
+        {
+            "/get/adresse": adresse_mit([eingebettete_buchung(von=VERGANGEN_VON, bis=VERGANGEN_BIS)]),
+            "/get/buchung": buchung,
+        },
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "r.pdf" in text and TRIPURL not in text
+
+
+def test_detail_ohne_schlussunterlagen_nennt_den_stand(monkeypatch):
+    buchung = volle_buchung()
+    buchung.update(unterlagen=UNTERLAGEN[:1], bisDat=ZUKUNFT_BIS, vonDat=ZUKUNFT_VON)
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]), "/get/buchung": buchung},
+    )
+    text = kd.fetch_buchungen_text("999999999", details=True)
+    assert "noch nicht bereitgestellt" in text and "01.01.2099" in text
+
+
 def test_detail_stornierte_buchung_ohne_zahlstand(monkeypatch):
     fake_tourone(
         monkeypatch,

@@ -54,7 +54,7 @@ A: Nur der Hauptbucher kann die Reise in MeinCham anzeigen.
 ## Reiseunterlagen & Flüge
 
 **F: Wann erhalte ich meine Reiseunterlagen?**
-A: Deine Reiseunterlagen senden wir dir spätestens zwei Wochen vor Reisebeginn zu: Flugplan, aktualisierte Reisedetails und gegebenenfalls deine Rail&Fly-Gutscheincodes.
+A: Deine Reiseunterlagen bekommst du in der Regel etwa zwei Wochen vor Reisebeginn: Flugplan, aktualisierte Reisedetails und gegebenenfalls deine Rail&Fly-Gutscheincodes. Ob deine Unterlagen schon bereitstehen, siehst du in MeinChamäleon unter deiner Reise.
 
 **F: Erhalte ich die Reiseunterlagen auch noch per Post?**
 A: Aus Gründen der Nachhaltigkeit versenden wir nur noch die Bestätigungsunterlagen per Post. Die Schlussunterlagen werden in der Regel nur noch in digitaler Form versendet.

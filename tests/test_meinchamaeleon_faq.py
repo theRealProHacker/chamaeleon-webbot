@@ -28,9 +28,12 @@ a given question resolves to — because that mapping is the behaviour under tes
   Clubstufe                     -> Übersicht         (/MeinChamaeleon)
   Gutschein einlösen            -> mailto:erlebnisberatung@chamaeleon-reisen.de
 
-If the model answers a document-location question by calling the flights tool
-instead of linking the right section, that is a real miss these cases catch: the
-fake test kunden_id then yields the "unbekannt" text and the URL assertion fails.
+Seit die Detailansicht des buchungen_tool die Dokumente der Buchung mit Links
+listet (Design unterlagen-tripurl-leon2, 2026-09-27), SOLL Leon Dokumentfragen
+über das Tool beantworten — und dabei den #unterlagen-Link trotzdem mitgeben.
+Deshalb hat die erfundene kunden_id hier eine erfundene Buchung (Fixture
+``_erfundene_buchung``): mit „unbekannt“ als Tool-Antwort prüfte der Fall nur
+noch die Störungsmeldung, nicht mehr die Zuordnung.
 
 Koffergröße (QA 11) has no applicable MeinChamäleon URL — it points at the
 airline's own rules — so it gets its own content-only case at the bottom.
@@ -43,6 +46,7 @@ import pytest
 
 import common as _  # noqa: F401  (adds repo root to sys.path)
 
+import kundendaten
 from agent import call
 
 RUN = os.getenv("RUN_MEINCHAMAELEON_EVAL") == "1"
@@ -88,14 +92,50 @@ GUTSCHEIN_MAIL = "mailto:erlebnisberatung@chamaeleon-reisen.de"
 # it as a pattern; a trailing slash is tolerated.
 UEBERSICHT = r"chamaeleon-reisen\.de/MeinChamaeleon/?(?![-\w])"
 
+_DOK = "https://unterlagen.chamaeleon-reisen.de/eval/"
+
+
+@pytest.fixture(autouse=True)
+def _erfundene_buchung(monkeypatch):
+    """KUNDEN_ID hat genau die Buchung BN: kommend, mit Dokumenten wie echt
+    (Rechnung, Flugplan, Ausfüllhilfe, Reiseunterlagen). Andere IDs (der echte
+    Testkunde 999999999) laufen unverändert gegen TourOne."""
+    hop1, hop2 = kundendaten._buchungen_roh, kundendaten._buchung_roh
+    eingebettet = {"vorgang": BN, "vonDat": "2099-05-01 00:00:00",
+                   "bisDat": "2099-05-15 00:00:00", "reiseCode": "NAWDH"}
+    buchung = dict(
+        eingebettet, status="OK", beschreibungen=[{"titel": "Namibia-Reise"}],
+        persAdult=2, flugdaten=[], tripurl="https://travel-details.eu/de?tid=EVAL-EVAL-EVAL",
+        unterlagen=[
+            {"id": str(i), "name": name, "beschreibung": "", "link": _DOK + f"{i}.pdf"}
+            for i, name in enumerate(
+                ["Rechnung.pdf", "Reisebestätigung.pdf", "Flugplan.pdf",
+                 "Visum Ausfüllhilfen.pdf", "Reiseunterlagen.pdf",
+                 "Teilnehmerdaten.pdf"], start=1)
+        ],
+    )
+    monkeypatch.setattr(kundendaten, "_buchungen_roh",
+                        lambda kid: [eingebettet] if kid == KUNDEN_ID else hop1(kid))
+    monkeypatch.setattr(kundendaten, "_buchung_roh",
+                        lambda v: buchung if v == BN else hop2(v))
+    monkeypatch.setattr(kundendaten, "buchungsstatus",
+                        lambda v: "OK" if v == BN else hop2(v).get("status", ""))
+
+
+def _dok_oder_bereich(nr: int) -> str:
+    """Seit der Dokumentliste ist der direkte PDF-Link das Soll (Design: nie NUR
+    der Bereich); der #unterlagen-Link bleibt als gleichwertige Antwort."""
+    return f"(?:{L(UNTERLAGEN)}|{L(_DOK + f'{nr}.pdf')})"
+
+
 # (id, question, [required url keywords]) — the answer must surface these links.
 URL_CASES = [
     ("flugplan",
      "Wo finde ich den Flugplan?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(3)]),
     ("visumausfuellhilfe",
      "Wo finde ich die Visumausfüllhilfe?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(4)]),
     ("login-email",
      "Meine E-Mail-Adresse ist hinterlegt, aber ich kann mich nicht einloggen.",
      [L(DATEN)]),
@@ -104,10 +144,10 @@ URL_CASES = [
      [L(GAESTE)]),
     ("reiseunterlagen",
      "Wo finde ich unsere Reiseunterlagen?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(5)]),
     ("rail-and-fly",
      "Wie buche ich Rail&Fly und wo finde ich die Codes?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(5)]),
     ("clubstufe",
      "Wo sehe ich meine Clubstufe?",
      [UEBERSICHT]),
@@ -116,7 +156,7 @@ URL_CASES = [
      [L(GUTSCHEIN_MAIL)]),
     ("zahlungslink",
      "Wo finde ich den Zahlungslink für die Kreditkarte?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(1)]),
     ("reiseverlauf",
      "Wo finde ich die Unterkünfte und den Reiseverlauf?",
      [L(REISEVERLAUF)]),

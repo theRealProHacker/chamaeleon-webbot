@@ -683,3 +683,29 @@ def test_zeitraum_spannt_ueber_alle_p_eintraege(monkeypatch):
     assert "01.05.2027 – 28.05.2027" in text
     assert "14.05.2027)" not in text   # nicht die Spanne des ersten Abschnitts
     assert "31.01.2028" not in text    # und nicht die der Versicherung
+
+
+def test_details_zeigt_dokumente_der_buchung(monkeypatch):
+    detail = _detail(
+        unterlagen=[
+            {"id": "1", "name": "Rechnung.pdf", "link": "https://unterlagen.chamaeleon-reisen.de/r.pdf"},
+            {"id": "2", "name": "Teilnehmerdaten.pdf", "link": "https://unterlagen.chamaeleon-reisen.de/tn.pdf"},
+        ],
+        tripurl="https://travel-details.eu/de?tid=TEST",
+        bisDat="2099-05-15 00:00:00",
+    )
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], detail))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "[Rechnung](https://unterlagen.chamaeleon-reisen.de/r.pdf)" in text
+    assert "tid=TEST" in text
+    assert "tn.pdf" not in text
+
+
+def test_stornierte_buchung_ohne_dokumente(monkeypatch):
+    detail = _detail(
+        status="XX",
+        unterlagen=[{"id": "1", "name": "Rechnung.pdf", "link": "https://unterlagen.chamaeleon-reisen.de/r.pdf"}],
+    )
+    monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], detail))
+    text = agenturdaten.fetch_buchungen_text("12345", details=True)
+    assert "r.pdf" not in text
