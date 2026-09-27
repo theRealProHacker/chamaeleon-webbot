@@ -650,7 +650,9 @@ def make_buchungen_tool(kunden_id: str):
 
         Nur verwenden, wenn der Kunde nach seinen EIGENEN Buchungen/Reisen fragt
         — z.B. „Was habe ich gebucht?", „Wann geht mein Flug?", „Wie viel muss
-        ich noch zahlen?", „Wie ist meine Buchungsnummer?".
+        ich noch zahlen?", „Wie ist meine Buchungsnummer?", „Wo ist meine
+        Rechnung?", „Wie beantrage ich das Visum für meine Reise?" (die
+        Detailansicht enthält die Visum-Ausfüllhilfe der Buchung).
 
         auswahl: „alle" (Standard), „kommende" (laufende + zukünftige) oder
           „vergangene".

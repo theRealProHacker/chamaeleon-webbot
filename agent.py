@@ -90,11 +90,21 @@ def make_reiseinfo_tool(
     answering.
     """
 
+    # Bewusst lose getypt: ein Wert, den die Validierung ablehnt (gemessen
+    # 2026-09-27: quelle="dokumente", abschnitt=None), kommt beim Modell als
+    # Tool-Fehler an, und es sagt dem Gast „da ist ein Fehler aufgetreten“.
+    # Normalisiert wird in reiseinfo_tool_base.
     @tool(description=reise_info_tools_description)
-    def reiseinfo_tool(vorgangsnummer: str = "") -> str:
+    def reiseinfo_tool(
+        vorgangsnummer: str | None = "",
+        quelle: str | None = "auto",
+        abschnitt: str | None = "",
+        tag: int | None = 0,
+    ) -> str:
         """LangChain tool wrapper for the Reiseinfo tool."""
         return reiseinfo_tool_base(
-            vorgangsnummer, seiten_vorgang, kunden_id, agentur_id
+            vorgangsnummer or "", seiten_vorgang, kunden_id, agentur_id,
+            quelle=quelle or "auto", abschnitt=abschnitt or "", tag=tag or 0,
         )
 
     return reiseinfo_tool

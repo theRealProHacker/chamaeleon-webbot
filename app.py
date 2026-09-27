@@ -22,6 +22,7 @@ import quality_job
 import rate_limit
 import sitemap_sync
 import travel_index
+import unterlagen
 from db_logging import DEBUG, Message, log_messages, log_queue
 from recommendations import make_recommendation_previews_async
 
@@ -270,7 +271,12 @@ def _vorwaermen_buchungen(session_id: str) -> None:
                 # (Buchungen) UND Hop 2 (Status der gemeinten Reise). Nur Hop 1
                 # zu wärmen liess die erste Nachricht die Statusprüfung kalt
                 # zahlen, im 1-s-Budget von reise_fuer_links (Review 2026-09-25).
-                agent._naechste_reise(kunden_id)
+                vorgang, _ = agent._naechste_reise(kunden_id)
+                # Weiter bis zum PDF-Text der Reise: Hop 2 liegt nach der
+                # Statusprüfung schon im Cache, fehlt also nur Download und
+                # Extraktion — sonst zahlt die erste Inhaltsfrage bis ~9 s.
+                if vorgang:
+                    unterlagen.vorwaermen(kundendaten._buchung_roh(vorgang))
         except Exception as e:
             print(f"[app] kunden warm failed: {type(e).__name__}")
 

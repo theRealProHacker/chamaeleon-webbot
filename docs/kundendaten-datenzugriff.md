@@ -81,26 +81,60 @@ booking context a confidently wrong trip name is worse than an unresolved code.
 | `flugdaten[].{flugnr,airline,vonCo3Code,nachCo3Code,abflug,ankunft}` | output (the 6 `FLUG_FELDER`) |
 | `flugdaten[].rang` | sort only (not shown) |
 
-`FLUG_FELDER` (6 flight fields) plus the Zahlstand set above are the enforced
-whitelist. `rang` is read for ordering but never emitted. **`pnrFileKey` (PNR),
+| `unterlagen[].{id,name,beschreibung,link}` | output — the booking's documents as links (`unterlagen.dokumente_zeilen`); **except `Teilnehmerdaten.pdf`**, which is named but never linked or read |
+| `tripurl` | output — link to the current entry/visa/health rules (Passolution), only while `bisDat >= heute` |
+
+`FLUG_FELDER` (6 flight fields) plus the Zahlstand set and the document links
+above are the enforced whitelist. `rang` is read for ordering but never emitted. **`pnrFileKey` (PNR),
 `sitzplatz`, `provision`, all tax/currency (`*Cy`, `steuer*`) fields and internal
 IDs are deliberately excluded.**
 
+## Unterlagen — the booking's PDFs (since 2026-09-27)
+
+Design: `docs/designs/unterlagen-tripurl-leon2.md`. Code: `unterlagen.py`.
+
+- **Fetched:** Hop 2 is one cached call per booking (`kundendaten._buchung_roh`,
+  TTL 10 min, shared by the detail view, `buchungsstatus`, `reiseinfo_tool` and
+  the login pre-warm). Its `unterlagen[]` lists every document with a public,
+  signed, non-expiring link on `unterlagen.chamaeleon-reisen.de`.
+- **Read:** only on `reiseinfo_tool` calls (and the login pre-warm of the
+  Reiseunterlagen/Reisebestätigung). Download only from
+  `https://unterlagen.chamaeleon-reisen.de` (any other host: link only, logged
+  once), text via pypdf, cached per document id for 24 h (max 256 entries).
+- **To Gemini:** the detail view sends name + link per document. `reiseinfo_tool`
+  sends sections of the Reiseunterlagen/Reisebestätigung (itinerary, services,
+  checklist, WICHTIGE REISEHINWEISE incl. the local partner's and the tour
+  guide's phone numbers) and small documents in full (Rechnung, Flugplan,
+  Ausfüllhilfen, Visa-Dokumente, Anschreiben). **Einreisebestimmungen** go out
+  deduplicated: one block per nationality, without the per-traveller header
+  (name, date of birth).
+- **Never:** `Teilnehmerdaten.pdf` (passport numbers, dates of birth and
+  addresses of all fellow travellers) is never downloaded, read or linked; the
+  bot points to the MeinChamäleon `#unterlagen` section instead.
+- **Chat log:** every reply is stored in Supabase `chats`, so any document link
+  the bot names ends up there. Accepted: a link to the Rechnung exposes what the
+  Zahlstand in the log already exposes; the Teilnehmerdaten exception exists
+  because that file would not be.
+
 ## What reaches Gemini (the boundary that matters)
 
-In Kunden-Modus exactly three things go into the model request:
+In Kunden-Modus exactly four things go into the model request:
 
-1. **The system prompt's `kunden_modus_block`** — static instruction text
-   (read-only access, when to call the tool, what to defer to the
-   Erlebnisberater). Contains **no customer data**; it is gated by a plain
-   `bool`.
+1. **The system prompt's `kunden_modus_block`** — instruction text (read-only
+   access, when to call which tool, what to defer to the Erlebnisberater). Since
+   2026-09-23 it also carries the **MeinChamäleon trip links of one booking**
+   (`_trip_links_block`): the booking number and, when the trip was resolved from
+   the bookings rather than the page URL, its title and start date
+   (`agent.reise_fuer_links`). No other customer data.
 2. **The customer's own chat messages** — whatever they type. (They may
    volunteer PII themselves; that is their choice and outside our control.)
 3. **The `buchungen_tool` result** — formatted German text, nothing else. Rough
    list: trip title, date range, booking number, past/upcoming marker. Detail
    view adds: status, Reisende (headcount), the **Zahlstand** (Gesamtpreis,
-   Anzahlung + date, offener Betrag + date, bereits eingegangen) and the six
-   flight fields.
+   Anzahlung + date, offener Betrag + date, bereits eingegangen), the six
+   flight fields and the document links (see Unterlagen above).
+4. **The `reiseinfo_tool` result** — the Textbausteine of the booked trip or, when
+   available, sections of its PDFs (see Unterlagen above).
 
    The trip title may come from the travel index rather than the booking (see
    Hop 1 above). That does **not** widen this boundary: the index holds the public
@@ -111,8 +145,8 @@ In Kunden-Modus exactly three things go into the model request:
 
 | Excluded | Mechanism |
 | --- | --- |
-| The Kundennummer (`kunden_id`) | Only `is_kunde=bool(kunden_id)` reaches `format_system_prompt` (`agent.py:127`); the ID itself lives in the tool **closure** (`agent.py:147-148`, `make_buchungen_tool(kunden_id)`) and is not a tool parameter, so the model can neither see it nor choose whose data is fetched (`agent_base.py:703-705` states this as an invariant). |
-| Scraped page content | `page_content` is injected only when `is_agentur` (`agent_base.py:810`), and `kunden_id` is forced to `""` on agentur requests (`app.py:109`). The two modes are **mutually exclusive**, so a logged-in customer's MeinChamäleon page is never scraped into the prompt. |
+| The Kundennummer (`kunden_id`) | Only `is_kunde=bool(kunden_id)` reaches `format_system_prompt` (`agent.py:393`); the ID itself lives in the tool **closure** (`agent.py:415`, `make_buchungen_tool(kunden_id)`) and is not a tool parameter, so the model can neither see it nor choose whose data is fetched (`agent_base.py:1580` states this as an invariant). |
+| Scraped page content | `page_content` is injected only when `is_agentur` (`agent_base.py:1776`), and `kunden_id` is forced to `""` on agentur requests (`app.py:120`). The two modes are **mutually exclusive**, so a logged-in customer's MeinChamäleon page is never scraped into the prompt. |
 | Everything else from both endpoints | The whitelist (6 flight fields + the customer's own Zahlstand) — fellow-traveller PII (`teilnehmerliste`), emergency contact (`adrNotfallKontakt`), `chroniken` notes, `provision`/agency fields, tax/currency detail, `pnrFileKey`, `sitzplatz` are never formatted into the tool result. |
 
 Raw `/get/adresse` and `/get/buchung` JSON exists only in `fetch_buchungen_text`
@@ -180,11 +214,15 @@ object. The API offers no field projection, and it does not matter — the surpl
 stays server-side in process memory, is never persisted, and never reaches
 Gemini. Do not spend effort narrowing the API call.
 
-**The invariant to protect:** nothing beyond the six whitelisted flight fields
-(plus trip title and date range) may enter a Gemini request. Any change that
+**The invariant to protect:** nothing beyond the whitelist above — trip title
+and date range, status, headcount, the customer's own Zahlstand, the six flight
+fields, the document links and `tripurl`, plus the PDF content described under
+Unterlagen — may enter a Gemini request. Any change that
 widens the model boundary needs a deliberate decision:
 
 - Adding a field to `FLUG_FELDER`.
+- Reading, linking or quoting `Teilnehmerdaten.pdf`, or sending the per-traveller
+  header of the Einreisebestimmungen.
 - Giving `buchungen_tool` a parameter that selects a *customer*, or otherwise
   letting the model influence *whose* record is looked up — that breaks the
   closure guarantee. (`auswahl`/`anzahl`/`details` are fine: they only slice the
@@ -202,7 +240,7 @@ to name one was the separate IDOR question, and the server half has shipped:
 | | Source of `kunden_id` | Exposure |
 | --- | --- | --- |
 | **Before 2026-07-29** | a `kunden_id` in the `/chat/stream` body, trusted as-is | anyone knowing a valid Kundennummer reached the whole surface documented here — **by crafting the request directly**, see below |
-| **Live now** | `kunden_auth.resolve(session_id)` only, bound from a `ss.php`-verified MeinChamäleon session (`app.py:109`); a body `kunden_id` is **ignored outright** | a spoofed ID reaches nothing. And because the widget on `cham-chatbot` `main` never calls `/kunde/auth`, `resolve` returns `""` for every customer request — so **nothing** in this document is currently reachable in production |
+| **Live now** | `kunden_auth.resolve(session_id)` only, bound from a `ss.php`-verified MeinChamäleon session (`app.py:120`); a body `kunden_id` is **ignored outright** | a spoofed ID reaches nothing. And because the widget on `cham-chatbot` `main` never calls `/kunde/auth`, `resolve` returns `""` for every customer request — so **nothing** in this document is currently reachable in production |
 
 **Correction, 2026-07-30.** An earlier version of this table said the *live widget*
 asserted `kunden_id`. It never did: the widget deployed to customers is older than

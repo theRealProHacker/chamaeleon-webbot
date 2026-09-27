@@ -1105,3 +1105,27 @@ def test_gescheiterte_anmeldung_waermt_nicht(monkeypatch):
     assert antwort.get_json() == {"authenticated": False}
     time.sleep(0.05)
     assert gerufen == []
+
+
+def test_vorwaermen_holt_den_pdf_text_der_naechsten_reise(monkeypatch):
+    """T11: Hop 1 → Hop 2 → Reiseunterlagen-Text, alles im Login-Thread."""
+    import unterlagen
+
+    geholt = threading.Event()
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]),
+         "/get/buchung": dict(volle_buchung(), unterlagen=UNTERLAGEN)},
+    )
+
+    def text(dok_id, link):
+        assert link.endswith("ulas.pdf")
+        geholt.set()
+        return "x" * 300
+
+    monkeypatch.setattr(unterlagen, "text", text)
+    client = _auth_client(monkeypatch, lambda sid: "999999999")
+    assert client.post("/kunde/auth", json={"session_id": "sid"}).get_json() == {
+        "authenticated": True
+    }
+    assert geholt.wait(2)

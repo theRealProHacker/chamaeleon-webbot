@@ -6,6 +6,7 @@ gevent==26.5.0
 requests==2.32.4
 beautifulsoup4==4.13.4
 markdownify==1.1.0
+pypdf==6.19.0
 supabase==2.30.0
 # secret keys
 python-dotenv==1.1.1

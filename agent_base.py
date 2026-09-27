@@ -1176,7 +1176,7 @@ Flüge:
 - Die PDFs unter „Berater Shortcuts" (etwa „Fluginformationen") beantworten keine Flugfrage – verlinke sie dafür nicht.
 
 Externe Links:
-- Fragen zum Visum:
+- Fragen zum Visum (im Kunden-Modus zur gebuchten Reise gilt zuerst die Visum-Regel dort):
 - Beantworte jede Frage zum Visum klar und direkt mit Ja oder Nein. 
 - Nutze dafür ausschließlich diese Website: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)
 - Ergänze in derselben Antwort immer: „Alle Details finden Sie hier: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)“ 
@@ -1185,7 +1185,7 @@ Externe Links:
 - [Instagram](https://www.instagram.com/chamaeleon.reisen), [Facebook][https://www.facebook.com/Chamaeleon.Reisen/]
 - Wenn Fragen zu Adapter oder Steckdosen gestellt werden, füge immer diesen Link hinzu: [Reiseadapter weltweit](https://www.welt-steckdosen.de)
 
-Zusätzliche Regel für Namibia – gilt nur, wenn nach Visum oder Einreise gefragt wird: 
+Zusätzliche Regel für Namibia – gilt nur, wenn nach Visum oder Einreise gefragt wird. Im Kunden-Modus (eingeloggter Gast) rufst du VORHER buchungen_tool(auswahl="kommende", anzahl=1, details=True) auf und nennst zuerst die Visum-Ausfüllhilfe und den Link zu den aktuellen Einreisebestimmungen der Reise, falls vorhanden; der folgende Satz kommt danach: 
 Antworte für Gäste aus Deutschland, Österreich und der Schweiz: 
 „Für die Einreise nach Namibia ist ein Visum erforderlich. Dieses kann bequem online als e-Visa beantragt werden. 
 Weitere Details finden Sie hier: [Über Visum informieren](https://www.visum.de/partner/chamaeleon)“
@@ -1605,7 +1605,19 @@ def format_system_prompt(
             "Adapter, Gesundheit, Abholung am Zielflughafen — beantwortest du "
             "IMMER mit dem reiseinfo_tool, nicht aus den allgemeinen FAQs und "
             "nicht mit einem Verweis auf die Reiseunterlagen.\n"
-            "- Ruf das reiseinfo_tool dafür OHNE Argument auf: es nimmt von "
+            "- Genauso IMMER über das reiseinfo_tool: Inhaltsfragen zur "
+            "gebuchten Reise — Hotel an einem Tag, Abholung, Kontakt vor Ort, "
+            "Tagesablauf, Fristen, was ins Visumformular gehört. Es liest die "
+            "Reiseunterlagen der Buchung; ohne abschnitt kommt das "
+            "Inhaltsverzeichnis, dann gezielt nachfassen, etwa "
+            "reiseinfo_tool(abschnitt=\"reiseverlauf\", tag=3). Steht es "
+            "nicht in den Unterlagen, sag das und nenne die Erlebnisberater*in; "
+            "rate nie.\n"
+            "- Einreisebestimmungen aus den Unterlagen nennst du immer mit "
+            "ihrem Stand-Datum (Stand bei Buchung); gibt es den Link zu den "
+            "aktuellen Einreise-, Visa- und Impfbestimmungen der Reise, nenne "
+            "ihn als aktuelle Quelle, sonst visum.de.\n"
+            "- Ruf das reiseinfo_tool dafür OHNE Buchungsnummer auf: es nimmt von "
             "selbst die gerade geöffnete Reise, sonst die nächste des Kunden. "
             "Du brauchst dafür kein buchungen_tool und keine Buchungsnummer — "
             "frag den Kunden nie danach und frag auch nicht, welche Reise er "
@@ -1638,10 +1650,13 @@ def format_system_prompt(
             "- Die Teilnehmerdaten (Passdaten der Mitreisenden) öffnest und "
             "verlinkst du nie direkt; dafür gibt es nur den Link zum Bereich "
             "Reiseunterlagen (siehe unten).\n"
-            "- Visum und Einreise zur gebuchten Reise: Gibt es in der "
-            "Detailansicht eine Visum-Ausfüllhilfe, Visa-Dokumente oder den "
-            "Link zu den aktuellen Einreise-, Visa- und Impfbestimmungen, nenne "
-            "diese zuerst; visum.de ergänzt sie nur.\n"
+            "- Visum und Einreise zur gebuchten Reise: Ruf zuerst "
+            "buchungen_tool(auswahl=\"kommende\", anzahl=1, details=True) "
+            "auf. Gibt es in der Detailansicht eine Visum-Ausfüllhilfe, "
+            "Visa-Dokumente oder den Link zu den aktuellen Einreise-, Visa- und "
+            "Impfbestimmungen, nenne diese Links zuerst; visum.de ergänzt sie "
+            "nur. Das geht im Kunden-Modus der allgemeinen Visum-Regel "
+            "(„ausschließlich visum.de“) und der festen Namibia-Antwort vor.\n"
             "- Ändern kannst du nichts, auch nicht die Passdaten; zeige dafür "
             "den passenden MeinChamäleon-Link (siehe unten). Nur für echte "
             "Vorgänge wie Umbuchung oder Stornierung, für die es keine solche "
@@ -2097,46 +2112,65 @@ def reiseinfo_tools(vorgangsnummer: str) -> dict:
 
 
 reise_info_tools_description = """
-Tool für die „Wichtigen Informationen“ zu EINER gebuchten Reise — genau die
-Textbausteine, die der Kunde in MeinChamäleon unter seiner Reise findet:
+Tool für den Inhalt EINER gebuchten Reise — aus ihren Dokumenten und den
+„Wichtigen Informationen“, die der Kunde in MeinChamäleon unter seiner Reise
+findet.
 
-- Reisehinweise: was mitmuss, welche Unterlagen es gibt, wer am Zielflughafen
-  abholt
-- Checkliste: die Packliste zum Reiseland (Dokumente, Kleidung, Apotheke)
-- Informationen Inlands- und Regionalflüge: Freigepäck, Handgepäck, was im
-  Reiseland nicht ins Flugzeug darf
-- Allgemeine Reiseinformationen: Land für Land Devisen und Zoll, Geld und
-  Bezahlen, Trinkgeld, Klima, Strom und Adapter, Gesundheit, Sicherheit,
-  Kommunikation, Verpflegung, Unterkünfte
+Quellen (quelle="auto", Standard): liegen die Reiseunterlagen (Schlussunterlagen)
+vor, antwortet das Tool aus ihnen, sonst aus der Reisebestätigung, sonst aus den
+Textbausteinen der „Wichtigen Informationen“. Ohne abschnitt kommt ein
+Inhaltsverzeichnis plus die WICHTIGEN REISEHINWEISE (Abholung, Kontakt vor Ort,
+Notfallnummer); mit abschnitt der gewünschte Teil:
+- abschnitt="reiseverlauf", tag=3: Tag 3 der Reise (Hotel, Programm);
+  tag=0 alle Tage
+- abschnitt="leistungen", "hinweise", "checkliste", "reiseinformationen",
+  "fluege" (Gepäck- und Fluginformationen)
+- abschnitt="dokument:<name>": ein weiteres Dokument der Buchung ganz, etwa
+  "dokument:visum-ausfuellhilfen", "dokument:flugplan", "dokument:rechnung",
+  "dokument:einreisebestimmungen" — welche es gibt, steht im Inhaltsverzeichnis.
+quelle="textbausteine" liefert die „Wichtigen Informationen“ (Reisehinweise,
+Checkliste, Inlands- und Regionalflüge, Allgemeine Reiseinformationen mit
+Devisen, Trinkgeld, Klima, Strom, Gesundheit je Land) auch dann, wenn
+Reiseunterlagen vorliegen.
 
-Nutze es bei JEDER Frage zur Vorbereitung einer gebuchten Reise, z.B. „Was muss
-ich einpacken?“, „Wie viel Gepäck darf ich mitnehmen?“, „Wie viel Trinkgeld ist
-üblich?“, „Brauche ich einen Adapter?“, „Wie viel Bargeld nehme ich mit?“, „Wer
-holt mich am Flughafen ab?“, „Wie ist das Klima im Reiseland?“.
+Nutze es bei JEDER Frage zum Inhalt oder zur Vorbereitung einer gebuchten
+Reise, z.B. „In welchem Hotel sind wir an Tag 3?“, „Wer holt mich am Flughafen
+ab?“, „Wen erreiche ich vor Ort?“, „Was muss ich einpacken?“, „Wie viel Gepäck
+darf ich mitnehmen?“, „Wie viel Trinkgeld ist üblich?“, „Was trage ich im
+Visumformular ein?“.
 
-Diese Bausteine sind für die gebuchte Reise die verbindliche Quelle: Sie sind
-pro Reise und Zielland gepflegt und gehen allgemeinen FAQs vor. Nicht zuständig
-ist das Tool für Visum und Einreise (dafür visa_tool), für Termine und Preise
-(dafür termine_tool) und für die Daten der Buchung selbst — Flüge, Zahlstand,
-Reisende — die stehen in buchungen_tool bzw. buchungen_agentur_tool.
+Diese Quellen sind für die gebuchte Reise verbindlich und gehen allgemeinen
+FAQs vor. Steht etwas nicht darin, sag das und nenne die Erlebnisberater*in —
+rate nie. Für Visum und Einreise der gebuchten Reise nimm zuerst die Dokumente
+der Buchung (Visum-Ausfüllhilfe, Visa-Dokumente, Einreisebestimmungen);
+visa_tool und visum.de ergänzen sie. Aussagen aus den Einreisebestimmungen
+nennst du immer mit ihrem Stand-Datum („Stand bei Buchung, <Datum>“); gibt es
+einen Link zu den aktuellen Einreise-, Visa- und Impfbestimmungen der Reise,
+nenne ihn als aktuelle Quelle, sonst visum.de. Nicht zuständig ist das Tool für
+Termine und Preise (dafür termine_tool) und für die Daten der Buchung selbst —
+Flüge, Zahlstand, Reisende, Dokument-Links — die stehen in buchungen_tool bzw.
+buchungen_agentur_tool. Die Teilnehmerdaten (Passdaten der Mitreisenden) liest
+das Tool nie.
 
-Ruf es OHNE Argument auf — dann nimmt es von selbst die Reise, um die es geht
-(die aktuell geöffnete, sonst die nächste des Kunden). Du brauchst dafür weder
-eine Buchungsnummer noch einen vorherigen Aufruf von buchungen_tool, und du
-fragst den Kunden nie nach seiner Buchungsnummer. Nur wenn er ausdrücklich eine
-ANDERE als seine nächste Reise meint, gib deren Buchungsnummer mit — aber rate
-nie eine.
+Ruf es OHNE vorgangsnummer auf — dann nimmt es von selbst die Reise, um die es
+geht (die aktuell geöffnete, sonst die nächste des Kunden). Du brauchst dafür
+weder eine Buchungsnummer noch einen vorherigen Aufruf von buchungen_tool, und
+du fragst den Kunden nie nach seiner Buchungsnummer. Nur wenn er ausdrücklich
+eine ANDERE als seine nächste Reise meint, gib deren Buchungsnummer mit — aber
+rate nie eine.
 
-Die Antwort enthält nur die Blöcke, die es zu dieser Reise wirklich gibt. Gib
-daraus wieder, was zur Frage passt — nicht den ganzen Text — und erfinde nichts
-dazu.
+Gib aus der Antwort wieder, was zur Frage passt — nicht den ganzen Text — und
+erfinde nichts dazu.
 
 Args:
     vorgangsnummer (str, optional): nur für eine andere als die nächste Reise,
         z.B. "226177". Leer lassen heißt: die Reise, um die es gerade geht.
+    quelle (str, optional): "auto" (Standard) oder "textbausteine".
+    abschnitt (str, optional): siehe oben; leer = Inhaltsverzeichnis.
+    tag (int, optional): nur mit abschnitt="reiseverlauf"; 0 = alle Tage.
 
 Returns:
-    str: Die vorhandenen Blöcke als Markdown, je Baustein mit Überschrift.
+    str: Der gewünschte Teil als Text, mit Quelle.
 """.strip()
 
 # Die Nummer kommt aus der Modellantwort und geht in einen authentifizierten
@@ -2262,11 +2296,76 @@ def reiseinfo_vorgang(
     return "", REISEINFO_OHNE_BUCHUNG_TEXT
 
 
+def _reiseinfo_aus_dokumenten(nummer: str, quelle: str, abschnitt: str, tag: int) -> str | None:
+    """Antwort aus den PDFs der Buchung, oder ``None`` → Textbausteine wie bisher.
+
+    ``quelle="auto"``: Reiseunterlagen vor Reisebestätigung (je die neueste
+    Version, ``unterlagen.quelle_auto``). ``abschnitt="dokument:<slug>"`` gilt
+    unabhängig von ``quelle``: das Modell fragt dann nach genau diesem Dokument.
+    Stornierte Buchungen haben keine gültigen Unterlagen mehr.
+    """
+    import kundendaten
+    import unterlagen
+
+    abschnitt = (abschnitt or "").strip()
+    quelle = "textbausteine" if str(quelle).strip().lower() == "textbausteine" else "auto"
+    will_dokument = abschnitt.lower().startswith("dokument:")
+    if quelle == "textbausteine" and not will_dokument:
+        return None
+    try:
+        buchung = kundendaten._buchung_roh(nummer)
+    except Exception as e:
+        print(f"[agent_base] reiseinfo buchung failed: {type(e).__name__}")
+        return REISEINFO_FEHLER_TEXT if will_dokument else None
+    if not isinstance(buchung, dict) or kundendaten.ist_storniert(buchung.get("status")):
+        return None
+    eintraege = buchung.get("unterlagen")
+    slugs = unterlagen.dokumente_nach_slug(eintraege)
+
+    if will_dokument:
+        slug = abschnitt.split(":", 1)[1].strip().lower()
+        if slug == "teilnehmerdaten":
+            return unterlagen.TEILNEHMERDATEN_TEXT
+        eintrag = slugs.get(slug)
+        if not eintrag:
+            return (
+                f"Ein Dokument „{slug}“ gibt es zu dieser Buchung nicht. "
+                f"Vorhanden: {', '.join(f'dokument:{k}' for k in slugs) or 'keins'}."
+            )
+        text = unterlagen.dokument(eintrag)
+        if slug == "einreisebestimmungen":
+            # Stand Buchungsdatum, also oft ein Jahr alt: die aktuelle Quelle
+            # gehört direkt daneben, nicht nur in eine Prompt-Regel (gemessen
+            # 2026-09-27: ohne sie nannte Gemini 3 von 4 Mal keine).
+            tripurl = str(buchung.get("tripurl") or "")
+            if tripurl.startswith("https://") and str(buchung.get("bisDat") or "")[:10] >= kundendaten.heute_berlin():
+                text += f"\n\nAktuelle Einreise-, Visa- und Impfbestimmungen: {tripurl}"
+            else:
+                text += "\n\nAktuell prüfen: https://www.visum.de/partner/chamaeleon"
+        return _kuerzen(text)
+
+    haupt = unterlagen.quelle_auto(eintraege)
+    if not haupt:
+        return None
+    text = unterlagen.reiseunterlagen(
+        haupt, abschnitt, tag, deckel=REISEINFO_MAX_CHARS, slugs=tuple(slugs)
+    )
+    if not abschnitt:
+        text += (
+            "\n\nAllgemeine Vorbereitung je Land (Devisen, Trinkgeld, Klima, "
+            "Strom, Gesundheit): quelle=\"textbausteine\"."
+        )
+    return _kuerzen(f"Zu deiner Reise (Buchung {nummer}):\n{text}")
+
+
 def reiseinfo_tool_base(
     vorgangsnummer: str = "",
     seiten_vorgang: str = "",
     kunden_id: str = "",
     agentur_id: str = "",
+    quelle: str = "auto",
+    abschnitt: str = "",
+    tag: int = 0,
 ) -> str:
     """„Wichtige Informationen“ zu einer Buchung als Markdown. Wirft nie.
 
@@ -2285,6 +2384,14 @@ def reiseinfo_tool_base(
         return fehler
     if not _VORGANGSNUMMER_RE.match(nummer):
         return REISEINFO_UNBEKANNT_TEXT
+
+    try:
+        tag = int(tag or 0)
+    except (TypeError, ValueError):
+        tag = 0
+    aus_dokumenten = _reiseinfo_aus_dokumenten(nummer, quelle, abschnitt, tag)
+    if aus_dokumenten:
+        return aus_dokumenten
 
     try:
         daten = reiseinfo_tools(nummer)

@@ -398,3 +398,103 @@ def test_offene_reise_kommt_aus_der_url_nicht_vom_modell(monkeypatch):
         "kunden_id": "472207",
         "agentur_id": "",
     }
+
+
+# --- Quelle „auto“: Reiseunterlagen → Reisebestätigung → Textbausteine -------
+
+import os
+
+import unterlagen
+
+_FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "unterlagen")
+_HOST = "https://unterlagen.chamaeleon-reisen.de/"
+
+
+def _dok(dok_id, name, datei):
+    return {"id": str(dok_id), "name": name, "beschreibung": "", "link": _HOST + datei}
+
+
+def mit_unterlagen(monkeypatch, eintraege, status="OK"):
+    """Buchung mit ``unterlagen``; Downloads lesen die synthetischen Fixture-PDFs."""
+    eigene(monkeypatch, VORGANG)
+    calls = fake_tourone(
+        monkeypatch,
+        buchung={"reiseCode": "CNZHA_NEU", "status": status, "unterlagen": eintraege},
+    )
+
+    def laden(link):
+        with open(os.path.join(_FIXTURES, link.rsplit("/", 1)[1]), "rb") as f:
+            return f.read()
+
+    monkeypatch.setattr(unterlagen, "_laden", laden)
+    return calls
+
+
+def test_auto_nimmt_die_reiseunterlagen(monkeypatch):
+    calls = mit_unterlagen(monkeypatch, [
+        _dok(1, "Reisebestätigung.pdf", "reisebestaetigung_alt.pdf"),
+        _dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf"),
+        _dok(3, "Visum Ausfüllhilfen.pdf", "visum_ausfuellhilfen.pdf"),
+    ])
+    text = ab.reiseinfo_tool_base(kunden_id="472325")
+    assert "reiseunterlagen_neu.pdf" in text
+    assert "dokument:visum-ausfuellhilfen" in text
+    # Kein Umweg über die Textbausteine, wenn die Unterlagen da sind.
+    assert not any(c["path"] == "/get/reise" for c in calls)
+
+
+def test_auto_ohne_ulas_nimmt_die_reisebestaetigung(monkeypatch):
+    mit_unterlagen(monkeypatch, [_dok(1, "Reisebestätigung.pdf", "reisebestaetigung_alt.pdf")])
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="reiseverlauf", tag=3)
+    assert "reisebestaetigung_alt.pdf" in text and "Tag 3" in text
+
+
+def test_ohne_pdfs_bleibt_es_bei_den_textbausteinen(monkeypatch):
+    mit_unterlagen(monkeypatch, [])
+    assert "Trinkgeld: 5 €" in ab.reiseinfo_tool_base(kunden_id="472325")
+
+
+def test_textbausteine_auf_wunsch_trotz_unterlagen(monkeypatch):
+    mit_unterlagen(monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")])
+    text = ab.reiseinfo_tool_base(kunden_id="472325", quelle="textbausteine")
+    assert "Trinkgeld: 5 €" in text
+
+
+def test_storniert_liest_keine_unterlagen(monkeypatch):
+    mit_unterlagen(
+        monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")], status="XX"
+    )
+    assert "reiseunterlagen_neu.pdf" not in ab.reiseinfo_tool_base(kunden_id="472325")
+
+
+def test_dokument_slug_und_teilnehmerdaten(monkeypatch):
+    mit_unterlagen(monkeypatch, [
+        _dok(3, "Visum Ausfüllhilfen.pdf", "visum_ausfuellhilfen.pdf"),
+        _dok(4, "Teilnehmerdaten.pdf", "gibt_es_nicht.pdf"),
+    ])
+    hilfe = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:visum-ausfuellhilfen")
+    assert "visum_ausfuellhilfen.pdf" in hilfe
+    tn = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:teilnehmerdaten")
+    assert tn == unterlagen.TEILNEHMERDATEN_TEXT
+    fehlt = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:rechnung")
+    assert "dokument:visum-ausfuellhilfen" in fehlt
+
+
+def test_download_ausfall_nennt_den_link(monkeypatch):
+    mit_unterlagen(monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")])
+
+    def kaputt(link):
+        raise TimeoutError
+
+    monkeypatch.setattr(unterlagen, "_laden", kaputt)
+    text = ab.reiseinfo_tool_base(kunden_id="472325")
+    assert _HOST + "reiseunterlagen_neu.pdf" in text
+
+
+def test_einreisebestimmungen_nennen_die_aktuelle_quelle(monkeypatch):
+    mit_unterlagen(monkeypatch, [
+        _dok(5, "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf", "einreisebestimmungen.pdf"),
+    ])
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:einreisebestimmungen")
+    assert "Stand bei Buchung" in text
+    assert "visum.de" in text  # Fixture-Buchung ohne tripurl

@@ -219,9 +219,17 @@ def dokumente_zeilen(buchung: dict, heute: str) -> list[str]:
         tage = _tage_bis(von, heute)
         if tage is not None and tage >= 0:
             wann = "heute" if tage == 0 else ("morgen" if tage == 1 else f"in {tage} Tagen")
+            # Die Frist-Regel steht hier und nicht nur im Prompt: gemessen
+            # 2026-09-27 sagte Gemini trotz Prompt-Regel bei 10 Tagen bis Abreise
+            # 2 von 3 Mal „in Kürze“ bzw. „etwa zwei Wochen vorher“.
+            rat = (
+                "in der Regel kommen sie etwa zwei Wochen vor Abreise"
+                if tage > 14
+                else "keine Frist nennen: direkt bei der Erlebnisberater*in melden"
+            )
             zeilen.append(
                 "- Schlussunterlagen (Reiseunterlagen) noch nicht bereitgestellt; "
-                f"Reisebeginn {kundendaten.fmt_datum(von)}, {wann}"
+                f"Reisebeginn {kundendaten.fmt_datum(von)}, {wann} ({rat})"
             )
         else:
             zeilen.append("- Schlussunterlagen (Reiseunterlagen) noch nicht bereitgestellt")
@@ -326,6 +334,20 @@ def text(dok_id: str, link: str) -> str | None:
         return None
     roh = _im_threadpool(_extrahieren, daten)
     return roh if len(roh.strip()) >= MIN_ZEICHEN else ""
+
+
+def vorwaermen(buchung: object) -> None:
+    """Text von Reiseunterlagen bzw. Reisebestätigung in den Cache holen.
+
+    Läuft im Login-Thread (app._vorwaermen_buchungen): die erste Inhaltsfrage
+    zahlt sonst Download plus Extraktion (bis ~9 s). WIRFT bei Ausfall; der
+    Aufrufer fängt.
+    """
+    if not isinstance(buchung, dict) or kundendaten.ist_storniert(buchung.get("status")):
+        return
+    haupt = quelle_auto(buchung.get("unterlagen"))
+    if haupt and haupt.get("link"):
+        text(str(haupt.get("id") or ""), haupt["link"])
 
 
 def lesen(eintrag: dict) -> tuple[str | None, str]:

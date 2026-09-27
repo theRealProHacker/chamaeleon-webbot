@@ -137,16 +137,20 @@ def test_dokumente_ohne_ulas_hinweis_mit_tagen_bis_abreise():
     zeilen = ul.dokumente_zeilen(buchung([eintrag(1, "Rechnung.pdf")]), HEUTE)
     assert zeilen[-1] == (
         "- Schlussunterlagen (Reiseunterlagen) noch nicht bereitgestellt; "
-        "Reisebeginn 15.10.2026, in 14 Tagen"
+        "Reisebeginn 15.10.2026, in 14 Tagen (keine Frist nennen: direkt bei "
+        "der Erlebnisberater*in melden)"
     )
     morgen = ul.dokumente_zeilen(buchung([], von="2026-10-02 00:00:00"), HEUTE)
-    assert morgen[-1].endswith("Reisebeginn 02.10.2026, morgen")
+    assert "Reisebeginn 02.10.2026, morgen (keine Frist" in morgen[-1]
+    spaeter = ul.dokumente_zeilen(buchung([], von="2026-11-15 00:00:00", bis="2026-11-28 00:00:00"), HEUTE)
+    assert spaeter[-1].endswith("(in der Regel kommen sie etwa zwei Wochen vor Abreise)")
 
 
 def test_dokumente_leere_liste_nur_hinweiszeile():
     assert ul.dokumente_zeilen(buchung([]), HEUTE) == [
         "- Schlussunterlagen (Reiseunterlagen) noch nicht bereitgestellt; "
-        "Reisebeginn 15.10.2026, in 14 Tagen"
+        "Reisebeginn 15.10.2026, in 14 Tagen (keine Frist nennen: direkt bei "
+        "der Erlebnisberater*in melden)"
     ]
 
 
