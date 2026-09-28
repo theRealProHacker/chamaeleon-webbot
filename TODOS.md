@@ -9,126 +9,86 @@
   Regenerate the field list with `docs/explore_kunde.py`. **Fetching the full
   record is accepted** — it stays server-side; the boundary that matters is the
   model request, so review changes to `kundendaten.py` against that.
-- [ ] **IDOR — verify `kunden_id` server-side. Server half shipped, widget half
-      not.** Until 2026-07-29 the widget asserted `kunden_id` and the server
-      trusted it, so anyone with a valid Kundennummer could read that customer's
-      whole booking history + Zahlstand through the chat endpoint. v2 (server
-      derives the Kundennummer from a `ss.php`-verified MeinChamäleon session and
-      binds it to `session_id`) is **deployed since 2026-07-29**: a body
-      `kunden_id` is now ignored outright, so the spoofing path is gone.
-      Still unchecked because the widget change that supplies a real session is
-      **committed but not pushed** (`cham-chatbot` `a59935c`, branch `kunden-id`)
-      — so Kunden-Modus currently resolves to `""` for every customer. The box
-      gets ticked when that reaches `main`, not before.
-      → **`docs/kunden-auth-spec.md` is the authoritative status** — remaining
-      work, owners, widget contract, go-live order and the fallback all live
-      there. Do not track the state here as well; that is how the two drifted
-      apart last time. `docs/kunden-auth-plan.md` is the rationale/history.
-      Two things worth repeating outside the spec:
-      **(a)** v1 was pushed and force-reverted from live on 2026-07-28 (it
-      assumed same-site cookies, so it was inert) and a real customer sample
-      incl. a password hash leaked into that commit — treat that hash as
-      compromised and never let real `ss.php` output back into the repo.
-      **(b)** The structural defenses still stand behind the session check and
-      are what keep a bug in it from being fatal: closure tool with no customer
-      parameter, GET-only, field whitelist, ID allowlist, 100/h rate limit.
-      Separate owner reports (site-side, independent of the chatbot): `ss.php`
-      over-exposes the session (hash/salt/PII to any cookie-bearer);
-      `session.use_strict_mode` is off (session fixation).
-- [ ] **`is_kunde` logging shares the `is_agentur` schema question** (below):
-      kunden conversations are not logged to Supabase at all. The stdout
-      `[tool_call] … is_kunde=True` line is now **DEBUG-only** (gated
-      2026-07-18 — it was clogging prod logs), so **in prod there is currently
-      no visibility into Kunden-Modus whatsoever.** If the message-log schema
-      tolerates extra fields, log both flags — never the raw ID (DSGVO: linking
-      transcripts to an identified person is a deliberate decision).
+- **IDOR geschlossen, Kunden-Modus live** (geprüft 2026-09-26): der Server
+  leitet die Kundennummer seit 2026-07-29 aus einer `ss.php`-verifizierten
+  MeinChamäleon-Session ab; die Widget-Hälfte (`cham-chatbot` `a59935c`, PR #22)
+  ist über PR #21 seit 2026-08-19 auf `main` (`authenticateSession()` ruft
+  `/kunde/auth` bzw. `/agentur/auth`). Nicht geprüft: ob die Live-Seite dieses
+  Widget ausliefert. `docs/kunden-auth-spec.md` behauptet noch „widget on
+  `main` does not call it“ — veraltet.
+  Zwei Dinge bleiben wichtig:
+  **(a)** v1 was pushed and force-reverted from live on 2026-07-28 (it
+  assumed same-site cookies, so it was inert) and a real customer sample
+  incl. a password hash leaked into that commit — treat that hash as
+  compromised and never let real `ss.php` output back into the repo.
+  **(b)** The structural defenses still stand behind the session check and
+  are what keep a bug in it from being fatal: closure tool with no customer
+  parameter, GET-only, field whitelist, ID allowlist, 100/h rate limit.
+  Separate owner reports (site-side, independent of the chatbot): `ss.php`
+  over-exposes the session (hash/salt/PII to any cookie-bearer);
+  `session.use_strict_mode` is off (session fixation).
+- [ ] **Verifizierte Bindung getrennt vom URL-Pfad loggen** (Kunden und
+      Agentur). Seit `2f6cdaa` (2026-09-02) trägt jede Assistant-Nachricht ein
+      `segment` (`chat_segments.segment_from_context`): verifizierte Bindung →
+      `meinchamaeleon`/`agentur`, sonst entscheidet der Pfad. Beides fällt im
+      selben Feld zusammen, also ist nicht erkennbar, ob ein Chat auf
+      `/MeinChamaeleon…` wirklich verifiziert war. Die stdout-Zeile
+      `[tool_call] … is_kunde=True` ist DEBUG-only. Nie die rohe ID loggen
+      (DSGVO: Transkript an identifizierte Person binden ist eine bewusste
+      Entscheidung).
 
-## Agentur-Modus (planned 2026-07-30)
-- [ ] **Verified Reiseprofi identity + agency booking data.** Pointer only —
-      **`docs/agentur-modus-plan.md` is authoritative** for status, the measured
-      TourOne agency API contract, the whitelist, the guarantees and the
-      milestones. Do not track state here as well; that is how the Kunden docs
-      drifted apart.
+## Agentur-Modus
+- [ ] **Datenschutzfrage §9.4 klären — das Widget ist schon live.** M1–M4
+      (Server) und M5 (Widget, PR #24, über PR #21 seit 2026-08-19 auf `main`)
+      sind umgesetzt. Offen ist `docs/agentur-modus-plan.md` §9 Punkt 4: teilen
+      sich unabhängige mobile Reiseberater*innen eine Agenturnummer, sieht jede
+      die Buchungen der anderen — kein Code kann das beheben. Der Plan wollte
+      das vor dem Go-live geklärt haben. Sein Status („PLAN ONLY — nothing
+      implemented“, §10 nicht abgehakt) ist veraltet.
 
 ## Chatbot / Agenturbereich (deferred from 2026-07-06 ship review)
-- [ ] **Log the `is_agentur` flag with chat messages** so agentur conversations
-      are distinguishable in the dashboard/Supabase when detection came via
-      Origin/Referer (today only the url is logged). Check first whether the
-      message-log schema tolerates an extra field.
-- [ ] **Test isolation:** `import app` in tests triggers live Supabase reads at
-      import time (`month_cache.load_all()` fetches ~11k chat rows,
-      `active_session_count()`), so tests are slow and need prod credentials.
-      Pre-existing; gate the import-time work like the schedulers ($PORT /
-      WERKZEUG_RUN_MAIN) or stub supabase in a fixture.
-- [ ] **No local way to exercise the agentur path:** the dev proxy only fronts
-      www, so the agentur prompt variant can only be tested on the live agt.
-      hosts. Consider a loopback-only override (e.g. explicit `agentur` flag).
-- [ ] **Content notes for the KB owner (faqs/agentur.md):** (a) KB §1.2 wants
+- [ ] **Test isolation:** `import app` in tests triggers live Supabase work at
+      import time: `db_logging.py` asserts credentials and creates the client,
+      `_load_sessions_from_db()` loads the last 7 days of chats,
+      `active_session_count()` runs and the log worker thread starts. So tests
+      need prod credentials. (`dashboard.load_all` is on demand since the
+      rebuild.) Same root as T23 below; gate the import-time work like the
+      schedulers ($PORT / WERKZEUG_RUN_MAIN) or stub supabase in a fixture.
+- [ ] **No local way to exercise the agentur path through the widget:** the
+      dev proxy only fronts www. A raw request with
+      `Origin: https://agt.chamaeleon-reisen.de` against localhost does trigger
+      the agentur prompt variant; there is no flag. Side finding: `endpoint` is
+      normalised to the bare path (app.py) before `is_agentur_request` checks
+      it, so its host candidate can practically never match.
+- [ ] **Content note for the KB owner (faqs/agentur.md):** KB §1.2 wants
       login answers available OUTSIDE the agt area too — move section 2 into
-      the general FAQs? (b) Option vs. Reservierung: only "Option" states the
-      after-7-days auto-conversion to Festbuchung; asked about a "Reservierung"
-      the bot may answer it lapses. Confirm intended wording.
+      the general FAQs?
+- [ ] **Empty-Reply-Retry reicht unter Last nicht (gemessen 2026-09-18).**
+      Bei ~30 Gemini-Aufrufen am Stück (voller `RUN_AGENTUR_EVAL=1`-Lauf)
+      kippt das Modell reproduzierbar in die leere Antwort
+      (`finish_reason='STOP'`, `tool_calls=0`, `output_tokens=0`). Die
+      Retry-Kette versucht dreimal und gibt dann „Entschuldige, da ist mir
+      gerade keine Antwort gelungen." aus — das sieht der Nutzer. Es trifft
+      wechselnde Fälle, am häufigsten den teuersten (zwei Züge plus
+      Tool-Aufruf): in der Suite 0 von 3, einzeln 6 von 6. Deckt sich mit dem
+      bekannten Gemini-Verhalten (Learning
+      `gemini-strukturierte-ausgabe-kommt-still-kurz`). Offen ist, ob im
+      Livebetrieb dieselbe Dichte je auftritt — wenn ja, ist es ein
+      Produktfehler, kein Testartefakt. Vor einer Änderung an der Retry-Logik
+      erst messen, wie oft die Entschuldigungszeile in Supabase steht.
+      Zu beachten: Retries laufen nur innerhalb von `_RETRY_ZEITBUDGET_S`
+      (6 s), und der Ankündigungs-Anstoß (`ab20d27`) verbraucht einen Versuch
+      aus demselben Zähler `_MAX_VERSUCHE`.
 
 ## Travel index / termine
-- [x] **Drift canary scheduled 2026-07-06:** monthly user-crontab entry on the
-      dev machine (1st of month, 10:00 — daytime on purpose) running
-      `RUN_LIVE_TERMINE=1 pytest tests/test_termine_live.py`, appending to
-      `~/.local/state/chamaeleon-webbot/termine-canary.log`. Check the log after
-      the 1st, or run manually after site releases / before big deploys.
-      Remove/edit with `crontab -e`.
-- [x] **Berater reuse shipped 2026-07-06:** `format_system_prompt` fills
-      kundenberater name/telefon from the travel index (`get_berater`, peek-only
-      so a chat never blocks on the index build) whenever the embedding page
-      does not pass an advisor; page-supplied values always win. The index also
-      carries the berater `email` — currently unused because the prompt template
-      only has name/telefon slots; add a slot if wanted.
-- [x] ~~Authoritative URL→codes mapping~~ **SHIPPED 2026-07-06** as the
-      widget-code refinement in `travel_index._build_index`: each trip page's
-      server-rendered `data-terminliste` code (the ONE code the site's own
-      termine widget queries), expanded like the site does — the code itself
-      if aktiv plus aktiv travels whose `masterCode` points at it. 54 URLs
-      refined on the first live build; Queen-Charlotte's manual override
-      retired; Gjirokaster-NEU trimmed to its season code (was +9 stale rows).
-      Canary 11/11. Derivation + travel_overrides.json remain as fallback for
-      widget-less pages (subpackage choosers like Limpopo_ALL, stale 404s) and
-      fetch-failure days. (The `sku` attribute lists the whole code family —
-      wrong key for season pages; `data-terminliste` is the truth.)
 - [ ] Still worth asking the TourOne/chamdev owner: is there a per-travel
       website-path key in the API itself (bookingURL carries `REICODE=...`)?
       Would replace the page-fetch refinement with pure API data.
-- [x] **"Language API key" clarified 2026-07-06 (owner):** the third key of the
-      three-way index means the travel's COUNTRY KEY — the (normally 5-letter)
-      base reisecode stem (NPLUM, MAMAR, NASAM, …). Derivable from any code via
-      `code.split("_")[0]`; nothing extra to build today.
-- [x] **C1–C7 cleanups applied 2026-07-06 (owner picked all):** test.py scratch
-      script, dead recommend_* tool machinery, all commented-out corpse blocks
-      (charset/injection, process_links_in_reply, ChatOpenAI, OPENAI raise),
-      stale Railway TODO + dead dashboard assert.
-
-## Sitemap sync
-- [x] **Supabase persistence + curation shipped 2026-07-06.** Changed syncs and
-      human edits append versioned text rows to `sitemap_versions` (latest wins,
-      full history, revert = re-save an old version); the newest version is
-      restored at startup before the travel-index warm build; /admin got a
-      sitemap textarea with guard rails (refuses truncated pastes and texts
-      without Reiseziele URLs). Everything fails open until the table exists —
-      **one manual step left: run the DDL from sitemap_store.py's docstring in
-      the Supabase SQL editor** (the API key cannot create tables).
 
 ## Dashboard-Neubau (vertagt aus dem /autoplan-Review, 2026-09-01)
-Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`.
+Die Kürzel (T23, T24, A4, C1, C2, P3a/b) stammen aus dem gelöschten Design:
+`git show 58737df^:docs/designs/dashboard-segmente-report-retention.md`.
 
-- [x] **v1 gebaut 2026-09-02.** Segmentachse, Heatmap, Qualitäts-/Ursachenachse
-      und die Oberfläche stehen; `chat_segments`, `month_aggregate`,
-      `chat_quality`, `quality_job`, `month_stats`, `pii_scan` sind neu, die
-      Aggregation liegt als reine Funktionen neben dem Requestpfad. Der erste
-      bezahlte Lauf über Juli und August ist gerechnet und liegt als Gold-Set in
-      `data/` (`assignment-report.md`).
-      **Ein manueller Schritt offen: die DDL aus `sql/month_stats.sql` im
-      Supabase-SQL-Editor ausführen** — der API-Key kann keine Tabellen anlegen.
-      Bis dahin läuft alles fail-open: die deterministischen Achsen werden live
-      gerechnet, die Qualitäts- und Länderachse melden `status: missing`, und es
-      wird nichts geschrieben. Gleiche Lage wie bei `sitemap_versions` oben.
 - [ ] **Validierungs-Gate für die Qualitätsachse (T24) — nicht gebaut.**
       Der Plan verlangte 120 handgelabelte Chats, Cohens κ ≥ 0,6 und eine
       Formkontroll-Regression, bevor die Achse als tragfähig gilt. Auf
@@ -146,7 +106,9 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       Supabase-Client an und lädt Sessions. Wer je Tests hinzufügt, fängt hier an.
 - [ ] **Trend-Sparkline** pro Ursache über die letzten N Monate. Vertagt,
       weil sie an der Cluster-Kontinuität (A4) hängt, deren Nutzen selbst noch
-      unbewiesen ist. Sinnvoll frühestens nach dem zweiten echten Monatslauf.
+      unbewiesen ist. `month_stats` hat 2026-07 und 2026-08 (beide per Backfill
+      am 2026-09-06); der erste automatische Monatslauf (`quality_job`) rechnet
+      September am 2026-10-01. Sinnvoll frühestens danach.
 - [ ] **CSV-Export der Ursachenliste.** Ungefragt, aber plausibel: der Anfragende
       arbeitet vermutlich mit Excel. Erst bauen, wenn er danach fragt.
 - [ ] **Aufbewahrungsregel für `month_stats` selbst** (P3b im Design). Die
@@ -165,6 +127,9 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       Scharf geschaltet verlören sie sofort ihre Chats, ohne dass an ihrer
       Stelle etwas stünde. Erst die zehn Monate nachrechnen (~4 $, mehrere
       Stunden), prüfen, dann `CUTOFF_ENABLED=true` setzen.
+      Stand 2026-09-26 unverändert (nur 2026-07 und 2026-08 haben eine Zeile).
+      Juli wird am 2026-09-29 „alt“; er hat einen Report, aber keinen
+      Kurzreport (`summary` NULL) — nachgeholt wird der nur für den Vormonat.
       **Weiterhin offen — und Teil der ursprünglichen Vorbedingung: wer
       verantwortet die Frist.** Anlass und Frist stehen jetzt fest, der
       Verantwortliche nicht. Und Stufe 1 erfüllt die Frist ausdrücklich nicht:
@@ -189,72 +154,126 @@ Vorlage und Begründungen: `docs/designs/dashboard-segmente-report-retention.md`
       durch Gemini decken** (P3a im Design). Der Chatbetrieb schickt Nachrichten
       ohnehin an Gemini; ein monatlicher Batch über alle Nachrichten ist eine
       zusätzliche Verarbeitung und braucht dieselbe Grundlage.
-- [x] **Toter „🤖 KI-Bericht (Gemini)"-Knopf gelöscht** (2026-09-02). Er hat den
-      Monatsreport versprochen, den es damals nicht gab; jetzt gibt es ihn, und
-      er steht auf der Seite statt hinter einem deaktivierten Knopf.
 - [ ] **`:focus`-Regeln fehlen komplett** in `static/dashboard/index.html`
-      (nachgezählt: 0 Treffer in 1.708 Zeilen), und die Monatsauswahl ist
-      ausschließlich ein Klick auf ein `<canvas>` — es gibt heute keinen
-      Tastaturpfad zu irgendeiner Auswertung.
-- [ ] **Diagrammfarben teilweise migriert.** Beide Balkendiagramme sprechen
-      jetzt dieselbe Sprache (grau + Akzent für die Auswahl), und Segment- sowie
-      Heatmap-Tokens stehen in `:root`. Offen bleibt der Kontrast: `#94a3b8`
-      erreicht 2.45:1 gegen `--bg` und verfehlt die 3:1-Schwelle für
-      Diagrammelemente (WCAG SC 1.4.11).
-- [x] **Kartenschatten auf die Token umgestellt** (2026-09-02): `--shadow-s/m/l`
-      stehen in `:root`, Karten und Knöpfe benutzen sie.
-- [ ] ~~**Kartenschatten verstoßen gegen die globale Designregel**~~ (einlagige
-      `box-shadow`, u. a. `index.html:126`), statt gestapelter `--shadow-s/m/l`.
-- [ ] **Report: drei kleine Reste aus dem /qa-Lauf (2026-09-04).** (a) Ein
-      Monat ohne Auswertung (`/dashboard/report/2026-09`) zeigt unter dem
-      Hinweis eine leere Trennlinie, weil `load()` vor der Fusszeile
-      aussteigt. (b) Ein ungültiger Monat (`/2026-13`) liefert rohes JSON
-      statt einer Seite — Admin-URL, tippt niemand von Hand. (c) Die Kachel
-      „Gesprächsdauer 4 s“ ist rechnerisch richtig (Median, viele
-      Ein-Satz-Chats), liest sich aber wie ein Fehler; ob sie als Schlagzahl
-      auf den Report gehört, ist eine Produktfrage. **(c) erledigt 2026-09-06
-      mit A3:** die Kachel zählt jetzt Gespräche ab zwei Nutzernachrichten und
-      nennt den Nenner ("Median · Gespräche mit Rückfrage"), August 1:46 Min
-      statt 4 Sek. Beleg:
-      `.gstack/qa-reports/qa-report-localhost-2026-09-04.md`.
-- [ ] **Dashboard unter 1024px: das Monatsdiagramm liegt HINTER dem rechten
-      Panel.** Zwischen der Kennzahlen-Karte und „Wo der Bot danebenliegt"
-      schaut ein Streifen des Balkendiagramms hervor (Achse „1.400" bzw. „40"
-      und Balken). Auf 1024 und 375px reproduziert, auch auf dem Stand vor der
-      Gesprächsdauer-Kachel (4dc4cf8) — also vorbestehend, nicht durch sie
-      verursacht. Dazu scrollt die Seite auf dem Telefon seitlich (Bereichs-
-      leiste, Ursachentabelle). Belege: `.gstack/qa-reports/screenshots/qa2-old-1024.png`,
-      `qa2-mobile-aug.png`.
+      (nachgezählt 2026-09-26: 0 Treffer für `:focus` und `outline` in 3.761
+      Zeilen), und die Monatsauswahl ist ausschließlich ein Klick auf ein
+      `<canvas>` (`#monthlyChart`, `aria-hidden`) — es gibt keinen
+      Tastaturpfad zur Monatsauswahl und damit zu keiner Monatsauswertung.
+      Die Heatmap-Zellen werden erst nach der Monatswahl zu Buttons, die
+      Ursachen-Zeilen sind reine `tr`-Klicks.
+- [ ] **Kontrast der Diagrammfarben unter 3:1** (WCAG SC 1.4.11). Das
+      Monatsdiagramm nutzt grau `#94a3b8` + Akzent `#2563eb` (auch die
+      Schraffur), Wochentag/Tag/Stunde sind blau `#60a5fa` mit Auswahl
+      `#1d4ed8` und Vormonat `#d4d4d4`. Gegen den weißen Kartengrund:
+      `#94a3b8` 2.56:1, `#60a5fa` 2.54:1, `#d4d4d4` 1.42:1.
+- [ ] **Monatsdiagramm: der schraffierte letzte Balken (laufender Monat) hat
+      keine Legende;** nur der Tooltip sagt „(läuft noch)“. Er liest sich als
+      Darstellungsfehler.
+- [ ] **„Δ Vormonat“ im Dashboard: Minus ist ein ASCII-Bindestrich**
+      (`deltaZelle`, ``${delta > 0 ? "+" : ""}${delta}``), schmaler als das
+      Plus, die negativen Zeilen wirken versetzt. `report.html` nutzt seit
+      `0a0eefd` das echte „−“; das Dashboard noch nicht.
+- [ ] **Report: ein ungültiger Monat (`/dashboard/report/2026-13`) liefert
+      rohes JSON** (`dashboard.py`, `jsonify({"error": …}), 400`) statt einer
+      Seite — Admin-URL, tippt niemand von Hand.
 
 ## Dashboard-Kundenfeedback September 2026 (übernommen aus dem Plan, 2026-09-06)
+Die Kürzel (T-A, T-B, D21, A0–A4) stammen aus dem gelöschten Plan:
+`git show 58737df^:docs/designs/dashboard-kundenfeedback-2026-09.md`.
 
-Plan: `docs/designs/dashboard-kundenfeedback-2026-09.md`.
-
-- [ ] **T-A — „Gesamt" aus `month_stats.counts` statt aus dem Live-Cache.**
+- [ ] **T-A — Gesamtzustand aus `month_stats.counts` statt aus dem Live-Cache.**
       Hängt an Löschstufe 2: solange die Rohzeilen da sind, rechnet der Cache
-      den Gesamtzustand ohnehin. `counts` hat bis heute keinen Leser.
+      den Gesamtzustand ohnehin. `counts` wird nur geschrieben, nie gelesen.
+      (Einen Knopf „Gesamt“ gibt es seit `428695c` nicht mehr; der
+      Gesamtzustand ist der Ruhezustand ohne gewählten Monat.)
 - [ ] **T-B — Auftrag-3-Seite: Übergabequote und Entlastung über Monate.**
-      Die erste Zahl dafür steht seit 2026-09-06 in der Zeile (`uebergaben`);
-      die Seite braucht zusätzlich einen zweiten echten Monatslauf. Bis dahin
-      ist „Gesamt" ausdrücklich die Volumenseite und zeigt keine Qualität (D21).
+      Ein Feld `uebergaben` gibt es nicht; die Zahl wird beim Lesen aus
+      `qualitaet_ursache` abgeleitet (`month_aggregate.py`) und seit
+      `428695c` nirgends mehr angezeigt. Zwei Monate mit Daten liegen vor
+      (07, 08, beide Backfill); die Seite braucht einen echten Monatslauf
+      (frühestens 2026-10-01). Bis dahin zeigt der Gesamtzustand keine
+      Qualität (D21).
 - [ ] **T-C — Eval-Suite für den Kurzreport-Prompt.** Prompt v1 kam am
       2026-09-10 und ist gebaut (`month_summary.py`, Karte unten im Report).
       Die Eval-Suite steht noch aus.
-- [ ] **DDL für den KI-Kurzreport von Hand ausführen:** die beiden
-      `alter table`-Zeilen am Ende von `sql/month_stats.sql` (`summary`,
-      `summary_computed_at`). Bis dahin läuft der Gemini-Aufruf, der Upsert
-      schlägt fehl und die Karte zeigt „liegt noch kein Kurzreport vor“.
-- [ ] **Dashboard bei 375px: die Seite scrollt seitlich (57px).** Zwei
-      Verursacher, beide vorbestehend: die Kopfzeile (`.controls` mit
-      `#lastUpdated` ragt 57px hinaus) und `#causeTable` (412px breit in einem
-      375px-Fenster). Gemessen 2026-09-06 am Stand nach A0-A4. Gehört zum
-      offenen Mobil-Punkt weiter oben, ist aber die konkrete Ursache.
-- [ ] **Zwei unabhaengige Bildbefunde vom 2026-09-06, beide vorbestehend.**
-      (a) Bei 1280px sind die beiden Diagramme in der linken Spalte zu schmal:
-      13 Monatsbalken ohne Zwischenraum, und ausgerechnet der ausgewaehlte
-      Monat traegt keine Beschriftung, weil nur jeder dritte Tick gesetzt ist.
-      Bei 1024px (einspaltig) sind dieselben Diagramme gut lesbar. (b) Der
-      schraffierte letzte Balken (laufender Monat) hat keine Legende; er liest
-      sich als Darstellungsfehler. (c) In der Spalte „Δ Vormonat" steht das
-      Minus mit Abstand („- 4"), das Plus ohne („+16") — die negativen Zeilen
-      wirken versetzt.
+- [ ] **Dashboard bei 375px: die Seite scrollt seitlich.** Gemessen
+      2026-09-06: Kopfzeile (`.controls` mit `#lastUpdated` ragt 57px hinaus)
+      und `#causeTable` (412px breit). Beide ohne Mobil-Regel, also
+      vermutlich weiter so. Neu dazu (gerechnet 2026-09-26, nicht gerendert):
+      seit `0748ba2` gilt `.left-panel { min-width: 22rem }` auch einspaltig,
+      mit dem Padding von `main` 384px bei 375px Fensterbreite. Die alten
+      Belege (`.gstack/qa-reports/screenshots/`, nur lokal) zeigen einen
+      älteren Stand.
+
+## Tool-Historie (vertagt aus dem /autoplan-Review, 2026-09-08)
+Plan: `docs/tool-history-plan.md`.
+
+- [ ] **Serverseitige Tool-Historie, dann voller Server-Umzug der
+      Chat-History.** Stand 2026-09-26: weder der Tool-Store (Zwischenschritt
+      laut Plan, ENTWURF) noch der Umzug sind gebaut; `app.py` nimmt weiter
+      `messages` aus dem Body. Ziel: Server besitzt den ganzen Verlauf
+      (LangGraph-Checkpointer mit `thread_id=session_id` — im Plan §2 steht,
+      warum er für den Tool-only-Zwischenschritt verliert); Widget schickt nur
+      noch die neue Nachricht. Löst turn_index-Anker, DOM-Scraping-Verluste
+      (HTML→textContent) und die Payload-Frage auf einmal. Voraussetzung:
+      cham-chatbot-Release-Koordination.
+- [ ] **Widget: session_id-Erzeugung auf `crypto.getRandomValues` umstellen**
+      (cham-chatbot, anderes Repo). Auf `origin/main` (`chatbot.html`) und
+      allen Branches weiter `'session_' + Date.now() + '_' +
+      Math.random()…` — nicht kryptografisch, und die session_id ist seit der
+      Kunden-Bindung der Bearer-Token (12 h TTL); mit einem Tool-Store würde
+      sie ihn zusätzlich schalten. Der billigste Härtungsschritt der Kette.
+
+## Kundenfeedback September 2026 (Welle 3, 2026-09-24)
+Die Kürzel (F1–F11, W5, D13) stammen aus dem gelöschten Plan:
+`git show 58737df^:docs/kundenfeedback-2026-09-plan.md`.
+
+- [ ] **Passolution-API als Stufe 2 (Eng-Review 2026-09-27, D8).** Das Design
+      `docs/designs/unterlagen-tripurl-leon2.md` verlinkt die TripURL nur. Die
+      Passolution Dataservice API (`api.passolution.eu/api/v2`,
+      `/content/all/text?lang=de&countries=..&nat=..`, Fließtext, kein
+      Visum-JSON) braucht einen Bearer-Token, den Passolution auf Anfrage
+      ausstellt (kein Self-Service). Owner-Entscheidung 2026-09-27: vorerst
+      nur verlinken, kein Token anfragen, keine Mail an Johannes. Wieder
+      aufnehmen erst, wenn das Verlinken nicht reicht. Start: Token in `.env`, `passolution_tool(land, nat)` neben `visa_tool`,
+      Nationalität DE angenommen. Alternative im Zwei-Wochen-Fenster: TripURL
+      headless rendern (geprüft 2026-09-27, Vue-App, Schnellübersicht je Land).
+- [ ] **Passdaten-Eintragen und Doppel-Buchungsnummer (Eng-Review 2026-09-27,
+      D10).** (a) Rund zehn MeinChamäleon-Chats seit Juli: Gäste finden das
+      Feld für ihre Passdaten nicht, der Bot antwortet inkonsistent
+      (`/MeinChamaeleon/Daten`, „per Mail“, „geht hier nicht“). Bei Katharina
+      klären, wo die Eingabe liegt (Gäste-Seite?), dann feste Antwort in
+      `faqs/allgemein.md` und im Kunden-Block. (b) Die zwei Nummern auf der
+      Reiseseite (Chamäleon-Vorgang gegen Airline-PNR) verwirren wiederholt,
+      besonders bei Sitzplatzreservierung: Hinweis an Chamäleon zur
+      Beschriftung, plus Prompt-Satz „Buchungsnummer = Chamäleon-Vorgang,
+      PNR = Airline“. Quelle: Supabase-Auswertung 2026-09-26.
+- [ ] **`agenturdaten.vorgangsnummern` ist ungecacht:** jeder Aufruf holt
+      TourOne neu. `kundendaten` hat seit W5 einen `ttl_cache` auf der rohen
+      Buchungsliste (10 min, `maxsize=512`, Ausfall nie gecacht); die
+      Agentur-Seite analog umstellen.
+- [ ] **Vergleichstabelle je Land (Review D13) — teilweise erledigt.**
+      Seit `0cd259c`/`93b353f` zeigt das Website-Tool auf Länderseiten oben die
+      Reiseliste (Name · Tage · Länder · Pfad, Kombireisen markiert), und der
+      Parameter `orte` prüft Orte (auch OHNE) wörtlich am Wortanfang im
+      Reiseverlauf; der `filter`-Block ist damit 7/8 grün. Offen: keine
+      Vorberechnung beim Sitemap-Sync (die Liste entsteht je Anfrage), keine
+      Airline-Spalte (weiter über `abschnitt="leistungen"`), und Synonyme
+      hängen daran, dass das Modell Varianten mit `|` liefert.
+- [ ] **Eval-Flakes nach dem Unterlagen-Ship (2026-09-29, /ship).** Einzeln
+      wiederholt, nicht dauerhaft rot: `test_unterlagen_eval`
+      `test_einreise_mit_stand_datum` (Modell verlinkt das Einreise-PDF, statt
+      es zu lesen und das Stand-Datum zu nennen) und
+      `test_ausfuellhilfe_vor_visum_de` (4/5; verlinkt den Bereich `#unterlagen`
+      statt der Ausfüllhilfe direkt); `test_meinchamaeleon_faq` `rail-and-fly`
+      (Antwort ohne Link). `test_kundenfeedback_eval` `flug-umstieg-schwester`
+      ist auf main genauso wacklig (verschränkt gemessen: Branch 2/6, main 1/6
+      — Website-Besucher bekommt „findest du in deinen Reiseunterlagen“).
+      Vorsicht beim Vergleichen: main und Branch nur verschränkt zur selben
+      Zeit messen, Gemini driftet über den Tag.
+- [ ] **Unterlagen: Lücken aus echten PDFs (2026-09-28).** (a) „Ausfüllhilfe
+      Namibia.pdf“ u. ä. erkennt `dokument_art` nicht (nur „Visum
+      Ausfüllhilfe…“): verlinkt ja, aber kein `dokument:`-Slug. (b) In den
+      echten Reiseunterlagen (drei Live-Buchungen, 2026-09-28) findet `gliedern` keine
+      Abschnitte `leistungen`/`hinweise` — schon vor dem Review so; prüfen,
+      wie die Überschriften dort heißen.
