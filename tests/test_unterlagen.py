@@ -655,8 +655,15 @@ def test_einreise_nicht_erkannte_person_nur_link():
     assert ul.einreise_bloecke(kaputt) is None
 
 
-def test_grosse_unterueberschrift_nicht_im_titel():
-    fliess = "Bitte beachte, dass während der gesamten Reise die Anschnallpflicht gilt."
-    assert ul._hauptueberschrift("REISEINFORMATIONEN NAMIBIA", "DEVISEN", fliess)[1] == "REISEINFORMATIONEN NAMIBIA"
-    # Umbruch einer Überschrift (Folgezeile vor einer kurzen Unterüberschrift) bleibt verbunden.
-    assert ul._hauptueberschrift("REISEINFORMATIONEN MACHU", "PICCHU", "Anschnallpflicht")[1] == "REISEINFORMATIONEN MACHU PICCHU"
+
+def test_nationalitaet_nicht_aus_dem_naechsten_block():
+    # Erste Person ohne Nationalität und ohne Bestimmungen: die der zweiten
+    # darf nicht in ihren Block rutschen (sonst fielen deren Regeln weg).
+    text = EINREISE_UMBRUCH.replace(
+        "Geburtsdatum: 01.01.1970,\nStaatsangehörigkeit: DE\nZielland: Namibia\n"
+        "Deutsche Staatsangehörige benötigen ein Visum.\n",
+        "Geburtsdatum: 01.01.1970\n",
+    )
+    antwort = ul.einreise_bloecke(text)
+    assert "Staatsangehörigkeit CH:" in antwort
+    assert "Schweizer Staatsangehörige benötigen kein Visum." in antwort

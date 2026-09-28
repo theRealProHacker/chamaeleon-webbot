@@ -314,11 +314,12 @@ def _laden(link: str) -> bytes | None:
     try:
         if antwort.status_code != 200:
             raise requests.HTTPError(f"HTTP {antwort.status_code}")
-        daten = b""
+        daten = bytearray()
         for stueck in antwort.iter_content(64 * 1024):
             daten += stueck
             if len(daten) > MAX_BYTES:
                 raise ValueError(f"PDF über {MAX_BYTES} Bytes")
+        daten = bytes(daten)
     finally:
         antwort.close()
     # Eine Wartungs- oder Fehlerseite mit HTTP 200 ist ein Ausfall, kein
@@ -387,8 +388,10 @@ def vorwaermen(buchung: object) -> None:
     if not isinstance(buchung, dict) or kundendaten.ist_storniert(buchung.get("status")):
         return
     haupt = quelle_auto(buchung.get("unterlagen"))
-    if haupt and haupt.get("link"):
-        text(str(haupt.get("id") or ""), haupt["link"])
+    link = _sicherer_link(haupt.get("link")) if haupt else ""
+    if link:
+        # Derselbe Cache-Schlüssel wie in ``lesen``: dort geht der bereinigte Link hinein.
+        text(str(haupt.get("id") or ""), link)
 
 
 def lesen(eintrag: dict) -> tuple[str | None, str]:
@@ -464,23 +467,14 @@ def _schluessel(zeile: str) -> str | None:
     return None
 
 
-def _hauptueberschrift(zeile: str, naechste: str, danach: str = "") -> tuple | None:
+def _hauptueberschrift(zeile: str, naechste: str) -> tuple | None:
     """``(schluessel, titel, verbrauchte_zeilen)`` oder None.
 
     Umbruch-Toleranz: „INFORMATIONEN INLANDS- UND“ / „REGIONALFLÜGE“ und
     „REISEINFORMATIONEN MACHU“ / „PICCHU“. Die Folgezeile wird nur angehängt,
     wenn sie kurz und durchgehend groß ist — Unterüberschriften sind gemischt.
     """
-    # Passt die Zeile schon allein und folgt auf die Folgezeile Fließtext, ist
-    # die Folgezeile eine Unterüberschrift („DEVISEN“), keine Fortsetzung.
-    unterueberschrift = _schluessel(zeile) is not None and len(danach) > 45
-    if (
-        naechste
-        and not unterueberschrift
-        and len(naechste) <= 30
-        and naechste == naechste.upper()
-        and _GROSS.search(naechste)
-    ):
+    if naechste and len(naechste) <= 30 and naechste == naechste.upper() and _GROSS.search(naechste):
         verbunden = f"{zeile} {naechste}"
         schluessel = _schluessel(verbunden)
         if schluessel is not None:
@@ -533,7 +527,7 @@ def gliedern(roh: str) -> dict | None:
             teile.append({"schluessel": "reiseverlauf", "titel": titel, "zeilen": []})
             i += 1
             continue
-        treffer = _hauptueberschrift(zeile, naechste, zeilen[i + 2] if i + 2 < len(zeilen) else "")
+        treffer = _hauptueberschrift(zeile, naechste)
         if treffer:
             erkannt = True
             schluessel, titel, verbraucht = treffer
@@ -746,7 +740,7 @@ def einreise_bloecke(roh: str) -> str | None:
         ende = personen[k + 1].start() if k + 1 < len(personen) else len(roh)
         # Die Nationalität steht in der Geburtsdatum-Zeile, bei Umbruch in der
         # nächsten: deshalb Zeile plus Blockanfang durchsuchen.
-        nation = _NATION.search(person.group(1) + "\n" + roh[person.end() : person.end() + 80])
+        nation = _NATION.search(person.group(1) + "\n" + roh[person.end() : min(person.end() + 80, ende)])
         if nation:
             nation = nation.group(1)
             if nation in bloecke:
@@ -775,7 +769,7 @@ def _nicht_gegliedert(eintrag: dict) -> str:
     )
 
 
-def reiseunterlagen(eintrag: dict, abschnitt: str = "", tag: int = 0, *, deckel: int, slugs=()) -> str:
+def reiseunterlagen(eintrag: dict, abschnitt: str = "", tag: int = 0, *, deckel: int, slugs=()) -> str | None:
     """Antwort aus Reiseunterlagen/Reisebestätigung: ohne ``abschnitt`` die
     Übersicht, sonst der Abschnitt. Fehler immer mit Link, nie „nicht vorhanden“.
 
