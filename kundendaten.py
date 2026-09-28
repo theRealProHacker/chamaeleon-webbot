@@ -462,8 +462,10 @@ def _buchungen_roh(kunden_id: str) -> list | None:
     ]
 
 
-# Hop 2 hat vier Aufrufer: beide ``_hop2_alle`` (Kunde, Agentur),
-# ``buchungsstatus`` und ``agent_base._reise_code_for_vorgang``. Früher holte
+# Hop 2 hat sechs Aufrufer: beide ``_hop2_alle`` (Kunde, Agentur),
+# ``buchungsstatus``, ``agent_base._reise_code_for_vorgang``,
+# ``agent_base._reiseinfo_aus_dokumenten`` und das Vorwärmen in
+# ``app._vorwaermen_buchungen``. Früher holte
 # jeder dieselbe Buchung selbst, mit 8 oder 5 s Timeout; jetzt ein Abruf je
 # Vorgang, ein Timeout, und das Vorwärmen beim Login füllt alle zugleich.
 # Gleiche Regeln wie ``_buchungen_roh``: TTL 10 min, Schlüssel NUR die
@@ -487,9 +489,9 @@ def _buchung_roh(vorgang: str) -> object:
 # Hop 1 traegt keinen Status — storniert (XX) steht erst in Hop 2. Gemessen
 # 2026-09-09: 217 von 1200 Buchungen sind storniert. Ohne diese Pruefung
 # bekaeme, wer Reise A storniert und B gebucht hat, die Links zur toten
-# Buchung A (Review 2026-09-24). Gecacht wie Hop 1 (10 min), nur der Status —
-# und wie dort WIRFT ein Ausfall und wird nie gecacht.
-@ttl_cache(maxsize=1024, ttl=600)
+# Buchung A (Review 2026-09-24). Kein eigener Cache: ``_buchung_roh`` cacht
+# schon 10 min, ein zweiter darüber verlängerte einen Storno-Status auf bis zu
+# 20 min. Ein Ausfall WIRFT wie dort.
 def buchungsstatus(vorgang: str) -> str:
     """Der Status einer Buchung aus Hop 2; "" wenn TourOne keinen liefert."""
     buchung = _buchung_roh(vorgang)

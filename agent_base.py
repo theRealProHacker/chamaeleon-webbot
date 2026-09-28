@@ -1917,8 +1917,11 @@ _REISEINFO_KEYS = (
 # 20 Baustein-Requests; mit PARALLEL=8 wären das drei Wellen, macht im
 # Timeout-Worst-Case 2*8s (Buchung, Reise) + 3*8s = 40s — allein das Tool reißt
 # die Frist. Deshalb: kürzeres Timeout je Request und genug Parallelität, dass
-# eine Welle reicht. Worst Case jetzt 8s (Buchung, geteilter Hop-2-Cache aus
-# kundendaten) + 5s + 5s = 18s.
+# eine Welle reicht. Worst Case der Textbausteine jetzt 8s (Buchung, geteilter
+# Hop-2-Cache aus kundendaten, fällt sie aus, endet das Tool sofort) + 5s + 5s
+# = 18s. Davor kann der PDF-Weg (_reiseinfo_aus_dokumenten) bis zu 2*8s
+# (Verbindung + Lesen) für den Download zahlen, der Text ist danach 24 h im
+# Cache und wird beim Login vorgewärmt.
 REISEINFO_TIMEOUT = 5
 REISEINFO_FETCH_PARALLEL = 20
 
@@ -2296,14 +2299,21 @@ def reiseinfo_vorgang(
     return "", REISEINFO_OHNE_BUCHUNG_TEXT
 
 
-def _reiseinfo_aus_dokumenten(nummer: str, quelle: str, abschnitt: str, tag: int) -> str | None:
+def _reiseinfo_aus_dokumenten(
+    nummer: str, quelle: str, abschnitt: str, tag: int, agentur_id: str = ""
+) -> str | None:
     """Antwort aus den PDFs der Buchung, oder ``None`` → Textbausteine wie bisher.
 
     ``quelle="auto"``: Reiseunterlagen vor Reisebestätigung (je die neueste
     Version, ``unterlagen.quelle_auto``). ``abschnitt="dokument:<slug>"`` gilt
     unabhängig von ``quelle``: das Modell fragt dann nach genau diesem Dokument.
     Stornierte Buchungen haben keine gültigen Unterlagen mehr.
+
+    Fällt der Abruf der Buchung aus, endet es hier mit dem Fehlertext: die
+    Textbausteine bräuchten dieselbe Buchung und warteten ein zweites Mal
+    auf das Timeout.
     """
+    import agenturdaten
     import kundendaten
     import unterlagen
 
@@ -2316,7 +2326,15 @@ def _reiseinfo_aus_dokumenten(nummer: str, quelle: str, abschnitt: str, tag: int
         buchung = kundendaten._buchung_roh(nummer)
     except Exception as e:
         print(f"[agent_base] reiseinfo buchung failed: {type(e).__name__}")
-        return REISEINFO_FEHLER_TEXT if will_dokument else None
+        return REISEINFO_FEHLER_TEXT
+    if agentur_id:
+        # G3 wie in der Agentur-Detailansicht: /get/buchung kennt keinen
+        # Agenturfilter, und hier gehen Rechnung und Reiseanmeldung ans Modell.
+        # Verworfen: keine Dokumente, aber die Textbausteine (je Reisecode,
+        # ohne Personendaten) bleiben wie vorher erreichbar.
+        buchung = agenturdaten._hop2_freigeben(buchung, agentur_id)
+        if buchung is None:
+            return None
     if not isinstance(buchung, dict) or kundendaten.ist_storniert(buchung.get("status")):
         return None
     eintraege = buchung.get("unterlagen")
@@ -2337,8 +2355,8 @@ def _reiseinfo_aus_dokumenten(nummer: str, quelle: str, abschnitt: str, tag: int
             # Stand Buchungsdatum, also oft ein Jahr alt: die aktuelle Quelle
             # gehört direkt daneben, nicht nur in eine Prompt-Regel (gemessen
             # 2026-09-27: ohne sie nannte Gemini 3 von 4 Mal keine).
-            tripurl = str(buchung.get("tripurl") or "")
-            if tripurl.startswith("https://") and str(buchung.get("bisDat") or "")[:10] >= kundendaten.heute_berlin():
+            tripurl = unterlagen.aktuelle_tripurl(buchung, kundendaten.heute_berlin())
+            if tripurl:
                 text += f"\n\nAktuelle Einreise-, Visa- und Impfbestimmungen: {tripurl}"
             else:
                 text += "\n\nAktuell prüfen: https://www.visum.de/partner/chamaeleon"
@@ -2350,6 +2368,8 @@ def _reiseinfo_aus_dokumenten(nummer: str, quelle: str, abschnitt: str, tag: int
     text = unterlagen.reiseunterlagen(
         haupt, abschnitt, tag, deckel=REISEINFO_MAX_CHARS, slugs=tuple(slugs)
     )
+    if text is None:
+        return None  # Dokument nicht lesbar: Textbausteine wie bisher
     if not abschnitt:
         text += (
             "\n\nAllgemeine Vorbereitung je Land (Devisen, Trinkgeld, Klima, "
@@ -2367,10 +2387,16 @@ def reiseinfo_tool_base(
     abschnitt: str = "",
     tag: int = 0,
 ) -> str:
-    """„Wichtige Informationen“ zu einer Buchung als Markdown. Wirft nie.
+    """Reiseinformationen zu einer Buchung. Wirft nie.
 
     Ohne ``vorgangsnummer`` wird die gemeinte Buchung selbst aufgelöst (siehe
     ``reiseinfo_vorgang``).
+
+    Zuerst die PDFs der Buchung (``_reiseinfo_aus_dokumenten``): ``quelle``
+    "auto" (Reiseunterlagen vor Reisebestätigung) oder "textbausteine",
+    ``abschnitt`` (Teil der Unterlagen oder ``dokument:<slug>``), ``tag``
+    (Kalendertag, 0 = alle). Gibt es keine lesbaren Unterlagen, folgen die
+    „Wichtigen Informationen“ als Markdown wie bisher.
 
     Trennt die Fälle, die für den Kunden verschieden sind: gar keine Buchung,
     unbekannte Buchungsnummer, Reise ohne hinterlegte Bausteine und Ausfall der
@@ -2389,7 +2415,7 @@ def reiseinfo_tool_base(
         tag = int(tag or 0)
     except (TypeError, ValueError):
         tag = 0
-    aus_dokumenten = _reiseinfo_aus_dokumenten(nummer, quelle, abschnitt, tag)
+    aus_dokumenten = _reiseinfo_aus_dokumenten(nummer, quelle, abschnitt, tag, agentur_id)
     if aus_dokumenten:
         return aus_dokumenten
 

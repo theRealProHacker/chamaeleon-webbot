@@ -33,6 +33,7 @@ from collections import Counter
 from urllib.parse import urlparse
 
 import gevent
+import gevent.threadpool
 import requests
 from cachetools.func import ttl_cache
 from gevent import monkey
@@ -48,6 +49,9 @@ import kundendaten
 # vom Server aus fremde Adressen abzurufen (Entscheidung A2/D3).
 ERLAUBTER_HOST = "unterlagen.chamaeleon-reisen.de"
 TIMEOUT = 8
+# Gemessen 2026-09-27: die größten ULAS haben rund 2 MB. Alles über 20 MB ist
+# ein Datenfehler und darf den einzigen Worker nicht mit pypdf blockieren.
+MAX_BYTES = 20 * 1024 * 1024
 
 # Unter 200 Zeichen ist ein PDF für uns Bild, Scan oder verschlüsselt — dann
 # lieber ehrlich „nicht lesbar“ als aus Fetzen raten (A3).
@@ -127,6 +131,11 @@ def _normname(name: object) -> str:
 def dokument_art(name: object) -> str:
     """Art aus dem Dateinamen (``_ARTEN``, dazu ``anschreiben``); "" sonst."""
     n = _normname(name)
+    # Teilnehmerdaten zuerst und irgendwo im Namen: TourOne vergibt die Namen,
+    # und ein „Teilnehmer-Daten.pdf“ darf nicht als gewöhnliches Dokument
+    # verlinkt werden (Passnummern, Geburtsdaten aller Mitreisenden).
+    if "teilnehm" in n.replace("-", ""):
+        return "teilnehmerdaten"
     for art, stamm in _ARTEN:
         if n.startswith(stamm):
             return art
@@ -141,7 +150,9 @@ def _anzeigename(name: object) -> str:
 def _id_schluessel(eintrag: dict) -> tuple:
     """Sortierschlüssel nach int(id); nicht-numerische ids ans Ende."""
     roh = str(eintrag.get("id") or "")
-    return (int(roh), "") if roh.isdigit() else (float("inf"), roh)
+    # isascii: "²".isdigit() ist True, int("²") wirft — und risse die ganze
+    # Detailansicht mit.
+    return (int(roh), "") if roh.isascii() and roh.isdigit() else (float("inf"), roh)
 
 
 def _eintraege(unterlagen: object) -> list:
@@ -178,7 +189,9 @@ def dokumente_zeilen(buchung: dict, heute: str) -> list[str]:
     """
     if kundendaten.ist_storniert(buchung.get("status")):
         return []
-    eintraege = [e for e in _eintraege(buchung.get("unterlagen")) if e.get("name") or e.get("link")]
+    # Ohne Namen lässt sich nicht prüfen, ob es die Teilnehmerdaten sind —
+    # solche Einträge werden nicht gezeigt.
+    eintraege = [e for e in _eintraege(buchung.get("unterlagen")) if e.get("name")]
     eintraege.sort(
         key=lambda e: (
             _RANG.get(dokument_art(e.get("name")), len(_RANG)),
@@ -236,12 +249,18 @@ def dokumente_zeilen(buchung: dict, heute: str) -> list[str]:
 
     # Die TripURL meldet nach der Reise nur noch „Reisezeitraum liegt in der
     # Vergangenheit“ — dann lieber gar nicht nennen.
-    tripurl = _sicherer_link(buchung.get("tripurl"))
-    if tripurl and str(buchung.get("bisDat") or "")[:10] >= heute:
+    tripurl = aktuelle_tripurl(buchung, heute)
+    if tripurl:
         zeilen.append(
             f"- Aktuelle Einreise-, Visa- und Impfbestimmungen für diese Reise: {tripurl}"
         )
     return zeilen
+
+
+def aktuelle_tripurl(buchung: dict, heute: str) -> str:
+    """Die TripURL, solange die Reise nicht vorbei ist und der Link sicher ist; sonst ""."""
+    tripurl = _sicherer_link(buchung.get("tripurl"))
+    return tripurl if tripurl and str(buchung.get("bisDat") or "")[:10] >= heute else ""
 
 
 # --- Auswahl der Quelle (zweiter Commit) -------------------------------------
@@ -291,10 +310,22 @@ def _laden(link: str) -> bytes | None:
             _gemeldete_hosts.add(host)
             print(f"[unterlagen] fremder Host {host!r} — Dokument nur verlinkt")
         return None
-    antwort = requests.get(link, timeout=TIMEOUT, allow_redirects=False)
-    if antwort.status_code != 200:
-        raise requests.HTTPError(f"HTTP {antwort.status_code}")
-    return antwort.content
+    antwort = requests.get(link, timeout=TIMEOUT, allow_redirects=False, stream=True)
+    try:
+        if antwort.status_code != 200:
+            raise requests.HTTPError(f"HTTP {antwort.status_code}")
+        daten = b""
+        for stueck in antwort.iter_content(64 * 1024):
+            daten += stueck
+            if len(daten) > MAX_BYTES:
+                raise ValueError(f"PDF über {MAX_BYTES} Bytes")
+    finally:
+        antwort.close()
+    # Eine Wartungs- oder Fehlerseite mit HTTP 200 ist ein Ausfall, kein
+    # „nicht lesbares PDF“ — sonst stünde sie 24 h im Cache.
+    if not daten.startswith(b"%PDF-"):
+        raise ValueError("Antwort ist kein PDF")
+    return daten
 
 
 def _extrahieren(daten: bytes) -> str:
@@ -308,15 +339,25 @@ def _extrahieren(daten: bytes) -> str:
         return ""
 
 
+_pool = None
+
+
 def _im_threadpool(funktion, *args):
     """Rechenarbeit im echten OS-Thread, wenn gevent den Prozess gepatcht hat.
 
     Unter gunicorn ``-k gevent`` gibt es nur einen Worker; 0,2 bis 0,4 s
     pypdf hielten sonst jeden laufenden Chat an (P1/D7). Ohne Patch (Tests,
     lokaler Flask) läuft es direkt.
+
+    Eigener Pool mit zwei Threads statt ``get_hub().threadpool``: über den
+    Hub-Pool (10 Plätze) laufen auch alle DNS-Auflösungen. Viele gleichzeitige
+    Extraktionen (Login-Welle) dürfen die nicht verdrängen.
     """
+    global _pool
     if monkey.is_module_patched("threading"):
-        return gevent.get_hub().threadpool.apply(funktion, args)
+        if _pool is None:
+            _pool = gevent.threadpool.ThreadPool(2)
+        return _pool.apply(funktion, args)
     return funktion(*args)
 
 
@@ -353,7 +394,7 @@ def vorwaermen(buchung: object) -> None:
 def lesen(eintrag: dict) -> tuple[str | None, str]:
     """``(text, "")`` oder ``(None, Hinweis mit Link)`` für einen Eintrag."""
     name = _anzeigename(eintrag.get("name")) or "Dokument"
-    link = eintrag.get("link") or ""
+    link = _sicherer_link(eintrag.get("link"))
     if dokument_art(eintrag.get("name")) == "teilnehmerdaten":
         return None, TEILNEHMERDATEN_TEXT
     if not eintrag.get("name") or not link:
@@ -423,14 +464,23 @@ def _schluessel(zeile: str) -> str | None:
     return None
 
 
-def _hauptueberschrift(zeile: str, naechste: str) -> tuple | None:
+def _hauptueberschrift(zeile: str, naechste: str, danach: str = "") -> tuple | None:
     """``(schluessel, titel, verbrauchte_zeilen)`` oder None.
 
     Umbruch-Toleranz: „INFORMATIONEN INLANDS- UND“ / „REGIONALFLÜGE“ und
     „REISEINFORMATIONEN MACHU“ / „PICCHU“. Die Folgezeile wird nur angehängt,
     wenn sie kurz und durchgehend groß ist — Unterüberschriften sind gemischt.
     """
-    if naechste and len(naechste) <= 30 and naechste == naechste.upper() and _GROSS.search(naechste):
+    # Passt die Zeile schon allein und folgt auf die Folgezeile Fließtext, ist
+    # die Folgezeile eine Unterüberschrift („DEVISEN“), keine Fortsetzung.
+    unterueberschrift = _schluessel(zeile) is not None and len(danach) > 45
+    if (
+        naechste
+        and not unterueberschrift
+        and len(naechste) <= 30
+        and naechste == naechste.upper()
+        and _GROSS.search(naechste)
+    ):
         verbunden = f"{zeile} {naechste}"
         schluessel = _schluessel(verbunden)
         if schluessel is not None:
@@ -483,7 +533,7 @@ def gliedern(roh: str) -> dict | None:
             teile.append({"schluessel": "reiseverlauf", "titel": titel, "zeilen": []})
             i += 1
             continue
-        treffer = _hauptueberschrift(zeile, naechste)
+        treffer = _hauptueberschrift(zeile, naechste, zeilen[i + 2] if i + 2 < len(zeilen) else "")
         if treffer:
             erkannt = True
             schluessel, titel, verbraucht = treffer
@@ -657,13 +707,19 @@ def abschnitt_text(gl: dict, abschnitt: str, tag: int = 0, *, deckel: int) -> st
 # „1. Herr Nachname, Vorname“ / „Geburtsdatum: …, Staatsangehörigkeit: DE“.
 # Die Nummer klebt am Seitenende manchmal am Vortext („6 Stunden2. Frau …“).
 _PERSON = re.compile(r"\d{1,2}\.[ \t]+[^\n]*\n[ \t]*Geburtsdatum:([^\n]*)\n?")
+# \s* statt Leerzeichen: bricht pypdf nach dem Doppelpunkt um, steht die
+# Nationalität erst in der nächsten Zeile.
 _NATION = re.compile(r"Staatsangehörigkeit:\s*([A-Z]{2,3})\b")
+_PERSONENKOPF = re.compile(r"^\d{1,2}\.\s+(?:Herr|Frau|Divers|Kind)\b")
 
 
 def _bereinigt(roh: str) -> str:
     # Sicherheitsnetz: eine Personenzeile, die das Muster verfehlt, bleibt
-    # trotzdem draußen.
-    return "\n".join(z for z in _zeilen(roh) if "Geburtsdatum:" not in z)
+    # trotzdem draußen — Geburtsdatum wie Namenszeile.
+    return "\n".join(
+        z for z in _zeilen(roh)
+        if "Geburtsdatum:" not in z and "Staatsangehörigkeit:" not in z and not _PERSONENKOPF.match(z)
+    )
 
 
 def einreise_bloecke(roh: str) -> str | None:
@@ -676,7 +732,10 @@ def einreise_bloecke(roh: str) -> str | None:
     """
     roh = re.sub(r"Trip-URL:\s*\S+", "", roh.replace("\f", "\n"))
     personen = list(_PERSON.finditer(roh))
-    if not personen:
+    # Jede Person muss als Blockgrenze erkannt sein. Sonst stünden ihre
+    # Bestimmungen (und ihr Name) im Block einer anderen Nationalität —
+    # dann lieber nur den Link.
+    if not personen or len(personen) != roh.count("Geburtsdatum:"):
         return None
     kopf = roh[: personen[0].start()]
     stand = re.search(r"Berlin, (\d\d\.\d\d\.\d{4})", kopf) or re.search(
@@ -684,11 +743,18 @@ def einreise_bloecke(roh: str) -> str | None:
     )
     bloecke: dict = {}
     for k, person in enumerate(personen):
-        nation = _NATION.search(person.group(1))
-        nation = nation.group(1) if nation else "ohne Angabe"
-        if nation in bloecke:
-            continue
         ende = personen[k + 1].start() if k + 1 < len(personen) else len(roh)
+        # Die Nationalität steht in der Geburtsdatum-Zeile, bei Umbruch in der
+        # nächsten: deshalb Zeile plus Blockanfang durchsuchen.
+        nation = _NATION.search(person.group(1) + "\n" + roh[person.end() : person.end() + 80])
+        if nation:
+            nation = nation.group(1)
+            if nation in bloecke:
+                continue
+        else:
+            # Unbekannte Nationalität nie zusammenlegen: das könnten
+            # verschiedene sein.
+            nation = f"ohne Angabe ({k + 1}. Reisende*r)"
         bloecke[nation] = _bereinigt(roh[person.end() : ende])
     zeilen = [
         "Einreisebestimmungen zum Zeitpunkt der Reiseanmeldung"
@@ -705,20 +771,26 @@ def _nicht_gegliedert(eintrag: dict) -> str:
         _gemeldete_gliederung.add(dok_id)
         print(f"[unterlagen] Dokument {dok_id} ({eintrag.get('name')!r}) nicht gegliedert")
     return NICHT_GEGLIEDERT_TEXT.format(
-        name=_anzeigename(eintrag.get("name")), link=eintrag.get("link")
+        name=_anzeigename(eintrag.get("name")), link=_sicherer_link(eintrag.get("link"))
     )
 
 
 def reiseunterlagen(eintrag: dict, abschnitt: str = "", tag: int = 0, *, deckel: int, slugs=()) -> str:
     """Antwort aus Reiseunterlagen/Reisebestätigung: ohne ``abschnitt`` die
-    Übersicht, sonst der Abschnitt. Fehler immer mit Link, nie „nicht vorhanden“."""
+    Übersicht, sonst der Abschnitt. Fehler immer mit Link, nie „nicht vorhanden“.
+
+    ``None``: ohne ``abschnitt`` und Dokument nicht lesbar oder nicht
+    gegliedert — dann antworten die Textbausteine wie vor den Unterlagen,
+    statt dass jede Packfrage bei einem Ausfall des Hosts nur einen Link bekommt.
+    """
     inhalt, hinweis = lesen(eintrag)
     if inhalt is None:
-        return hinweis
+        return hinweis if abschnitt else None
     gl = gliedern(inhalt)
     if gl is None:
-        return _nicht_gegliedert(eintrag)
-    kopf = f"Quelle: {_anzeigename(eintrag.get('name'))} ({eintrag.get('link')})"
+        text = _nicht_gegliedert(eintrag)
+        return text if abschnitt else None
+    kopf = f"Quelle: {_anzeigename(eintrag.get('name'))} ({_sicherer_link(eintrag.get('link'))})"
     if not abschnitt:
         return f"{kopf}\n{uebersicht(gl, slugs)}"
     return f"{kopf}\n{abschnitt_text(gl, abschnitt, tag, deckel=deckel)}"
@@ -735,5 +807,13 @@ def dokument(eintrag: dict) -> str:
         if inhalt is None:
             return _nicht_gegliedert(eintrag)
     else:
-        inhalt = "\n".join(_zeilen(inhalt))
-    return f"Inhalt von „{_anzeigename(eintrag.get('name'))}“ ({eintrag.get('link')}):\n{inhalt}"
+        zeilen = _zeilen(inhalt)
+        # Rechnung, Reiseanmeldung, Anschreiben beginnen mit der Anschrift des
+        # Gasts (geprüft 2026-09-28 an drei Buchungen). Die braucht keine
+        # Antwort: alles vor der Zeile „Vorgang <Nr>“ bleibt draußen.
+        for i, zeile in enumerate(zeilen[:20]):
+            if re.match(r"Vorgang \d+$", zeile):
+                zeilen = zeilen[i:]
+                break
+        inhalt = "\n".join(zeilen)
+    return f"Inhalt von „{_anzeigename(eintrag.get('name'))}“ ({_sicherer_link(eintrag.get('link'))}):\n{inhalt}"

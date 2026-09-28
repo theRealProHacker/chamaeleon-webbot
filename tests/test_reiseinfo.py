@@ -7,6 +7,8 @@ Agenten. TourOne wird gepatcht — kein Live-Request, kein Modell-Aufruf.
 
 import common as _  # noqa: F401  (adds repo root to sys.path)
 
+import pytest
+
 import agent
 import agent_base as ab
 import travel_index
@@ -414,12 +416,12 @@ def _dok(dok_id, name, datei):
     return {"id": str(dok_id), "name": name, "beschreibung": "", "link": _HOST + datei}
 
 
-def mit_unterlagen(monkeypatch, eintraege, status="OK"):
+def mit_unterlagen(monkeypatch, eintraege, status="OK", **felder):
     """Buchung mit ``unterlagen``; Downloads lesen die synthetischen Fixture-PDFs."""
     eigene(monkeypatch, VORGANG)
     calls = fake_tourone(
         monkeypatch,
-        buchung={"reiseCode": "CNZHA_NEU", "status": status, "unterlagen": eintraege},
+        buchung={"reiseCode": "CNZHA_NEU", "status": status, "unterlagen": eintraege, **felder},
     )
 
     def laden(link):
@@ -487,8 +489,12 @@ def test_download_ausfall_nennt_den_link(monkeypatch):
         raise TimeoutError
 
     monkeypatch.setattr(unterlagen, "_laden", kaputt)
-    text = ab.reiseinfo_tool_base(kunden_id="472325")
+    # Mit Abschnitt: Hinweis mit Link. Ohne: die Textbausteine wie vor den
+    # Unterlagen, nicht nur ein Link für jede Packfrage.
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="reiseverlauf", tag=3)
     assert _HOST + "reiseunterlagen_neu.pdf" in text
+    text = ab.reiseinfo_tool_base(kunden_id="472325")
+    assert "# Reisehinweise" in text and _HOST not in text
 
 
 def test_einreisebestimmungen_nennen_die_aktuelle_quelle(monkeypatch):
@@ -498,3 +504,78 @@ def test_einreisebestimmungen_nennen_die_aktuelle_quelle(monkeypatch):
     text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:einreisebestimmungen")
     assert "Stand bei Buchung" in text
     assert "visum.de" in text  # Fixture-Buchung ohne tripurl
+
+
+def test_einreisebestimmungen_mit_tripurl_bis_reiseende(monkeypatch):
+    url = "https://travel-details.eu/de?tid=TEST-TEST-TEST"
+    mit_unterlagen(
+        monkeypatch,
+        [_dok(5, "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf", "einreisebestimmungen.pdf")],
+        tripurl=url,
+        bisDat="2099-05-15 00:00:00",
+    )
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:einreisebestimmungen")
+    assert f"Aktuelle Einreise-, Visa- und Impfbestimmungen: {url}" in text
+    assert "visum.de" not in text
+
+
+def test_dokument_slug_gilt_auch_bei_quelle_textbausteine(monkeypatch):
+    calls = mit_unterlagen(monkeypatch, [_dok(3, "Visum Ausfüllhilfen.pdf", "visum_ausfuellhilfen.pdf")])
+    text = ab.reiseinfo_tool_base(
+        kunden_id="472325", quelle="textbausteine", abschnitt="dokument:visum-ausfuellhilfen"
+    )
+    assert "visum_ausfuellhilfen.pdf" in text
+    assert not any(c["path"] == "/get/reise" for c in calls)
+
+
+def test_dokument_slug_bei_buchungsausfall_fehlertext_ohne_zweiten_abruf(monkeypatch):
+    """Ausfall ist nicht „das Dokument gibt es nicht“ — und kein Umweg über die
+    Textbausteine, die dieselbe Buchung nochmal holen würden."""
+    eigene(monkeypatch, VORGANG)
+    calls = fake_tourone(monkeypatch, fehler=RuntimeError("timeout"))
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:rechnung")
+    assert text == ab.REISEINFO_FEHLER_TEXT
+    assert len([c for c in calls if c["path"] == "/get/buchung"]) == 1
+
+
+def test_unbekannte_quelle_und_kaputter_tag_normalisiert(monkeypatch):
+    """quelle="dokumente" (gemessen vom Modell gesendet) zählt als auto, ein
+    nicht-numerischer tag als 0 = alle Tage — kein Tool-Fehler."""
+    mit_unterlagen(monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")])
+    text = ab.reiseinfo_tool_base(
+        kunden_id="472325", quelle="dokumente", abschnitt="reiseverlauf", tag="drei"
+    )
+    assert "reiseunterlagen_neu.pdf" in text
+    assert "Tag 1 · Di 06.10.2026" in text and "Tag 12 · Sa 17.10.2026" in text
+
+
+def test_tool_wrapper_nimmt_none_als_standard(monkeypatch):
+    gerufen = {}
+
+    def spion(vorgangsnummer, seiten_vorgang, kunden_id, agentur_id, **kw):
+        gerufen.update(vorgangsnummer=vorgangsnummer, kunden_id=kunden_id, **kw)
+        return "ok"
+
+    monkeypatch.setattr(agent, "reiseinfo_tool_base", spion)
+    tool = agent.make_reiseinfo_tool(kunden_id="472325")
+    assert tool.invoke({"vorgangsnummer": None, "quelle": None, "abschnitt": None, "tag": None}) == "ok"
+    assert gerufen == {
+        "vorgangsnummer": "", "kunden_id": "472325", "quelle": "auto", "abschnitt": "", "tag": 0,
+    }
+
+
+@pytest.mark.parametrize("agt_nr, mit_dokumenten", [("12345", True), ("99999", False)])
+def test_agentur_dokumente_nur_mit_passender_agtnr(monkeypatch, agt_nr, mit_dokumenten):
+    """G3 auch auf dem PDF-Weg: /get/buchung kennt keinen Agenturfilter. Weicht
+    agtNr ab, keine Dokumente — die Textbausteine bleiben erreichbar."""
+    import agenturdaten as ad
+
+    mit_unterlagen(
+        monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")], agtNr=agt_nr
+    )
+    monkeypatch.setattr(ad, "_agentur_get", lambda path, params: {"0": {"roh": True}})
+    monkeypatch.setattr(ad, "_normalise_row", lambda row, agentur_id: {"vorgang": VORGANG})
+    text = ab.reiseinfo_tool_base(VORGANG, agentur_id="12345")
+    assert (_HOST + "reiseunterlagen_neu.pdf" in text) is mit_dokumenten
+    if not mit_dokumenten:
+        assert "# Reisehinweise" in text

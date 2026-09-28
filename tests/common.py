@@ -17,7 +17,6 @@ def _caches_leeren():
 
     kundendaten._buchungen_roh.cache_clear()
     kundendaten._buchung_roh.cache_clear()
-    kundendaten.buchungsstatus.cache_clear()
     try:
         import unterlagen
     except ImportError:

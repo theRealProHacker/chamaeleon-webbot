@@ -102,7 +102,6 @@ def fake_tourone(monkeypatch, handlers):
     # den vorigen Test und der Fake käme gar nicht zum Zug. Die Cache-Tests
     # weiter unten leeren zusätzlich selbst, wo sie es genau festnageln.
     kd._buchungen_roh.cache_clear()
-    kd.buchungsstatus.cache_clear()
     return calls
 
 
@@ -997,7 +996,6 @@ def test_abruf_laeuft_nach_dem_timeout_zu_ende(monkeypatch):
         return adresse_mit([_buchung("126001", ZUKUNFT_VON, ZUKUNFT_BIS)])
 
     kd._buchungen_roh.cache_clear()
-    kd.buchungsstatus.cache_clear()
     monkeypatch.setattr(kd, "_tourone_get", langsam)
     monkeypatch.setattr(agent, "REISE_TIMEOUT_S", 0.05)
     assert agent.reise_fuer_links(UEBERSICHT_URL, "999999999") == ("", "")

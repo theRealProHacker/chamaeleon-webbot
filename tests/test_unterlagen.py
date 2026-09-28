@@ -55,9 +55,12 @@ def fake_get(monkeypatch, antwort):
         aufrufe.append({"url": url, **kwargs})
         if isinstance(antwort, Exception):
             raise antwort
-        if isinstance(antwort, int):
-            return SimpleNamespace(status_code=antwort, content=b"")
-        return SimpleNamespace(status_code=200, content=antwort)
+        status, daten = (antwort, b"") if isinstance(antwort, int) else (200, antwort)
+        return SimpleNamespace(
+            status_code=status,
+            iter_content=lambda groesse: [daten[i : i + groesse] for i in range(0, len(daten), groesse)],
+            close=lambda: None,
+        )
 
     monkeypatch.setattr(ul.requests, "get", get)
     return aufrufe
@@ -116,7 +119,7 @@ def test_dokumente_teilnehmerdaten_ohne_direktlink():
 def test_dokumente_eintraege_ohne_link_oder_name():
     liste = [
         {"id": "1", "name": "Rechnung.pdf", "link": None},
-        {"id": "2", "name": None, "link": LINK},
+        {"id": "2", "name": None, "link": LINK},  # ohne Namen: nicht prüfbar, nicht gezeigt
         {"id": "3"},  # weder Name noch Link: nichts zu listen
         "kaputt",
         eintrag(4, "Flugplan.pdf", link="http://unterlagen.chamaeleon-reisen.de/x"),
@@ -128,9 +131,8 @@ def test_dokumente_eintraege_ohne_link_oder_name():
         "  - Reiseunterlagen (ohne Link)",
         "  - Flugplan (ohne Link)",
         "  - Rechnung (ohne Link)",
-        f"  - [Dokument]({LINK})",
     ]
-    assert len(zeilen) == 5
+    assert len(zeilen) == 4
 
 
 def test_dokumente_ohne_ulas_hinweis_mit_tagen_bis_abreise():
@@ -185,6 +187,15 @@ def test_storniert_nichts():
     assert ul.dokumente_zeilen(buchung(liste, status="AN"), HEUTE) != []
 
 
+def test_ohne_ulas_heute_laufend_oder_ohne_datum():
+    heute = ul.dokumente_zeilen(buchung([], von=f"{HEUTE} 00:00:00"), HEUTE)
+    assert "Reisebeginn 01.10.2026, heute (keine Frist" in heute[-1]
+    # Reise läuft schon bzw. vonDat unlesbar: keine Tage, kein Rat, nur der Stand.
+    nur_stand = "- Schlussunterlagen (Reiseunterlagen) noch nicht bereitgestellt"
+    assert ul.dokumente_zeilen(buchung([], von="2026-09-25 00:00:00"), HEUTE) == [nur_stand]
+    assert ul.dokumente_zeilen(buchung([], von=None), HEUTE) == [nur_stand]
+
+
 # --- Auswahl: quelle_auto, Slugs ---------------------------------------------
 
 
@@ -236,7 +247,19 @@ def test_fremder_host_wird_nicht_geladen_und_einmal_geloggt(monkeypatch, capsys)
 def test_download_timeout_und_ohne_redirects(monkeypatch):
     aufrufe = fake_get(monkeypatch, b"%PDF-daten")
     assert ul._laden(LINK) == b"%PDF-daten"
-    assert aufrufe == [{"url": LINK, "timeout": 8, "allow_redirects": False}]
+    assert aufrufe == [{"url": LINK, "timeout": 8, "allow_redirects": False, "stream": True}]
+
+
+def test_download_ohne_pdf_oder_zu_gross_wirft(monkeypatch):
+    # Eine Fehlerseite mit HTTP 200 ist ein Ausfall (nicht gecacht), kein
+    # „nicht lesbares PDF“ für 24 h.
+    fake_get(monkeypatch, b"<html>Wartung</html>")
+    with pytest.raises(ValueError):
+        ul._laden(LINK)
+    monkeypatch.setattr(ul, "MAX_BYTES", 10)
+    fake_get(monkeypatch, b"%PDF-" + b"x" * 20)
+    with pytest.raises(ValueError):
+        ul._laden(LINK)
 
 
 @pytest.mark.parametrize("antwort", [500, 302, requests.Timeout("zu langsam")])
@@ -283,7 +306,7 @@ def test_weniger_als_200_zeichen_nicht_lesbar(monkeypatch):
 
 
 def test_kaputtes_pdf_nicht_lesbar(monkeypatch):
-    fake_get(monkeypatch, b"kein pdf")
+    fake_get(monkeypatch, b"%PDF-1.4 kaputt")
     assert ul.text("1", LINK) == ""
 
 
@@ -371,9 +394,11 @@ def test_gliederung_altes_template():
 def test_unbekanntes_template_nicht_gegliedert(monkeypatch, capsys):
     assert ul.gliedern("Irgendein Text\n01.02.2026 Ein Datum\nohne Überschriften") is None
     fake_get(monkeypatch, fixture_bytes("visum_ausfuellhilfen.pdf"))
-    antwort = ul.reiseunterlagen(eintrag(77, "Reiseunterlagen.pdf"), deckel=DECKEL)
+    # Ohne Abschnitt: None, damit die Textbausteine antworten; mit Abschnitt
+    # der Hinweis mit Link.
+    assert ul.reiseunterlagen(eintrag(77, "Reiseunterlagen.pdf"), deckel=DECKEL) is None
+    antwort = ul.reiseunterlagen(eintrag(77, "Reiseunterlagen.pdf"), "leistungen", deckel=DECKEL)
     assert antwort == ul.NICHT_GEGLIEDERT_TEXT.format(name="Reiseunterlagen", link=LINK)
-    ul.reiseunterlagen(eintrag(77, "Reiseunterlagen.pdf"), deckel=DECKEL)
     assert capsys.readouterr().out.count("Dokument 77") == 1
 
 
@@ -458,6 +483,39 @@ def test_einreisebestimmungen_ohne_personenzeile_nicht_gegliedert():
     assert ul.einreise_bloecke("Einreisebestimmungen\nZielland: Namibia\nVisum nötig.") is None
 
 
+def test_einreise_ohne_nationalitaet_und_stand_aus_buchungsdatum():
+    roh = (
+        "Buchung vom 03.02.2026\n"
+        "1. Frau Musterfrau, Erika\nGeburtsdatum: 01.01.1970\n"
+        "Zielland: Namibia\nVisum nötig.\n"
+    )
+    antwort = ul.einreise_bloecke(roh)
+    assert "(Stand bei Buchung, 03.02.2026)" in antwort
+    assert "Für Reisende mit Staatsangehörigkeit ohne Angabe (1. Reisende*r):" in antwort
+    assert "Musterfrau" not in antwort and "01.01.1970" not in antwort
+
+
+def test_dokument_einreise_ohne_personenzeile_nicht_gegliedert(monkeypatch):
+    monkeypatch.setattr(ul, "text", lambda dok_id, link: "Zielland: Namibia\n" + "Visum nötig. " * 30)
+    antwort = ul.dokument(eintrag(1, "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf"))
+    assert antwort == ul.NICHT_GEGLIEDERT_TEXT.format(
+        name="Einreisebestimmungen Zeitpunkt der Reiseanmeldung", link=LINK
+    )
+
+
+def test_vorwaermen_nur_hauptdokument_offener_buchungen(monkeypatch):
+    geholt = []
+    monkeypatch.setattr(ul, "text", lambda dok_id, link: geholt.append((dok_id, link)))
+    liste = [eintrag(1, "Rechnung.pdf"), eintrag(2, "Reiseunterlagen.pdf", link=LINK + "u")]
+    ul.vorwaermen(None)
+    ul.vorwaermen(buchung(liste, status="XX"))
+    ul.vorwaermen(buchung(liste[:1]))  # weder ULAS noch BEST
+    ul.vorwaermen(buchung([{"id": "3", "name": "Reiseunterlagen.pdf", "link": None}]))
+    assert geholt == []
+    ul.vorwaermen(buchung(liste))
+    assert geholt == [("2", LINK + "u")]
+
+
 def test_dokument_klein_ganz(monkeypatch):
     fake_get(monkeypatch, fixture_bytes("visum_ausfuellhilfen.pdf"))
     antwort = ul.dokument(eintrag(1, "Visum Ausfüllhilfen.pdf"))
@@ -536,3 +594,69 @@ def test_fixtures_ohne_namen_und_nummern_der_quellbuchungen():
         treffer = sorted(v for v in verboten if v in text)
         # Nur die Anzahl ausgeben: die Treffer selbst wären echte Daten im Log.
         assert not treffer, f"{os.path.basename(pfad)}: {len(treffer)} echte Strings"
+
+
+# --- Review-Befunde 2026-09-28 -----------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["Teilnehmerdaten.pdf", "Teilnehmer-Daten.pdf", "Liste Teilnehmer.pdf"])
+def test_teilnehmerdaten_auch_unter_anderem_namen_nie_verlinkt(name):
+    zeilen = ul.dokumente_zeilen(buchung([eintrag(1, name)]), HEUTE)
+    assert not any(LINK in z for z in zeilen)
+    assert ul.lesen(eintrag(1, name)) == (None, ul.TEILNEHMERDATEN_TEXT)
+
+
+def test_unicode_ziffer_als_id_reisst_die_liste_nicht():
+    zeilen = ul.dokumente_zeilen(buchung([eintrag("²", "Rechnung.pdf"), eintrag(3, "Flugplan.pdf")]), HEUTE)
+    assert zeilen[1:3] == [f"  - [Flugplan]({LINK})", f"  - [Rechnung]({LINK})"]
+
+
+def test_links_im_modelltext_nur_sicher(monkeypatch):
+    fake_get(monkeypatch, fixture_bytes("rechnung.pdf"))
+    unsicher = eintrag(1, "Rechnung.pdf", link="https://evil.example/a (b)")
+    assert "evil" not in ul.lesen(unsicher)[1]
+    buchung_ = {"tripurl": "https://travel-details.eu/x y", "bisDat": "2099-01-01"}
+    assert ul.aktuelle_tripurl(buchung_, HEUTE) == ""
+    assert ul.aktuelle_tripurl({**buchung_, "tripurl": "https://t.eu/ok"}, HEUTE) == "https://t.eu/ok"
+
+
+def test_dokument_ohne_anschrift_des_gasts(monkeypatch):
+    fake_get(monkeypatch, fixture_bytes("rechnung.pdf"))
+    antwort = ul.dokument(eintrag(1, "Rechnung.pdf"))
+    assert "Beispielweg" not in antwort and "Musterstadt" not in antwort
+    assert "\nVorgang 900001\n" in antwort and "Deine Rechnung" in antwort
+
+
+EINREISE_UMBRUCH = """Einreisebestimmungen
+1. Frau Musterfrau, Erika
+Geburtsdatum: 01.01.1970,
+Staatsangehörigkeit: DE
+Zielland: Namibia
+Deutsche Staatsangehörige benötigen ein Visum.
+2. Herr Probst, Max
+Geburtsdatum: 02.02.1972,
+Staatsangehörigkeit: CH
+Zielland: Namibia
+Schweizer Staatsangehörige benötigen kein Visum.
+"""
+
+
+def test_einreise_nationalitaet_nach_umbruch_nicht_zusammengelegt():
+    antwort = ul.einreise_bloecke(EINREISE_UMBRUCH)
+    assert "Staatsangehörigkeit DE:" in antwort and "Staatsangehörigkeit CH:" in antwort
+    assert "Schweizer Staatsangehörige benötigen kein Visum." in antwort
+    assert "Musterfrau" not in antwort and "Probst" not in antwort and "1970" not in antwort
+
+
+def test_einreise_nicht_erkannte_person_nur_link():
+    # Die zweite Kopfzeile ist umgebrochen: nicht als Grenze erkannt, ihre
+    # Zeilen stünden im DE-Block — dann lieber gar nicht gliedern.
+    kaputt = EINREISE_UMBRUCH.replace("2. Herr Probst, Max\n", "2. Herr Probst,\nMax\n\n")
+    assert ul.einreise_bloecke(kaputt) is None
+
+
+def test_grosse_unterueberschrift_nicht_im_titel():
+    fliess = "Bitte beachte, dass während der gesamten Reise die Anschnallpflicht gilt."
+    assert ul._hauptueberschrift("REISEINFORMATIONEN NAMIBIA", "DEVISEN", fliess)[1] == "REISEINFORMATIONEN NAMIBIA"
+    # Umbruch einer Überschrift (Folgezeile vor einer kurzen Unterüberschrift) bleibt verbunden.
+    assert ul._hauptueberschrift("REISEINFORMATIONEN MACHU", "PICCHU", "Anschnallpflicht")[1] == "REISEINFORMATIONEN MACHU PICCHU"
