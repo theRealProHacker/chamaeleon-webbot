@@ -554,6 +554,24 @@ def _tag_kopf(nummer: int, tag: dict) -> str:
     return kopf + (f" (Anschlussprogramm {tag['programm']})" if tag["programm"] else "")
 
 
+def _tagnummern(tage: list) -> list[int]:
+    """Kalendertag je Eintrag, gezählt ab dem ersten Eintrag (= Tag 1).
+
+    Nicht die Position: am Übergang ins Anschlussprogramm stehen zwei Einträge
+    mit demselben Datum (Hauptreise endet, Anschluss beginnt am 13.10.), und
+    „Tag 9“ meint für den Gast den neunten Reisetag, nicht den neunten
+    Eintrag. Ist ein Datum unlesbar oder springt es zurück, zählen wieder die
+    Einträge — lieber die alte Nummer als eine falsche Rechnung.
+    """
+    try:
+        daten = [datetime.datetime.strptime(t["datum"], "%d.%m.%Y").date() for t in tage]
+    except ValueError:
+        return list(range(1, len(tage) + 1))
+    if any(b < a for a, b in zip(daten, daten[1:])):
+        return list(range(1, len(tage) + 1))
+    return [(d - daten[0]).days + 1 for d in daten]
+
+
 def _reiseleitung(gl: dict) -> str:
     """Name (und Telefon) der Reiseleitung; mehrere Zeilen bei mehreren Personen."""
     for teil in gl["abschnitte"].get("reiseverlauf", []):
@@ -573,7 +591,7 @@ def uebersicht(gl: dict, slugs=()) -> str:
     tage = gl["tage"]
     if tage:
         zeilen.append(
-            f"- reiseverlauf: {len(tage)} Tage, {tage[0]['datum']} bis {tage[-1]['datum']} "
+            f"- reiseverlauf: {_tagnummern(tage)[-1]} Tage, {tage[0]['datum']} bis {tage[-1]['datum']} "
             "(tag=N für einen Tag, tag=0 für alle)"
         )
         reiseleitung = _reiseleitung(gl)
@@ -607,23 +625,25 @@ def abschnitt_text(gl: dict, abschnitt: str, tag: int = 0, *, deckel: int) -> st
         tage = gl["tage"]
         if not tage:
             return "Dieses Dokument enthält keinen Tagesablauf."
+        nummern = _tagnummern(tage)
         if tag and tag > 0:
-            if tag > len(tage):
-                return f"Tag {tag} gibt es nicht; die Reise hat {len(tage)} Tage."
-            return f"{_tag_kopf(tag, tage[tag - 1])}\n{tage[tag - 1]['text']}"
+            treffer = [(n, t) for n, t in zip(nummern, tage) if n == tag]
+            if not treffer:
+                return f"Tag {tag} gibt es nicht; die Reise hat {nummern[-1]} Tage."
+            return "\n\n".join(f"{_tag_kopf(n, t)}\n{t['text']}" for n, t in treffer)
         kopf = []
         reiseleitung = _reiseleitung(gl)
         if reiseleitung:
             kopf.append(f"Reiseleitung: {reiseleitung}")
         voll = "\n\n".join(
-            kopf + [f"{_tag_kopf(n, t)}\n{t['text']}" for n, t in enumerate(tage, 1)]
+            kopf + [f"{_tag_kopf(n, t)}\n{t['text']}" for n, t in zip(nummern, tage)]
         )
         if len(voll) <= deckel:
             return voll
         return "\n".join(
             kopf
             + ["Alle Tage zusammen sind zu lang. Einzeln abrufbar mit tag=N:"]
-            + [f"- {_tag_kopf(n, t)}" for n, t in enumerate(tage, 1)]
+            + [f"- {_tag_kopf(n, t)}" for n, t in zip(nummern, tage)]
         )
     teile = gl["abschnitte"].get(abschnitt) if abschnitt in ABSCHNITTE else None
     if not teile:

@@ -383,7 +383,8 @@ def test_uebersicht_mit_wichtigen_reisehinweisen(monkeypatch):
         eintrag(1, "Reiseunterlagen.pdf"), deckel=DECKEL, slugs=("rechnung", "visum-ausfuellhilfen")
     )
     assert antwort.startswith(f"Quelle: Reiseunterlagen ({LINK})")
-    assert "- reiseverlauf: 13 Tage, 06.10.2026 bis 17.10.2026" in antwort
+    # 13 Einträge, aber 12 Kalendertage: der 13.10. steht zweimal (Anschlussprogramm)
+    assert "- reiseverlauf: 12 Tage, 06.10.2026 bis 17.10.2026" in antwort
     assert "Reiseleitung: Herr Jonas Fiktiv" in antwort
     assert "dokument:rechnung, dokument:visum-ausfuellhilfen" in antwort
     assert "- reiseinformationen: Reiseinformationen (Fahrzeuge, Geld und Kreditkarten, Strom)" in antwort
@@ -397,16 +398,34 @@ def test_reiseverlauf_ein_tag_alle_tage_und_deckel():
     tag3 = ul.abschnitt_text(gl, "reiseverlauf", 3, deckel=DECKEL)
     assert tag3.startswith("Tag 3 · Do 08.10.2026 · In die Namib")
     assert "Dünenblick Lodge" in tag3 and "Swakopmund" not in tag3
+    # tag=N ist der N-te Kalendertag ab dem ersten Tag, nicht der N-te Eintrag:
+    # am 13.10. enden Hauptreise und beginnt das Anschlussprogramm, Tag 8 hat
+    # also beide Einträge, und Tag 9 ist der 14.10.
+    tag8 = ul.abschnitt_text(gl, "reiseverlauf", 8, deckel=DECKEL)
+    assert tag8.startswith("Tag 8 · Di 13.10.2026 · Rückfahrt nach Windhoek und Weiterflug")
+    assert "Tag 8 · Di 13.10.2026 · Flug nach Kapstadt (Anschlussprogramm KAPSTADT)" in tag8
     tag9 = ul.abschnitt_text(gl, "reiseverlauf", 9, deckel=DECKEL)
-    assert tag9.startswith("Tag 9 · Di 13.10.2026 · Flug nach Kapstadt (Anschlussprogramm KAPSTADT)")
-    assert "gibt es nicht" in ul.abschnitt_text(gl, "reiseverlauf", 99, deckel=DECKEL)
+    assert tag9.startswith("Tag 9 · Mi 14.10.2026 · Tafelberg und Kap der Guten Hoffnung")
+    assert "Tag 12 · Sa 17.10.2026 · Wieder zu Hause" in ul.abschnitt_text(gl, "reiseverlauf", 12, deckel=DECKEL)
+    assert "die Reise hat 12 Tage" in ul.abschnitt_text(gl, "reiseverlauf", 13, deckel=DECKEL)
     alle = ul.abschnitt_text(gl, "reiseverlauf", 0, deckel=DECKEL)
     assert "Dünenblick Lodge" in alle and "Hotel Hafenlicht" in alle
     # über dem Deckel: Inhaltsverzeichnis der Tage, nie mitten im Tag gekürzt
     toc = ul.abschnitt_text(gl, "reiseverlauf", 0, deckel=500)
     assert "Dünenblick Lodge" not in toc
     assert "- Tag 3 · Do 08.10.2026 · In die Namib" in toc
-    assert "- Tag 13 · Sa 17.10.2026 · Wieder zu Hause (Anschlussprogramm KAPSTADT)" in toc
+    assert "- Tag 12 · Sa 17.10.2026 · Wieder zu Hause (Anschlussprogramm KAPSTADT)" in toc
+
+
+def test_tagnummer_ohne_lesbares_datum_zaehlt_eintraege():
+    # Datum, das es nicht gibt, oder Sprung zurück: dann lieber die alte
+    # Zählung nach Einträgen als eine falsche Kalenderrechnung.
+    def t(datum, titel):
+        return {"wochentag": "", "datum": datum, "titel": titel, "text": "", "programm": ""}
+    gl = {"abschnitte": {}, "tage": [t("30.02.2026", "A"), t("01.03.2026", "B")]}
+    assert ul.abschnitt_text(gl, "reiseverlauf", 2, deckel=DECKEL).startswith("Tag 2 · 01.03.2026 · B")
+    gl = {"abschnitte": {}, "tage": [t("05.03.2026", "A"), t("01.03.2026", "B")]}
+    assert ul.abschnitt_text(gl, "reiseverlauf", 2, deckel=DECKEL).startswith("Tag 2 · 01.03.2026 · B")
 
 
 def test_abschnitt_text_andere_und_unbekannte():
