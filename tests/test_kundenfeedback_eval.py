@@ -1127,7 +1127,8 @@ ERFINDEN = [
         # Owner 2026-09-25: die Rueckfrage nach der gebuchten Reise ist in
         # Ordnung — ohne sie kennt Leon die zustaendige Berater*in nicht. Der
         # Fehler aus der Mail war die erfundene Nummer (keine_nummern).
-        "muss_eines": [*_BERATER, r"(welche|deine|gebuchte)\W.{0,40}Reise"],
+        # „nenne mir bitte die Reise, um die es geht“ ist dieselbe Rueckfrage.
+        "muss_eines": [*_BERATER, r"(welche|deine|gebuchte|die)\W.{0,40}Reise"],
         "keine_nummern": True,
     },
     # --- Schwesterfaelle ---------------------------------------------------
