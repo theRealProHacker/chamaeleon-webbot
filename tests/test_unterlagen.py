@@ -655,7 +655,6 @@ def test_einreise_nicht_erkannte_person_nur_link():
     assert ul.einreise_bloecke(kaputt) is None
 
 
-
 def test_nationalitaet_nicht_aus_dem_naechsten_block():
     # Erste Person ohne Nationalität und ohne Bestimmungen: die der zweiten
     # darf nicht in ihren Block rutschen (sonst fielen deren Regeln weg).
@@ -667,3 +666,9 @@ def test_nationalitaet_nicht_aus_dem_naechsten_block():
     antwort = ul.einreise_bloecke(text)
     assert "Staatsangehörigkeit CH:" in antwort
     assert "Schweizer Staatsangehörige benötigen kein Visum." in antwort
+
+
+def test_umgebrochener_titel_wird_verbunden():
+    # Gemessen: „REISEINFORMATIONEN MACHU“ / „PICCHU“ — die erste Zeile passt
+    # schon allein, die Fortsetzung gehört trotzdem in den Titel.
+    assert ul._hauptueberschrift("REISEINFORMATIONEN MACHU", "PICCHU")[1] == "REISEINFORMATIONEN MACHU PICCHU"
