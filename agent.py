@@ -110,6 +110,53 @@ def make_reiseinfo_tool(
     return reiseinfo_tool
 
 
+# Das Widget schickt seine Begrüßung als erste Assistenten-Nachricht mit (es
+# liest jede Blase im Chatfenster als Verlauf). Gemini 2.5 Flash antwortete auf
+# [System, Assistent, Nutzer] bei langem Prompt und Tool-Frage mit einer leeren
+# Antwort (finish_reason STOP, 0 Tokens) — dreimal identisch, dann der
+# Fallback. Gemessen 2026-09-30: mit Begrüßung 3/3 leer, ohne 0/13. Die
+# Begrüßung fällt deshalb weg; nur der Vorname daraus geht in den System-Prompt.
+_GRUSS_NAME = re.compile(r"^\s*(?:<p>)?\s*Hallo ([^!<>\n]{1,40})!")
+# Der Name kommt vom Client und landet im System-Prompt — nur was nach einem
+# Vornamen aussieht (höchstens drei Wörter, 30 Zeichen), nie beliebiger Text.
+_NAME_WORT = r"[^\W\d_](?:[^\W\d_]|[.'-])*"
+_NAME_ERLAUBT = re.compile(rf"^(?=.{{1,30}}$){_NAME_WORT}(?: {_NAME_WORT}){{0,2}}$")
+
+
+def begruessung_abtrennen(messages: list) -> tuple[list, str, bool]:
+    """Assistenten-Nachrichten vor der ersten Nutzerfrage abtrennen.
+
+    Gibt ``(rest, vorname, begruesst)`` zurück: den Verlauf ab der ersten
+    Nutzernachricht, den Vornamen aus „Hallo <Name>!" ("" wenn keiner) und ob
+    überhaupt eine Begrüßung davor stand.
+    """
+    i = 0
+    vorname = ""
+    while i < len(messages) and messages[i].get("role") == "assistant":
+        treffer = _GRUSS_NAME.match(str(messages[i].get("content") or ""))
+        if treffer and not vorname and _NAME_ERLAUBT.match(treffer.group(1).strip()):
+            vorname = treffer.group(1).strip()
+        i += 1
+    return messages[i:], vorname, i > 0
+
+
+def begruessung_block(vorname: str, begruesst: bool) -> str:
+    """Was das Modell aus der weggefallenen Begrüßung noch wissen muss."""
+    if not begruesst:
+        return ""
+    block = (
+        "\n\nBegrüßung: Das Chatfenster hat den Nutzer bereits begrüßt und dich "
+        "als Leon vorgestellt. Beginne deine Antworten deshalb nie mit einer "
+        "Begrüßung oder Anrede (kein „Hallo …“), sondern direkt mit der Sache."
+    )
+    if vorname:
+        block += (
+            f" Zur Information: Der Vorname des Nutzers ist {vorname}. Nenne ihn "
+            "nur, wenn er danach fragt oder es inhaltlich nötig ist."
+        )
+    return block
+
+
 def convert_messages_to_langchain(messages: list) -> list:
     """Convert generic message format to LangChain message objects."""
     chat_history = []
@@ -380,6 +427,8 @@ def call_stream(
     Yields:
         dict: Events with 'type' and 'data' keys
     """
+    messages, gruss_vorname, begruesst = begruessung_abtrennen(messages)
+
     # Detect countries
     detected_countries: list[str] = []
     for country in laender_faqs:
@@ -403,7 +452,7 @@ def call_stream(
         has_agentur_daten=bool(agentur_id),
         reise_vorgang=reise_vorgang,
         reise_label=reise_label,
-    )
+    ) + begruessung_block(gruss_vorname, begruesst)
 
     # Convert messages to LangChain format
     chat_history = [
