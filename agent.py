@@ -328,9 +328,15 @@ def _naechste_reise(kunden_id: str) -> tuple[str, str]:
         buchungen = kundendaten._buchungen_roh(kunden_id)
         if not buchungen:
             return "", ""
+        heute = kundendaten.heute_berlin()
+        # Die Statusprüfung unten fragt der Reihe nach. Bei neun stornierten vor
+        # der ersten lebenden waren das kalt 5 s — weit über REISE_TIMEOUT_S, der
+        # Prompt bekam gar keine Reise. Also alle kommenden vorher nebenläufig in
+        # den Hop-2-Cache holen; die Prüfung liest dann nur noch aus dem Cache.
+        kundendaten._hop2_alle(kundendaten.select(buchungen, "kommende", 0, heute))
         return kundendaten.naechste_offene_reise(
             buchungen,
-            kundendaten.heute_berlin(),
+            heute,
             storniert=lambda v: kundendaten.ist_storniert(kundendaten.buchungsstatus(v)),
         )
     except Exception as e:

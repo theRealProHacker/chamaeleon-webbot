@@ -167,16 +167,61 @@ def test_leere_auswahl_hat_eigenen_text(monkeypatch):
 # --- grobe Liste (details=false) ---------------------------------------------
 
 
-def test_overview_ohne_hop2(monkeypatch):
+def test_overview_holt_den_status_je_buchung(monkeypatch):
     calls = fake_tourone(
-        monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]),
+         "/get/buchung": {"status": "OK"}},
     )
     text = kd.fetch_buchungen_text("999999999", details=False)
     assert "Buchungsnummer 126001" in text
     # Zukunfts-Datum → Marker; die erste künftige Reise heißt „nächste Reise",
     # weitere künftige bleiben „kommend".
     assert "nächste Reise" in text
-    assert len(calls) == 1  # grobe Liste macht keinen /get/buchung-Call
+    # Hop 1 kennt keinen Status — ein Hop 2 je Buchung, nicht mehr.
+    assert [c["path"] for c in calls] == ["/get/adresse", "/get/buchung"]
+
+
+def _storno_vor_lebender(monkeypatch):
+    """Gesehen 2026-09-30: die näheste kommende Buchung ist storniert, die
+    lebende liegt dahinter — Leon nannte die stornierte „nächste Reise“."""
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([
+            eingebettete_buchung("STORNO", von="2099-03-16 00:00:00", bis="2099-03-31 00:00:00"),
+            eingebettete_buchung("LEBT", von="2099-10-12 00:00:00", bis="2099-10-22 00:00:00"),
+        ]),
+         "/get/buchung": lambda p: {
+             "vorgang": p["vorgangsNummer"],
+             "status": "XX" if p["vorgangsNummer"] == "STORNO" else "OP",
+         }},
+    )
+
+
+def test_stornierte_buchung_ist_in_der_liste_nicht_die_naechste(monkeypatch):
+    _storno_vor_lebender(monkeypatch)
+    text = kd.fetch_buchungen_text("999999999", auswahl="kommende")
+    storno = next(z for z in text.splitlines() if "STORNO" in z)
+    lebt = next(z for z in text.splitlines() if "LEBT" in z)
+    assert "storniert" in storno and "nächste Reise" not in storno
+    assert "nächste Reise" in lebt
+
+
+def test_anzahl_ueberspringt_stornierte(monkeypatch):
+    _storno_vor_lebender(monkeypatch)
+    for details in (False, True):
+        text = kd.fetch_buchungen_text("999999999", "kommende", 1, details)
+        assert "LEBT" in text and "STORNO" not in text
+
+
+def test_gescheiterter_status_gilt_nicht_als_storniert(monkeypatch):
+    fake_tourone(
+        monkeypatch,
+        {"/get/adresse": adresse_mit([eingebettete_buchung()]),
+         "/get/buchung": RuntimeError("boom")},
+    )
+    text = kd.fetch_buchungen_text("999999999", details=False)
+    assert "nächste Reise" in text and "storniert" not in text
 
 
 def _titel_map(monkeypatch, mapping):
@@ -211,7 +256,8 @@ def test_overview_titel_kostet_keinen_zusaetzlichen_request(monkeypatch):
         monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung()])}
     )
     kd.fetch_buchungen_text("999999999", details=False)
-    assert len(calls) == 1
+    assert [c["path"] for c in calls].count("/get/adresse") == 1
+    assert len(calls) == 2  # Hop 1 + der Status-Hop-2, kein Titel-Request
 
 
 def test_detail_zieht_hop2_titel_dem_index_vor(monkeypatch):

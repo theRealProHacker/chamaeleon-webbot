@@ -332,8 +332,10 @@ def select(buchungen: list, auswahl: str, anzahl: int, heute: str) -> list:
     return sel
 
 
-def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
-    """Eine grobe Zeile pro Buchung — nur aus den Hop-1-Daten."""
+def _overview_zeile(
+    b: dict, heute: str, ist_naechste: bool = False, storniert: bool = False
+) -> str:
+    """Eine grobe Zeile pro Buchung — Hop 1 plus der Storno-Status aus Hop 2."""
     code = b.get("reiseCode")
     titel = buchung_titel(b, _titel_aus_code(code) or code or "deine Reise")
     von, bis = str(b.get("vonDat") or ""), str(b.get("bisDat") or "")
@@ -341,6 +343,9 @@ def _overview_zeile(b: dict, heute: str, ist_naechste: bool = False) -> str:
     if von:
         teile.append(f"({fmt_datum(von)}" + (f" – {fmt_datum(bis)})" if bis else ")"))
     teile.append(f"Buchungsnummer {b.get('vorgang')}")
+    if storniert:
+        teile.append("storniert")
+        return "- " + " · ".join(teile)
     marker = zeit_marker(von, bis, heute)
     # Welche die nächste ist, steht sonst nur implizit in der Sortierung — und die
     # hat das Modell schon falsch gelesen. Also explizit benennen.
@@ -557,20 +562,35 @@ def fetch_buchungen_text(
         return KEINE_BUCHUNGEN_TEXT
 
     heute = heute_berlin()
-    ausgewaehlt = select(alle, auswahl, anzahl, heute)
-    if not ausgewaehlt:
+    # Hop 2 für die GANZE Auswahl, auch in der groben Liste: Hop 1 trägt keinen
+    # Status. Ohne ihn hieß die erste kommende Buchung „nächste Reise“, und
+    # anzahl=1 lieferte sie — auch wenn sie storniert war. Gesehen 2026-09-30:
+    # neun stornierte Reisen vor der einzigen lebenden, und Leon antwortete
+    # viermal „Deine nächste Reise ist leider storniert“. Gecacht und beim
+    # Login vorgewärmt; ein gescheiterter Abruf (None) gilt als nicht storniert.
+    voll = select(alle, auswahl, 0, heute)
+    if not voll:
         return f'In der Auswahl „{auswahl}" finde ich keine Buchung.'
+    paare = list(zip(voll, _hop2_alle(voll)))
+
+    def ist_tot(paar) -> bool:
+        return isinstance(paar[1], dict) and ist_storniert(paar[1].get("status"))
+
+    if isinstance(anzahl, int) and anzahl > 0:
+        # „Die N relevantesten“ sind lebende Buchungen; stornierte rücken nur
+        # nach, wenn es nicht genug lebende gibt. sorted ist stabil.
+        paare = sorted(paare, key=ist_tot)[:anzahl]
 
     if not details:
-        gezeigt = ausgewaehlt
-        # Die erste noch nicht begonnene Reise der (sortierten) Auswahl ist die
-        # nächste. "läuft gerade" zählt nicht — eine laufende Reise ist nicht die
-        # nächste, und sie sortiert wegen ihres vonDat davor.
+        # Die erste noch nicht begonnene, nicht stornierte Reise der Auswahl ist
+        # die nächste. "läuft gerade" zählt nicht — eine laufende Reise ist nicht
+        # die nächste, und sie sortiert wegen ihres vonDat davor.
         naechste = next(
             (
                 i
-                for i, b in enumerate(gezeigt)
-                if zeit_marker(
+                for i, (b, d) in enumerate(paare)
+                if not ist_tot((b, d))
+                and zeit_marker(
                     str(b.get("vonDat") or ""), str(b.get("bisDat") or ""), heute
                 )
                 == "kommend"
@@ -578,14 +598,14 @@ def fetch_buchungen_text(
             None,
         )
         zeilen = [
-            _overview_zeile(b, heute, ist_naechste=(i == naechste))
-            for i, b in enumerate(gezeigt)
+            _overview_zeile(b, heute, ist_naechste=(i == naechste), storniert=ist_tot((b, d)))
+            for i, (b, d) in enumerate(paare)
         ]
         return "Deine Buchungen:\n" + "\n".join(zeilen)
 
     bloecke: list[str] = []
     fehler_gesehen = False
-    for eingebettet, buchung in zip(ausgewaehlt, _hop2_alle(ausgewaehlt)):
+    for eingebettet, buchung in paare:
         if buchung is None:
             fehler_gesehen = True
             continue
@@ -674,8 +694,8 @@ def make_buchungen_tool(kunden_id: str):
           Beide Ansichten sind vollständig — sie kürzen nicht. Die Detailansicht
           kostet aber einen Abruf je Buchung, also grenze mit auswahl/anzahl
           ein, wenn der Kunde nur nach bestimmten Reisen fragt.
-        Stornierte Buchungen sind mit dabei; nur die Detailansicht weist sie als
-          „Status: storniert" aus, die grobe Liste kann das nicht.
+        Stornierte Buchungen sind mit dabei und in beiden Ansichten als
+          storniert markiert; „nächste Reise" und anzahl überspringen sie.
         """
         return fetch_buchungen_text(kunden_id, auswahl, anzahl, details)
 
