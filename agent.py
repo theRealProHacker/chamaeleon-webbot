@@ -280,7 +280,10 @@ def text_aus_content(content) -> str:
 # Gesamtwartezeit für den Buchungsabruf beim Prompt-Bau. Der requests-timeout
 # aus kundendaten.TIMEOUT (8 s) gilt je Socket-Schritt, nicht für die
 # Gesamtdauer — genau deshalb steht hier eine zweite, harte Schranke.
-REISE_TIMEOUT_S = 1.0
+# 5 s statt 1 s (Owner, 2026-09-30): kalt gemessen 0,4 s Hop 1 plus 3,8 s für
+# die parallelen Statusabrufe (der langsamste /get/buchung bestimmt die Dauer).
+# Mit 1 s bekam der Prompt bei kaltem Cache gar keine Reise. Warm kostet es nichts.
+REISE_TIMEOUT_S = 5.0
 
 
 def reise_fuer_links(endpoint: str, kunden_id: str) -> tuple[str, str]:
@@ -330,7 +333,7 @@ def _naechste_reise(kunden_id: str) -> tuple[str, str]:
             return "", ""
         heute = kundendaten.heute_berlin()
         # Die Statusprüfung unten fragt der Reihe nach. Bei neun stornierten vor
-        # der ersten lebenden waren das kalt 5 s — weit über REISE_TIMEOUT_S, der
+        # der ersten lebenden waren das kalt 5 s — sequenziell zu lang, der
         # Prompt bekam gar keine Reise. Also alle kommenden vorher nebenläufig in
         # den Hop-2-Cache holen; die Prüfung liest dann nur noch aus dem Cache.
         kundendaten._hop2_alle(kundendaten.select(buchungen, "kommende", 0, heute))
