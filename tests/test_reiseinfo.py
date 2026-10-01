@@ -482,6 +482,28 @@ def test_dokument_slug_und_teilnehmerdaten(monkeypatch):
     assert "dokument:visum-ausfuellhilfen" in fehlt
 
 
+def test_dokument_reiseunterlagen_ist_die_uebersicht_nicht_fehlt(monkeypatch):
+    """Gemessen 2026-10-02: Gemini fragte dokument:reiseunterlagen, bekam „gibt
+    es nicht“ und sagte dem Kunden, die Reiseunterlagen fehlten."""
+    mit_unterlagen(monkeypatch, [
+        _dok(1, "Reisebestätigung.pdf", "reisebestaetigung_alt.pdf"),
+        _dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf"),
+    ])
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:reiseunterlagen")
+    assert "reiseunterlagen_neu.pdf" in text and "Inhalt (Details" in text
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:reisebestaetigung")
+    assert "reisebestaetigung_alt.pdf" in text and "Inhalt (Details" in text
+
+
+def test_dokument_reiseunterlagen_ungegliedert_nur_link(monkeypatch):
+    """Unbekannte Vorlage: Link statt des ganzen PDF-Texts."""
+    mit_unterlagen(monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")])
+    monkeypatch.setattr(unterlagen, "gliedern", lambda inhalt: None)
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:reiseunterlagen")
+    assert "konnte aber nicht gegliedert werden" in text
+    assert "Inhalt von" not in text
+
+
 def test_download_ausfall_nennt_den_link(monkeypatch):
     mit_unterlagen(monkeypatch, [_dok(2, "Reiseunterlagen.pdf", "reiseunterlagen_neu.pdf")])
 

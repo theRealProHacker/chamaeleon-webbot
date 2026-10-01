@@ -281,6 +281,13 @@ def quelle_auto(unterlagen: object) -> dict | None:
     return None
 
 
+def hauptdokument(unterlagen: object, art: str) -> dict | None:
+    """Neueste Reiseunterlagen bzw. Reisebestätigung für ``dokument:<art>``; sonst None."""
+    if art not in ("reiseunterlagen", "reisebestaetigung"):
+        return None
+    return _neueste([e for e in _eintraege(unterlagen) if dokument_art(e.get("name")) == art])
+
+
 def dokumente_nach_slug(unterlagen: object) -> dict:
     """``{slug: eintrag}`` für DOKUMENT_SLUGS; je Slug gewinnt die höchste id."""
     ergebnis = {}

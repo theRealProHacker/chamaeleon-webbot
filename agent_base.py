@@ -2344,6 +2344,17 @@ def _reiseinfo_aus_dokumenten(
         slug = abschnitt.split(":", 1)[1].strip().lower()
         if slug == "teilnehmerdaten":
             return unterlagen.TEILNEHMERDATEN_TEXT
+        haupt = unterlagen.hauptdokument(eintraege, slug)
+        if haupt:
+            # ULAS und BEST sind keine Slugs, das Modell fragt trotzdem danach
+            # (gemessen 2026-10-02). „Gibt es nicht“ hätte es dem Kunden als
+            # „deine Reiseunterlagen fehlen“ weitergesagt: Übersicht statt dessen.
+            # Nicht lesbar oder nicht gegliedert: nur der Link, nie das ganze
+            # PDF (Deckblatt mit Namen, die gliedern bewusst auslässt).
+            text = unterlagen.reiseunterlagen(
+                haupt, "", 0, deckel=REISEINFO_MAX_CHARS, slugs=tuple(slugs)
+            ) or unterlagen.lesen(haupt)[1] or unterlagen._nicht_gegliedert(haupt)
+            return _kuerzen(f"Zu deiner Reise (Buchung {nummer}):\n{text}")
         eintrag = slugs.get(slug)
         if not eintrag:
             return (
