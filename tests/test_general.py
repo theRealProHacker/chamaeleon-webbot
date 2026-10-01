@@ -96,6 +96,39 @@ def test_chat_stream_threads_agentur_flag(monkeypatch):
     assert calls == [True, False]
 
 
+def test_chat_stream_behaelt_die_buchungsnummer_der_seite(monkeypatch):
+    """Gemessen 2026-09-29: normalize_url warf ?VRRVORGANG= weg, der Agent kannte
+    die geöffnete Reise nicht und baute den Link /MeinChamaeleon/Reise#unterlagen
+    ohne Nummer (landet auf der Startseite). Ins Log geht weiter nur der Pfad."""
+    import queue
+
+    import agent_base
+    import app
+
+    endpoints = []
+
+    def fake_call_stream(messages, endpoint, *args, **kwargs):
+        endpoints.append(endpoint)
+        yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
+
+    monkeypatch.setattr(app, "call_stream", fake_call_stream)
+    log = queue.Queue()
+    monkeypatch.setattr(app, "log_queue", log)
+
+    app.app.test_client().post("/chat/stream", json={
+        "session_id": "test-vrrvorgang",
+        "messages": [{"role": "user", "content": "Hallo"}],
+        "current_url": "/MeinChamaeleon/Reise?VRRVORGANG=199095",
+    }).get_data()  # Stream lesen, sonst läuft der Generator nie bis zum Log
+    assert agent_base._vrrvorgang_from_url(endpoints[0]) == "199095"
+    geloggt = []
+    monkeypatch.setattr(app, "log_messages", lambda sid, msgs: geloggt.append(msgs))
+    for job in list(log.queue):
+        job()
+    assert geloggt and "/MeinChamaeleon/Reise" in str(geloggt)
+    assert "VRRVORGANG" not in str(geloggt)
+
+
 def test_markdownify_page_html():
     """Client-sent page HTML becomes capped markdown; never raises."""
     md = markdownify_page_html(

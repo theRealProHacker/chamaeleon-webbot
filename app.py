@@ -11,7 +11,7 @@ from flask_cors import CORS
 
 import agent
 from agent import call_stream
-from agent_base import markdownify_page_html
+from agent_base import _vrrvorgang_from_url, markdownify_page_html
 import kundendaten
 from kundendaten import filter_new_tool_calls
 import agentur_auth
@@ -92,7 +92,15 @@ def chat_stream():
     # sent both absolute urls and bare paths, and the dashboard groups on this
     # value. Normalising at the boundary means the path parsing downstream only
     # ever has to handle one shape (and only for rows written before this).
+    # Die Buchungsnummer der geöffneten MeinChamäleon-Reise steht nur in der
+    # Query, und die wirft normalize_url weg (2026-09-29: ohne sie baute Leon
+    # /MeinChamaeleon/Reise#unterlagen ohne Nummer). Der Agent bekommt sie
+    # zurück, Log und Dashboard weiter nur den Pfad.
+    seiten_vorgang = _vrrvorgang_from_url(endpoint)
     endpoint = chat_segments.normalize_url(endpoint) or "/"
+    agent_endpoint = (
+        f"{endpoint}?VRRVORGANG={seiten_vorgang}" if seiten_vorgang else endpoint
+    )
     kundenberater_name = data.get("kundenberater_name", "")
     kundenberater_telefon = data.get("kundenberater_telefon", "")
     # Must be read here: the request context is gone inside the generator.
@@ -145,7 +153,7 @@ def chat_stream():
         try:
             for event in call_stream(
                 messages,
-                endpoint,
+                agent_endpoint,
                 kundenberater_name,
                 kundenberater_telefon,
                 is_agentur,
