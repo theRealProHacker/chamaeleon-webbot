@@ -152,6 +152,7 @@ def chat_stream():
                 page_content,
                 kunden_id,
                 agentur_id,
+                session_id=session_id,
             ):
                 # "Tool gefeuert" beobachtbar machen (stdout, nicht Supabase):
                 # nur Toolname + session_id, nie Argumente oder Kundendaten.

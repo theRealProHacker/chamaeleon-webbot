@@ -1,9 +1,15 @@
+import datetime
+import hashlib
+import json
+import os
 import re
 import time
 
 import gevent
 import mistune
+import pytz
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
@@ -31,6 +37,7 @@ from agent_base import (
 from agenturdaten import make_buchungen_agentur_tool
 import kundendaten
 from kundendaten import make_buchungen_tool
+import tool_history
 
 # Initialize the model
 model = ChatGoogleGenerativeAI(
@@ -157,15 +164,138 @@ def begruessung_block(vorname: str, begruesst: bool) -> str:
     return block
 
 
-def convert_messages_to_langchain(messages: list) -> list:
-    """Convert generic message format to LangChain message objects."""
+def convert_messages_to_langchain(
+    messages: list, gespeicherte_turns: dict[int, list] | None = None
+) -> list:
+    """Convert generic message format to LangChain message objects.
+
+    ``gespeicherte_turns`` (aus tool_history) kommen vor die erste Antwort
+    ihres Turns, in der Form, die der Graph selbst erzeugt hätte:
+    Human → AI(tool_calls) → Tool … → AI(Text). Ein Turn ohne Antwort im
+    Verlauf wird übersprungen.
+    """
+    gespeicherte_turns = gespeicherte_turns or {}
     chat_history = []
+    turn = 0
+    eingefuegt = set()
     for msg in messages:
         if msg["role"] == "user":
+            turn += 1
             chat_history.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
+            if turn in gespeicherte_turns and turn not in eingefuegt:
+                eingefuegt.add(turn)
+                chat_history.extend(_replay_nachrichten(gespeicherte_turns[turn]))
             chat_history.append(AIMessage(content=msg["content"]))
     return chat_history
+
+
+def _replay_nachrichten(verlauf: list) -> list:
+    nachrichten = []
+    for eintrag in verlauf:
+        if eintrag["typ"] == "ai_tool_calls":
+            nachrichten.append(
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": tc["name"],
+                            "args": tc["args"],
+                            "id": tc["id"],
+                            "type": "tool_call",
+                        }
+                        for tc in eintrag["tool_calls"]
+                    ],
+                )
+            )
+        elif eintrag["typ"] == "tool":
+            nachrichten.append(
+                ToolMessage(
+                    content=eintrag["content"],
+                    tool_call_id=eintrag["tool_call_id"],
+                    name=eintrag.get("name") or None,
+                )
+            )
+    return nachrichten
+
+
+# Abschaltbar per env auf Railway, ohne Code-Deploy: aus = kein Speichern, kein
+# Einfügen, Verhalten wie vor der Tool-Historie.
+TOOL_HISTORY_ENABLED = os.getenv("TOOL_HISTORY_ENABLED", "true").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+
+# Verfügbarkeiten kippen innerhalb der TTL. Ein zwei Stunden altes „3 Plätze
+# frei“ als Tool-Ergebnis im Verlauf behauptet das Modell selbstbewusst weiter;
+# der Termine-Index ist lokal, ihn erneut zu fragen kostet nichts.
+_NICHT_SPEICHERN = {"termine_tool"}
+
+
+def _identitaet(kunden_id: str, agentur_id: str) -> str:
+    if kunden_id:
+        return f"kunde:{kunden_id}"
+    if agentur_id:
+        return f"agentur:{agentur_id}"
+    return ""
+
+
+def _tool_verlauf(nachrichten: list, tool_names: list[str]) -> list:
+    """Die Tool-Schritte eines Laufs im Speicherformat von tool_history.
+
+    Ausgeschlossen wird paarweise: fällt ein Aufruf weg (termine_tool, oder ein
+    Name, den der Server nie gebunden hat), fällt sein Ergebnis mit, und ein
+    AI-Schritt ohne verbleibende Aufrufe entfällt ganz. Jedes Ergebnis bekommt
+    die Uhrzeit, zu der es geholt wurde — dieselbe Berliner Zeit wie im
+    System-Prompt.
+    """
+    erlaubt = set(tool_names) - _NICHT_SPEICHERN
+    stand = datetime.datetime.now(pytz.timezone("Europe/Berlin")).strftime("%H:%M")
+    behalten: set = set()
+    verlauf = []
+    for message in nachrichten:
+        if isinstance(message, ToolMessage):
+            if message.tool_call_id in behalten:
+                verlauf.append(
+                    {
+                        "typ": "tool",
+                        "tool_call_id": message.tool_call_id,
+                        "name": message.name or "",
+                        "content": f"[Stand {stand}] "
+                        + (
+                            message.content
+                            if isinstance(message.content, str)
+                            else text_aus_content(message.content)
+                        ),
+                    }
+                )
+        elif getattr(message, "tool_calls", None):
+            calls = [
+                {"name": tc["name"], "args": tc.get("args") or {}, "id": tc.get("id") or ""}
+                for tc in message.tool_calls
+                if tc.get("name") in erlaubt and tc.get("id")
+            ]
+            if calls:
+                behalten.update(tc["id"] for tc in calls)
+                verlauf.append({"typ": "ai_tool_calls", "tool_calls": calls})
+    return verlauf
+
+
+def _tool_schluessel(tc: dict) -> tuple[str, str]:
+    return tc.get("name", ""), json.dumps(tc.get("args") or {}, sort_keys=True, default=str)
+
+
+def _session_kurz(session_id: str) -> str:
+    # Die session_id ist der Bearer der Kunden-Bindung und gehört nicht ins Log.
+    return hashlib.sha256(session_id.encode()).hexdigest()[:12]
+
+
+# Lehnt Gemini die eingefügte Form ab, kommt das als 400 / INVALID_ARGUMENT.
+# Nur dann lohnt ein Lauf ohne Replay; 429, 5xx und Timeouts würden dabei nur
+# jeden Tool-Aufruf ein zweites Mal ausführen.
+_FORMFEHLER = re.compile(r"\b400\b|INVALID_ARGUMENT")
 
 
 # Single '*' between two word characters is the German Genderstern (e.g.
@@ -406,6 +536,7 @@ def call_stream(
     page_content: str = "",
     kunden_id: str = "",
     agentur_id: str = "",
+    session_id: str = "",
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -423,6 +554,8 @@ def call_stream(
         agentur_id: Agenturnummer from the server-side verified binding;
             "" unless the agency is authenticated. is_agentur alone is only a
             header mirror and never unlocks booking data.
+        session_id: Chat session of the widget; keys the tool history
+            (tool_history.py). "" switches it off: nothing saved, nothing replayed.
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -454,10 +587,23 @@ def call_stream(
         reise_label=reise_label,
     ) + begruessung_block(gruss_vorname, begruesst)
 
+    # Was das Modell in früheren Turns nachgeschlagen hat (tool_history.py).
+    # Turn i = die i-te Nutzernachricht des Verlaufs, ohne die Begrüßung davor.
+    if not TOOL_HISTORY_ENABLED:
+        session_id = ""
+    identitaet = _identitaet(kunden_id, agentur_id)
+    fragen = [str(m.get("content") or "") for m in messages if m["role"] == "user"]
+    gespeicherte_turns = tool_history.load(
+        tool_history._store,
+        session_id,
+        identitaet,
+        fingerprints=dict(enumerate(fragen, start=1)),
+    )
+
     # Convert messages to LangChain format
     chat_history = [
         SystemMessage(content=system_prompt)
-    ] + convert_messages_to_langchain(messages)
+    ] + convert_messages_to_langchain(messages, gespeicherte_turns)
 
     # Initialize recommendation containers
     recommendations = set[str]()
@@ -493,6 +639,10 @@ def call_stream(
         angestossen = False
         for versuch in range(1, _MAX_VERSUCHE + 1):
             tool_aufgerufen = False
+            # Ab hier beginnt, was DIESER Lauf erzeugt. Davor liegen Verlauf und
+            # eingefügte Tool-Historie; die würden sonst bei jedem Folgeturn als
+            # frische Tool-Aufrufe gemeldet und erneut gespeichert.
+            basis = len(chat_history)
             # Nur das LETZTE Event wird gebraucht (die Endantwort). Eine Liste
             # aller Events hielte bei stream_mode="values" jeden Zwischenstand
             # inklusive der vollen Tool-Ergebnisse bis zum Turn-Ende am Leben.
@@ -507,76 +657,96 @@ def call_stream(
             # ein Vorfall einmal pro Folge-Event im Log. Der Set lebt pro
             # Versuch, damit ein zweiter Lauf seine eigenen Vorfälle meldet.
             gemeldete_vorfaelle: set = set()
-            for event in agent_executor.stream(
-                {"messages": chat_history}, stream_mode="values"
-            ):
-                letztes_event = event
+            try:
+                for event in agent_executor.stream(
+                    {"messages": chat_history}, stream_mode="values"
+                ):
+                    letztes_event = event
 
-                # Check if there are new messages with tool calls
-                if "messages" in event:
-                    for message in event["messages"]:
-                        # Auffälliger finish_reason — nur Metadaten ins Log:
-                        # Toolnamen, Zähler, Token-Verbrauch. Nie Nachrichten-
-                        # text, nie Tool-Argumente, nie eine Kundennummer.
-                        grund = auffaelliger_finish_reason(message)
-                        if grund and len(gemeldete_vorfaelle) < _MAX_VORFALL_ZEILEN:
-                            schluessel = getattr(message, "id", None) or id(message)
-                            if schluessel not in gemeldete_vorfaelle:
-                                gemeldete_vorfaelle.add(schluessel)
-                                # Der Toolname kommt roh aus der Modellantwort und
-                                # ist NICHT gegen die deklarierten Tools geprüft
-                                # (langchain_google_genai übernimmt ihn ungefiltert).
-                                # Also nur durchlassen, was der Server selbst
-                                # gebunden hat — sonst schreibt das Modell in
-                                # unser Log.
-                                namen = [
-                                    tc.get("name", "")
-                                    if tc.get("name", "") in tool_names
-                                    else "<unbekannt>"
-                                    for tc in (
-                                        getattr(message, "tool_calls", None) or []
+                    # Check if there are new messages with tool calls
+                    if "messages" in event:
+                        for message in event["messages"][basis:]:
+                            # Auffälliger finish_reason — nur Metadaten ins Log:
+                            # Toolnamen, Zähler, Token-Verbrauch. Nie Nachrichten-
+                            # text, nie Tool-Argumente, nie eine Kundennummer.
+                            grund = auffaelliger_finish_reason(message)
+                            if grund and len(gemeldete_vorfaelle) < _MAX_VORFALL_ZEILEN:
+                                schluessel = getattr(message, "id", None) or id(message)
+                                if schluessel not in gemeldete_vorfaelle:
+                                    gemeldete_vorfaelle.add(schluessel)
+                                    # Der Toolname kommt roh aus der Modellantwort und
+                                    # ist NICHT gegen die deklarierten Tools geprüft
+                                    # (langchain_google_genai übernimmt ihn ungefiltert).
+                                    # Also nur durchlassen, was der Server selbst
+                                    # gebunden hat — sonst schreibt das Modell in
+                                    # unser Log.
+                                    namen = [
+                                        tc.get("name", "")
+                                        if tc.get("name", "") in tool_names
+                                        else "<unbekannt>"
+                                        for tc in (
+                                            getattr(message, "tool_calls", None) or []
+                                        )
+                                    ]
+                                    print(
+                                        f"[agent] auffälliger finish_reason={grund!r} "
+                                        f"versuch={versuch}/{_MAX_VERSUCHE} "
+                                        f"tool_calls={namen} "
+                                        f"tools_gebunden={tool_names} "
+                                        f"nachrichten={len(event['messages'])} "
+                                        f"usage={getattr(message, 'usage_metadata', None)}"
                                     )
-                                ]
-                                print(
-                                    f"[agent] auffälliger finish_reason={grund!r} "
-                                    f"versuch={versuch}/{_MAX_VERSUCHE} "
-                                    f"tool_calls={namen} "
-                                    f"tools_gebunden={tool_names} "
-                                    f"nachrichten={len(event['messages'])} "
-                                    f"usage={getattr(message, 'usage_metadata', None)}"
-                                )
 
-                        # Check for tool calls in AI messages
-                        if hasattr(message, "tool_calls") and message.tool_calls:
-                            tool_aufgerufen = True
-                            for tool_call in message.tool_calls:
-                                yield {
-                                    "type": "tool_call",
-                                    "data": {
-                                        "name": tool_call["name"],
-                                        "args": tool_call["args"],
-                                        "id": tool_call.get("id", ""),
-                                    },
-                                }
-
-                        # Check for tool responses
-                        if hasattr(message, "content") and isinstance(
-                            message.content, list
-                        ):
-                            for content_item in message.content:
-                                if (
-                                    isinstance(content_item, dict)
-                                    and content_item.get("type") == "tool_result"
-                                ):
+                            # Check for tool calls in AI messages
+                            if hasattr(message, "tool_calls") and message.tool_calls:
+                                tool_aufgerufen = True
+                                for tool_call in message.tool_calls:
                                     yield {
-                                        "type": "tool_response",
+                                        "type": "tool_call",
                                         "data": {
-                                            "tool_call_id": content_item.get(
-                                                "tool_call_id", ""
-                                            ),
-                                            "content": content_item.get("content", ""),
+                                            "name": tool_call["name"],
+                                            "args": tool_call["args"],
+                                            "id": tool_call.get("id", ""),
                                         },
                                     }
+
+                            # Check for tool responses
+                            if hasattr(message, "content") and isinstance(
+                                message.content, list
+                            ):
+                                for content_item in message.content:
+                                    if (
+                                        isinstance(content_item, dict)
+                                        and content_item.get("type") == "tool_result"
+                                    ):
+                                        yield {
+                                            "type": "tool_response",
+                                            "data": {
+                                                "tool_call_id": content_item.get(
+                                                    "tool_call_id", ""
+                                                ),
+                                                "content": content_item.get("content", ""),
+                                            },
+                                        }
+            except Exception as e:
+                # Fail-open: lehnt Gemini die eingefügte Tool-Historie ab, läuft
+                # der Turn einmal ohne sie, statt dass der Kunde den Fehler sieht.
+                if not (
+                    gespeicherte_turns
+                    and versuch < _MAX_VERSUCHE
+                    and _FORMFEHLER.search(str(e))
+                    and time.monotonic() - start <= _RETRY_ZEITBUDGET_S
+                ):
+                    raise
+                print(
+                    f"[tool_history] session={_session_kurz(session_id)} "
+                    f"Replay abgelehnt ({type(e).__name__}), Lauf ohne Tool-Historie"
+                )
+                gespeicherte_turns = {}
+                chat_history = [
+                    SystemMessage(content=system_prompt)
+                ] + convert_messages_to_langchain(messages)
+                continue
 
             # Get the final response and extract the reply
             letzte = (
@@ -617,6 +787,45 @@ def call_stream(
 
             if grund_letzte or verstrichen > _RETRY_ZEITBUDGET_S:
                 break
+
+        # Tool-Historie speichern, VOR dem response-yield: danach wäre sie beim
+        # Abbruch durch den Client (30-s-Abort des Widgets) verloren, gerade bei
+        # den langsamen, tool-lastigen Turns. Nur der letzte Versuch zählt; ohne
+        # Antwort wird nichts erinnert, ein alter Eintrag des Turns fällt weg.
+        if session_id:
+            neue = letztes_event["messages"][basis:] if letztes_event else []
+            verlauf = _tool_verlauf(neue, tool_names) if reply.strip() else []
+            tool_history.save(
+                tool_history._store,
+                session_id,
+                identitaet,
+                len(fragen),
+                verlauf,
+                fingerprint=fragen[-1] if fragen else "",
+            )
+            neue_calls = [
+                tc for m in neue for tc in (getattr(m, "tool_calls", None) or [])
+            ]
+            if neue_calls or gespeicherte_turns:
+                frueher = {
+                    _tool_schluessel(tc)
+                    for v in gespeicherte_turns.values()
+                    for e in v
+                    if e["typ"] == "ai_tool_calls"
+                    for tc in e["tool_calls"]
+                }
+                namen = [
+                    tc.get("name", "") if tc.get("name", "") in tool_names else "<unbekannt>"
+                    for tc in neue_calls
+                ]
+                wiederholt = sum(_tool_schluessel(tc) in frueher for tc in neue_calls)
+                # Messgröße der Tool-Historie: ruft ein Folgeturn trotz Replay
+                # dasselbe Tool mit denselben Argumenten? Nie Argumente, nie Inhalte.
+                print(
+                    f"[tool_history] session={_session_kurz(session_id)} "
+                    f"tools={namen} replayed_turns={len(gespeicherte_turns)} "
+                    f"wiederholt={wiederholt}"
+                )
 
         # TODO: move this to the frontend
         if not reply.strip(): 

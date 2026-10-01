@@ -101,18 +101,18 @@ class _StreamExecutor:
 
     ``batches`` ist eine Liste von Message-Listen — je eine pro Event. Mit
     ``stream_mode="values"`` gibt LangGraph bei jedem Event die vollständige
-    Historie erneut heraus, die Batches enthalten dieselben Objekte also
-    absichtlich mehrfach.
+    Historie erneut heraus, samt der Eingabe; die Batches enthalten dieselben
+    Objekte also absichtlich mehrfach.
     """
 
     def __init__(self, batches):
         self.batches = batches
         self.runs = 0
 
-    def stream(self, _state, stream_mode="values"):
+    def stream(self, state, stream_mode="values"):
         self.runs += 1
         for batch in self.batches:
-            yield {"messages": list(batch)}
+            yield {"messages": list(state["messages"]) + list(batch)}
 
 
 def _run_stream(monkeypatch, batches):
@@ -191,8 +191,9 @@ def test_log_nennt_toolname_und_gebundene_tools(monkeypatch, capsys):
     zeile = _vorfall_zeilen(capsys)[0]
     assert "termine_tool" in zeile, "der Toolname ist der Hebel zur Ursache"
     assert "visa_tool" in zeile, "die gebundenen Tools müssen im Log stehen"
-    # Zählerstand beim ERSTEN Auftauchen des Vorfalls, nicht am Turn-Ende.
-    assert "nachrichten=1" in zeile
+    # Zählerstand beim ERSTEN Auftauchen des Vorfalls, nicht am Turn-Ende:
+    # System-Prompt und Frage plus der kaputte Zug.
+    assert "nachrichten=3" in zeile
 
 
 def test_log_enthaelt_keine_kundendaten(monkeypatch, capsys):
@@ -213,12 +214,12 @@ def test_jeder_versuch_meldet_seinen_eigenen_vorfall(monkeypatch, capsys):
     """Zwei leere Läufe mit kaputtem Call ergeben zwei Vorfallzeilen."""
     executor = _StreamExecutor([])
 
-    def _stream(_state, stream_mode="values"):
+    def _stream(state, stream_mode="values"):
         executor.runs += 1
         # Jeder Lauf erzeugt frische Objekte — wie in echt.
         kaputt = _Msg("", finish_reason="MALFORMED_FUNCTION_CALL", msg_id=None)
         letzte = _Msg("" if executor.runs == 1 else "Alles klar!", finish_reason="STOP")
-        yield {"messages": [kaputt, letzte]}
+        yield {"messages": list(state["messages"]) + [kaputt, letzte]}
 
     executor.stream = _stream
     monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)

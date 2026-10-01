@@ -67,6 +67,7 @@ def test_chat_stream_threads_agentur_flag(monkeypatch):
         page_content="",
         kunden_id="",
         agentur_id="",
+        session_id="",
     ):
         calls.append(is_agentur)
         yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
@@ -133,6 +134,7 @@ def test_chat_stream_threads_page_content(monkeypatch):
         page_content="",
         kunden_id="",
         agentur_id="",
+        session_id="",
     ):
         received.append(page_content)
         yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
@@ -235,7 +237,7 @@ def _fake_stream(sink):
     """call_stream-Ersatz, der (kunden_id, agentur_id) mitschreibt."""
 
     def fake(messages, endpoint, name, telefon, is_agentur,
-             page_content="", kunden_id="", agentur_id=""):
+             page_content="", kunden_id="", agentur_id="", session_id=""):
         sink.append((kunden_id, agentur_id))
         yield {"type": "response", "data": {"reply": "Hallo!", "recommendations": []}}
 

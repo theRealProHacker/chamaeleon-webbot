@@ -206,12 +206,15 @@ Die Kürzel (T-A, T-B, D21, A0–A4) stammen aus dem gelöschten Plan:
       älteren Stand.
 
 ## Tool-Historie (vertagt aus dem /autoplan-Review, 2026-09-08)
-Plan: `docs/tool-history-plan.md`.
 
-- [ ] **Serverseitige Tool-Historie, dann voller Server-Umzug der
-      Chat-History.** Stand 2026-09-26: weder der Tool-Store (Zwischenschritt
-      laut Plan, ENTWURF) noch der Umzug sind gebaut; `app.py` nimmt weiter
-      `messages` aus dem Body. Ziel: Server besitzt den ganzen Verlauf
+- [ ] **Tool-Historie auswerten.** Gebaut 2026-10-01 (`tool_history.py`,
+      Schalter `TOOL_HISTORY_ENABLED`). Nach einer Betriebswoche die
+      `[tool_history]`-Logzeilen auswerten (`wiederholt` auf Turns mit Replay
+      ≈ 0?), im nächsten Monatslauf u11 gegen Juli/August (38/35) und u05 als
+      Wachhund (42/40). Railway-Speicher einmal ansehen.
+- [ ] **Voller Server-Umzug der Chat-History.** Stand 2026-10-01: der
+      Tool-Store (Zwischenschritt) ist gebaut, der Umzug nicht; `app.py` nimmt
+      weiter `messages` aus dem Body. Ziel: Server besitzt den ganzen Verlauf
       (LangGraph-Checkpointer mit `thread_id=session_id` — im Plan §2 steht,
       warum er für den Tool-only-Zwischenschritt verliert); Widget schickt nur
       noch die neue Nachricht. Löst turn_index-Anker, DOM-Scraping-Verluste
