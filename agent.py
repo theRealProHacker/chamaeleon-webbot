@@ -369,6 +369,47 @@ def verlinke_nackte_pfade(html: str) -> str:
     return "".join(teile)
 
 
+# Gemini verschreibt sich beim Abschreiben langer Ziffernfolgen: Tool lieferte
+# "Tel. +96897081877", die Antwort hatte "+968970818877" (eine 8 zu viel;
+# live 2026-10-02, Buchung 199095, 2 von 6 Laeufen, danach 0 von 32). Der
+# Code dazwischen aendert keine Ziffer. Eine Nummer, die in keiner Quelle steht
+# (Prompt, Kundennachricht, Tool-Ergebnis), aber genau eine Ziffer von genau
+# einer Quellnummer entfernt ist, wird auf die Quelle zurueckgesetzt. Alles
+# andere bleibt, wie es ist: es wird nichts geraten.
+_TELEFON = re.compile(r"\+?\d[\d \-]{5,}\d")
+
+
+def _ziffern(text: str) -> str:
+    return re.sub(r"\D", "", text)
+
+
+def _eine_ziffer_daneben(a: str, b: str) -> bool:
+    """Levenshtein-Abstand genau 1 (eine Ziffer zu viel, zu wenig oder falsch)."""
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    if abs(len(a) - len(b)) != 1:
+        return False
+    kurz, lang = sorted((a, b), key=len)
+    return any(lang[:i] + lang[i + 1 :] == kurz for i in range(len(lang)))
+
+
+def telefonnummern_angleichen(reply: str, quellen: str) -> str:
+    """Um eine Ziffer verschriebene Telefonnummern auf die Quellnummer setzen."""
+    bekannt: dict[str, str] = {}
+    for nummer in _TELEFON.findall(quellen):
+        if len(_ziffern(nummer)) >= 8:
+            bekannt.setdefault(_ziffern(nummer), nummer.strip(" -"))
+
+    def _angleichen(m: re.Match) -> str:
+        ziffern = _ziffern(m.group(0))
+        if len(ziffern) < 8 or ziffern in bekannt:
+            return m.group(0)
+        nah = [z for z in bekannt if _eine_ziffer_daneben(ziffern, z)]
+        return bekannt[nah[0]] if len(nah) == 1 else m.group(0)
+
+    return _TELEFON.sub(_angleichen, reply)
+
+
 _NORMALE_FINISH_REASONS = {"STOP", "stop", "end_turn"}
 
 # Gemini kuendigt gelegentlich an, nachzusehen, und beendet dann den Zug ohne
@@ -835,6 +876,15 @@ def call_stream(
         recommendations.update(detect_recommendation_links(reply))
 
         reply = entferne_escapte_anfuehrungszeichen(reply)
+
+        # Quellen sind Prompt, Kundennachrichten und Tool-Ergebnisse, nie eine
+        # Modellantwort: sonst stuende die verschriebene Nummer selbst darin.
+        quellen = "\n".join(
+            text_aus_content(m.content)
+            for m in (letztes_event or {}).get("messages", [])
+            if isinstance(m, (SystemMessage, HumanMessage, ToolMessage))
+        )
+        reply = telefonnummern_angleichen(reply, quellen)
 
         # Genderstern (z.B. "Berater*innen") nicht als Markdown-Kursiv rendern
         reply = escape_genderstern(reply)
