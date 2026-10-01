@@ -74,6 +74,10 @@ _ARTEN = (
     ("visum-ausfuellhilfen", "visum-ausfuellhilfe"),
     ("visa-dokumente", "visa-dokument"),
     ("einreisebestimmungen", "einreisebestimmung"),
+    # HanseMerkur-Bestätigung der Gruppen-Reiseversicherung mit Notrufnummer
+    # (gesehen 2026-10-02 an 199095). Die übrigen Beilagen (AGB, Formblatt,
+    # Versicherungsangebot, Regenwaldzertifikat) bleiben nur verlinkt.
+    ("wichtige-reisedokumente", "wichtige-reisedokument"),
     ("teilnehmerdaten", "teilnehmerdaten"),
 )
 _RANG = {art: i for i, (art, _) in enumerate(_ARTEN)}
@@ -90,6 +94,7 @@ DOKUMENT_SLUGS = (
     "visum-ausfuellhilfen",
     "visa-dokumente",
     "einreisebestimmungen",
+    "wichtige-reisedokumente",
     "anschreiben",
 )
 

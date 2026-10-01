@@ -218,6 +218,9 @@ def test_slugs_hoechste_id_ohne_ulas_best_und_teilnehmerdaten():
         eintrag(9, "Reisebestätigung.pdf"),
         eintrag(10, "Teilnehmerdaten.pdf"),
         eintrag(11, "Anschreiben.pdf"),
+        eintrag(12, "Wichtige Reisedokumente.pdf"),
+        eintrag(13, "AGB.pdf"),
+        eintrag(14, "Versicherungsangebot Hanse Merkur.pdf"),
     ]
     slugs = ul.dokumente_nach_slug(liste)
     assert list(slugs) == [
@@ -225,6 +228,7 @@ def test_slugs_hoechste_id_ohne_ulas_best_und_teilnehmerdaten():
         "visum-ausfuellhilfen",
         "visa-dokumente",
         "einreisebestimmungen",
+        "wichtige-reisedokumente",
         "anschreiben",
     ]
     assert slugs["visum-ausfuellhilfen"]["id"] == "8"
