@@ -184,3 +184,14 @@ def test_reiseverlauf_verlinkt_das_pdf(buchung):
     reply = frage("Zeig mir meinen Reiseverlauf")
     assert REISEUNTERLAGEN["link"] in reply, reply
     assert "#reiseverlauf" not in reply, reply
+
+
+def test_wie_fliege_ich_verlinkt_das_pdf(buchung):
+    """03.10.2026: „findest du in deinen Reiseunterlagen unter
+    Reiseunterlagen“, nur als Text. Erwartet: Fluginfos aus den Unterlagen
+    und ihr PDF als Link; die Reiseunterlagen nie nur beim Namen."""
+    buchung(ALLE)
+    reply = frage("wie fliege ich?")
+    assert REISEUNTERLAGEN["link"] in reply, reply
+    ohne_links = re.sub(r"<a [^>]*>.*?</a>", "", reply, flags=re.S)
+    assert "Reiseunterlagen" not in ohne_links, reply

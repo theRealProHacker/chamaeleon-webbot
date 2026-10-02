@@ -23,7 +23,7 @@ a given question resolves to — because that mapping is the behaviour under tes
   Flugplan, Visumausfüllhilfe, Reiseunterlagen, Rail&Fly-Codes,
   Rechnung/Zahlungslink         -> Reiseunterlagen  (#unterlagen)
   Passdaten                     -> Gäste            (#gaeste)
-  Unterkünfte & Reiseverlauf    -> Reiseunterlagen  (#unterlagen; einen
+  Unterkünfte & Reiseverlauf    -> Reiseunterlagen  (PDF oder #unterlagen; einen
                                    #reiseverlauf-Bereich hat die Reiseseite nicht)
   E-Mail / Login prüfen         -> Meine Daten       (/MeinChamaeleon/Daten)
   Clubstufe                     -> Übersicht         (/MeinChamaeleon)
@@ -159,7 +159,7 @@ URL_CASES = [
      [_dok_oder_bereich(1)]),
     ("reiseverlauf",
      "Wo finde ich die Unterkünfte und den Reiseverlauf?",
-     [L(UNTERLAGEN)]),
+     [_dok_oder_bereich(5)]),
 ]
 
 
