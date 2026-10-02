@@ -201,12 +201,35 @@ def test_reihenfolge_der_aufloesung(monkeypatch):
     """Modellangabe schlägt offene Seite, offene Seite schlägt nächste Reise —
     aber alle drei nur aus dem eigenen Bestand."""
     eigene(monkeypatch, "300000", "111", "222")
+    monkeypatch.setattr("kundendaten.buchungsstatus", lambda v: "OP")
     aufloesen = ab.reiseinfo_vorgang
     assert aufloesen("111", seiten_vorgang="222", kunden_id="k") == ("111", "")
     assert aufloesen("", seiten_vorgang="222", kunden_id="k") == ("222", "")
     assert aufloesen("", seiten_vorgang="", kunden_id="k") == ("300000", "")
     # Fremde Nummern in beiden Slots → die eigene nächste Reise.
     assert aufloesen("999", seiten_vorgang="888", kunden_id="k") == ("300000", "")
+
+
+def test_ohne_nummer_keine_stornierte_reise(monkeypatch):
+    """Chat 02.10.2026: eigene[0] war storniert (Costa Rica), der Prompt nannte
+    die offene Marokko-Reise, das Tool lieferte Costa-Rica-Bausteine."""
+    eigene(monkeypatch, "229567", "225570", "230353")
+    status = {"229567": "XX", "225570": "XX", "230353": "OP"}
+    monkeypatch.setattr("kundendaten.buchungsstatus", lambda v: status[v])
+    assert ab.reiseinfo_vorgang("", kunden_id="k") == ("230353", "")
+    # Alles storniert: wie bisher die erste, die Bausteine bleiben erreichbar.
+    status["230353"] = "XX"
+    assert ab.reiseinfo_vorgang("", kunden_id="k") == ("229567", "")
+
+
+def test_status_ausfall_ist_stoerung(monkeypatch):
+    eigene(monkeypatch, "300000", "111")
+
+    def kaputt(v):
+        raise TimeoutError
+
+    monkeypatch.setattr("kundendaten.buchungsstatus", kaputt)
+    assert ab.reiseinfo_vorgang("", kunden_id="k") == ("", ab.REISEINFO_FEHLER_TEXT)
 
 
 def test_agentur_nummern_als_int_kippen_das_tool_nicht(monkeypatch):

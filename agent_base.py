@@ -2294,6 +2294,24 @@ def reiseinfo_vorgang(
     # ``kundendaten.naechste_offene_reise`` nimmt NUR offene Reisen und gibt
     # sonst nichts zurück. Hier ist die zuletzt gereiste richtig (ihre Bausteine
     # sind besser als nichts), in einem Link auf „deine Reise" wäre sie falsch.
+    #
+    # Stornierte Buchungen überspringen: Hop 1 kennt keinen Status, und
+    # eigene[0] war eine stornierte Costa-Rica-Reise, während der Prompt die
+    # offene Marokko-Reise nannte. „Tag 5 meiner Marokko-Reise“ bekam die
+    # Costa-Rica-Bausteine (Chat 02.10.2026, Kunde mit acht Stornos). Der
+    # Status kommt aus derselben gecachten Buchung, die danach ohnehin geholt
+    # wird. Fällt ihr Abruf aus, endet es hier: ein zweiter Versuch wartete
+    # nur ein zweites Mal auf das Timeout.
+    import kundendaten
+
+    for kandidat in eigene:
+        try:
+            status = kundendaten.buchungsstatus(kandidat)
+        except Exception as e:
+            print(f"[agent_base] reiseinfo status failed: {type(e).__name__}")
+            return "", REISEINFO_FEHLER_TEXT
+        if not kundendaten.ist_storniert(status):
+            return kandidat, ""
     if eigene:
         return eigene[0], ""
     return "", REISEINFO_OHNE_BUCHUNG_TEXT
