@@ -23,7 +23,8 @@ a given question resolves to — because that mapping is the behaviour under tes
   Flugplan, Visumausfüllhilfe, Reiseunterlagen, Rail&Fly-Codes,
   Rechnung/Zahlungslink         -> Reiseunterlagen  (#unterlagen)
   Passdaten                     -> Gäste            (#gaeste)
-  Unterkünfte & Reiseverlauf    -> Reiseverlauf     (#reiseverlauf)
+  Unterkünfte & Reiseverlauf    -> Reiseunterlagen  (#unterlagen; einen
+                                   #reiseverlauf-Bereich hat die Reiseseite nicht)
   E-Mail / Login prüfen         -> Meine Daten       (/MeinChamaeleon/Daten)
   Clubstufe                     -> Übersicht         (/MeinChamaeleon)
   Gutschein einlösen            -> mailto:erlebnisberatung@chamaeleon-reisen.de
@@ -84,7 +85,6 @@ KUNDEN_ID = "TEST_KUNDE_EVAL"
 _TRIP = f"https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG={BN}"
 UNTERLAGEN = _TRIP + "#unterlagen"
 GAESTE = _TRIP + "#gaeste"
-REISEVERLAUF = _TRIP + "#reiseverlauf"
 DATEN = "https://www.chamaeleon-reisen.de/MeinChamaeleon/Daten"
 GUTSCHEIN_MAIL = "mailto:erlebnisberatung@chamaeleon-reisen.de"
 # /MeinChamaeleon NOT followed by a deeper path — i.e. the "Übersicht" link, not
@@ -159,7 +159,7 @@ URL_CASES = [
      [_dok_oder_bereich(1)]),
     ("reiseverlauf",
      "Wo finde ich die Unterkünfte und den Reiseverlauf?",
-     [L(REISEVERLAUF)]),
+     [L(UNTERLAGEN)]),
 ]
 
 

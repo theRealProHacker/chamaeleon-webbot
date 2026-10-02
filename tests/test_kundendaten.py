@@ -922,7 +922,7 @@ def test_url_nummer_ueberlebt_den_tourone_ausfall(monkeypatch):
     vorgang, label = agent.reise_fuer_links(REISE_URL, "999999999")
     assert vorgang == URL_NUMMER
     block = agent_base._trip_links_block(vorgang, label)
-    for anker in ("#reisedaten", "#reiseverlauf", "#gaeste", "#unterlagen"):
+    for anker in ("#reisedaten", "#gaeste", "#unterlagen"):
         assert f"?VRRVORGANG={URL_NUMMER}{anker})" in block
 
 
