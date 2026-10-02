@@ -147,3 +147,30 @@ def test_einreise_mit_stand_datum(buchung):
     assert TRIPURL in reply or "visum.de" in reply, reply
     if re.search(r"Reiseanmeldung|bei Buchung|laut (deinen|den) Unterlagen", reply, re.I):
         assert "03.02.2026" in reply, reply
+
+
+def test_alle_unterkuenfte_aus_dem_reiseverlauf(buchung):
+    """Chat 02.10.2026: „nicht in den Reiseunterlagen aufgeführt“, obwohl jeder
+    Tag sein Hotel nennt."""
+    buchung(ALLE)
+    reply = frage(
+        "Stelle mir eine komplette Übersicht aller Unterkünfte entlang des "
+        "Reiseverlaufs mit sämtlichen Kontaktdaten"
+    )
+    assert "Dünenblick" in reply and "Seebrise" in reply, reply
+    assert not re.search(r"nicht (in den Reiseunterlagen )?aufgeführt", reply), reply
+
+
+def test_vorausbuchung_ablauf_aus_der_reiseseite(buchung, monkeypatch):
+    """Chat 02.10.2026, Buchung 228121: nur eine Vormerkung. Die Textbausteine
+    hat Gemini als „deinen Reiseverlauf“ ausgegeben. Erwartet: der geplante
+    Ablauf von der echten Reiseseite (Live-Abruf der Website)."""
+    import travel_index
+
+    buchung([{"id": "20", "name": "Vormerkung.pdf", "link": _HOST + "vormerkung.pdf"}])
+    monkeypatch.setattr(
+        travel_index, "get_url_for_code", lambda code: "/Amerika/Mexiko-Guatemala-Belize/Palenque"
+    )
+    reply = frage("Ablauf der reise")
+    assert re.search(r"Palenque|Cancún|Cancun|Tulum|Mérida|Merida|Tikal", reply), reply
+    assert not re.search(r"Checkliste hilft", reply), reply

@@ -2317,6 +2317,28 @@ def reiseinfo_vorgang(
     return "", REISEINFO_OHNE_BUCHUNG_TEXT
 
 
+def _reiseverlauf_ohne_unterlagen(nummer: str, buchung: dict) -> str:
+    import travel_index
+
+    kopf = (
+        f"Zu Buchung {nummer} gibt es noch keine Reiseunterlagen und keine "
+        "Reisebestätigung, also keinen Tagesablauf dieser Buchung."
+    )
+    url = travel_index.get_url_for_code(str(buchung.get("reiseCode") or ""))
+    if not url:
+        return (
+            f"{kopf} Den geplanten Reiseverlauf zeigt die Reiseseite dieser Reise "
+            '(chamaeleon_website_tool, abschnitt="reiseverlauf").'
+        )
+    # Gleich mitgeliefert: mit nur dem Verweis verlinkte Gemini die Seite und
+    # beendete den Zug, statt sie abzurufen (Eval 02.10.2026).
+    return (
+        f"{kopf} Hier der geplante Reiseverlauf laut Reiseseite {url}; nenne ihn "
+        "so, bis zu den Reiseunterlagen sind Änderungen möglich.\n\n"
+        + website_tool_multi([url], "reiseverlauf")
+    )
+
+
 def _reiseinfo_aus_dokumenten(
     nummer: str, quelle: str, abschnitt: str, tag: int, agentur_id: str = ""
 ) -> str | None:
@@ -2393,6 +2415,11 @@ def _reiseinfo_aus_dokumenten(
 
     haupt = unterlagen.quelle_auto(eintraege)
     if not haupt:
+        if unterlagen.abschnitt_name(abschnitt) == "reiseverlauf":
+            # Vorausbuchung ohne Unterlagen: die Textbausteine haben keinen
+            # Tagesablauf, und Gemini nannte sie trotzdem „deinen Reiseverlauf“
+            # (Chat 02.10.2026, Buchung 228121, 6 von 6 Läufen).
+            return _reiseverlauf_ohne_unterlagen(nummer, buchung)
         return None
     text = unterlagen.reiseunterlagen(
         haupt, abschnitt, tag, deckel=REISEINFO_MAX_CHARS, slugs=tuple(slugs)

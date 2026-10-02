@@ -595,6 +595,25 @@ def gliedern(roh: str) -> dict | None:
 
 # Abschnitte, die ``abschnitt=…`` liefert, in Anzeigereihenfolge.
 ABSCHNITTE = ("reiseverlauf", "leistungen", "hinweise", "checkliste", "reiseinformationen", "fluege")
+# Die Hotels stehen je Tag im Reiseverlauf. Gemini fragt trotzdem nach
+# abschnitt="unterkuenfte" (gemessen 2026-10-02, 3 von 6 Läufen), bekam
+# „gibt es nicht“ und sagte dem Kunden, die Übersicht sei nicht verfügbar.
+_ALIASE = {
+    "unterkuenfte": "reiseverlauf",
+    "unterkünfte": "reiseverlauf",
+    "unterkunft": "reiseverlauf",
+    "hotels": "reiseverlauf",
+    "hotel": "reiseverlauf",
+    "ablauf": "reiseverlauf",
+    "tagesablauf": "reiseverlauf",
+    "programm": "reiseverlauf",
+}
+
+
+def abschnitt_name(abschnitt: object) -> str:
+    """Der kanonische Abschnittsname, Aliase aufgelöst."""
+    name = str(abschnitt or "").strip().lower()
+    return _ALIASE.get(name, name)
 _ABSCHNITT_NAMEN = {
     "leistungen": "Leistungen",
     "hinweise": "Hinweise zu Leistungen und Empfehlungen",
@@ -676,7 +695,7 @@ def abschnitt_text(gl: dict, abschnitt: str, tag: int = 0, *, deckel: int) -> st
     Alle Tage über ``deckel`` Zeichen → Inhaltsverzeichnis der Tage statt
     Kürzung: es wird nie mitten im Tag abgeschnitten.
     """
-    abschnitt = (abschnitt or "").strip().lower()
+    abschnitt = abschnitt_name(abschnitt)
     if abschnitt == "reiseverlauf":
         tage = gl["tage"]
         if not tage:

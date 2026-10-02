@@ -810,6 +810,19 @@ def get_titel_for_code(code: str) -> str:
     return _titel_by_code.get(code, "")
 
 
+def get_url_for_code(code: str) -> str:
+    """Website path of the trip with this exact reisecode, or ``""``.
+
+    Peeks like :func:`get_titel_for_code`, exact match for the same reason.
+    """
+    if not isinstance(code, str) or not code:
+        return ""
+    for url, entry in _index.items():
+        if code in entry["codes"]:
+            return url
+    return ""
+
+
 def rebuild() -> dict:
     """Fetch all travels and atomically swap in a fresh index. Returns summary.
 

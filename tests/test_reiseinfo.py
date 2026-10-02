@@ -455,6 +455,34 @@ def mit_unterlagen(monkeypatch, eintraege, status="OK", **felder):
     return calls
 
 
+def test_vorausbuchung_reiseverlauf_verweist_auf_die_reiseseite(monkeypatch):
+    """Chat 02.10.2026, Buchung 228121: nur eine Vormerkung, die Textbausteine
+    haben keinen Tagesablauf, Gemini nannte sie trotzdem „deinen Reiseverlauf“."""
+    mit_unterlagen(monkeypatch, [_dok(1, "Vormerkung.pdf", "vormerkung.pdf")])
+    import travel_index
+
+    monkeypatch.setattr(
+        travel_index, "_index", {"/Asien/China/Zhangjiajie": {"codes": ["CNZHA_NEU"]}}
+    )
+    geholt = []
+    monkeypatch.setattr(
+        ab, "website_tool_multi",
+        lambda pfade, abschnitt: geholt.append((pfade, abschnitt)) or "Tag 1: Peking",
+    )
+    for abschnitt in ("reiseverlauf", "unterkuenfte"):
+        text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt=abschnitt)
+        assert "noch keine Reiseunterlagen" in text
+        assert "/Asien/China/Zhangjiajie" in text and text.endswith("Tag 1: Peking")
+        assert "# Reisehinweise" not in text
+    assert geholt[-1] == (["/Asien/China/Zhangjiajie"], "reiseverlauf")
+    # Ohne Index-Treffer kein erfundener Pfad, der Weg bleibt genannt.
+    monkeypatch.setattr(travel_index, "_index", {})
+    text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="reiseverlauf")
+    assert "Reiseseite dieser Reise" in text and "Zhangjiajie" not in text
+    # Andere Fragen gehen weiter an die Textbausteine.
+    assert "# Reisehinweise" in ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="checkliste")
+
+
 def test_auto_nimmt_die_reiseunterlagen(monkeypatch):
     calls = mit_unterlagen(monkeypatch, [
         _dok(1, "Reisebestätigung.pdf", "reisebestaetigung_alt.pdf"),

@@ -446,6 +446,15 @@ def test_reiseverlauf_ein_tag_alle_tage_und_deckel():
     assert "- Tag 12 · Sa 17.10.2026 · Wieder zu Hause (Anschlussprogramm KAPSTADT)" in toc
 
 
+def test_unterkuenfte_ist_der_reiseverlauf():
+    """Gemessen 2026-10-02: Gemini fragt nach „unterkuenfte“; die Hotels
+    stehen je Tag im Reiseverlauf, „gibt es nicht“ wäre falsch."""
+    gl = ul.gliedern(fixture_text("reiseunterlagen_neu.pdf"))
+    for name in ("unterkuenfte", "Unterkünfte", " hotels "):
+        alle = ul.abschnitt_text(gl, name, 0, deckel=DECKEL)
+        assert "Dünenblick Lodge" in alle and "Hotel Hafenlicht" in alle, name
+
+
 def test_tagnummer_ohne_lesbares_datum_zaehlt_eintraege():
     # Datum, das es nicht gibt, oder Sprung zurück: dann lieber die alte
     # Zählung nach Einträgen als eine falsche Kalenderrechnung.
