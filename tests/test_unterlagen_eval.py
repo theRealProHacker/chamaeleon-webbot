@@ -195,3 +195,15 @@ def test_wie_fliege_ich_verlinkt_das_pdf(buchung):
     assert REISEUNTERLAGEN["link"] in reply, reply
     ohne_links = re.sub(r"<a [^>]*>.*?</a>", "", reply, flags=re.S)
     assert "Reiseunterlagen" not in ohne_links, reply
+
+
+def test_gepaeck_auf_der_startseite_aus_den_unterlagen(buchung):
+    """03.10.2026: auf der Startseite ging „Wie viel Gepäck darf ich
+    mitnehmen?“ 3 von 4 Mal an die Koffer-FAQ, auf der Reiseseite nie.
+    Eingeloggt mit offener Reise meint die Frage diese Reise."""
+    buchung(ALLE)
+    reply = call(
+        [{"role": "user", "content": "Wie viel Gepäck darf ich mitnehmen?"}],
+        "https://www.chamaeleon-reisen.de/", kunden_id=KUNDEN_ID,
+    )
+    assert "23 kg" in reply, reply

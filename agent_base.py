@@ -1587,6 +1587,22 @@ def format_system_prompt(
         # sonst die nächste offene Reise des Kunden). Ohne Nummer bleiben die
         # vier Reise-Links weg — wie bisher.
         trip_links_block = _trip_links_block(reise_vorgang, reise_label)
+        # Auf der Startseite las Gemini „Fragen beziehen sich auf diese Seite“
+        # als Katalogfrage: „Wie viel Gepäck darf ich mitnehmen?“ ging 3 von 4
+        # Mal an die Koffer-FAQ statt an die Unterlagen (auf der Reiseseite
+        # 4 von 4), „Reiseverlauf“ bekam „für welche Reise?“ (03.10.2026).
+        offene_reise_regel = (
+            f"- Der Kunde hat eine offene Reise ({reise_label or 'die gerade geöffnete'}). "
+            "Fragen ohne erkennbaren Bezug auf eine andere Reise — Gepäck, "
+            "Flug, Reiseverlauf, Unterkünfte, Packliste, Einreise, Abholung — "
+            "meinen diese Reise, auf jeder Seite, auch auf der Startseite: "
+            "beantworte sie über die Tools wie auf der Reiseseite, nicht aus "
+            "den allgemeinen FAQs, und frag nicht, welche Reise er meint. Nur "
+            "wenn er auf der Katalogseite einer anderen Reise ist oder nach "
+            "Reisen im Katalog fragt, geht es um den Katalog.\n"
+            if _VRRVORGANG_SAFE.match(reise_vorgang or "")
+            else ""
+        )
         kunden_modus_block = (
             "Kunden-Modus:\n"
             "Der Kunde ist in MeinChamäleon eingeloggt. Du hast über das "
@@ -1594,6 +1610,7 @@ def format_system_prompt(
             "Status, Zahlstand, Flüge, Dokumente) — darüber hinaus kannst du nichts: keine "
             "Buchungen anlegen, keine Änderungen, keine Stornierungen und keine "
             "Abfragen außerhalb der Tools.\n"
+            + offene_reise_regel +
             "- Rufe buchungen_tool nur auf, wenn der Kunde nach seinen eigenen "
             "Buchungen, Reisen, Flügen, Dokumenten oder seinem Zahlstand fragt. Hol dir "
             "zuerst die grobe Liste (details=false) und fasse dann bei Bedarf mit "
