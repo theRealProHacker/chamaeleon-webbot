@@ -174,3 +174,13 @@ def test_vorausbuchung_ablauf_aus_der_reiseseite(buchung, monkeypatch):
     reply = frage("Ablauf der reise")
     assert re.search(r"Palenque|Cancún|Cancun|Tulum|Mérida|Merida|Tikal", reply), reply
     assert not re.search(r"Checkliste hilft", reply), reply
+
+
+def test_reiseverlauf_verlinkt_das_pdf(buchung):
+    """03.10.2026: „hier ist dein Reiseverlauf: Reiseverlauf“ mit einem Link
+    auf einen MeinChamäleon-Bereich, den es nicht gibt. Erwartet: der Link
+    auf das PDF der Reiseunterlagen."""
+    buchung(ALLE)
+    reply = frage("Zeig mir meinen Reiseverlauf")
+    assert REISEUNTERLAGEN["link"] in reply, reply
+    assert "#reiseverlauf" not in reply, reply
