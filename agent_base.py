@@ -1480,7 +1480,7 @@ def berater_tool_base(url_path: str) -> str:
 _VRRVORGANG_SAFE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def _trip_links_block(reise_vorgang: str, reise_label: str) -> str:
+def _trip_links_block(reise_vorgang: str, reise_label: str, dokumente: str = "") -> str:
     """Die vier MeinChamäleon-Links zur gemeinten Reise; "" ohne Buchungsnummer.
 
     WELCHE Reise gemeint ist, löst der Aufrufer auf (``agent.py``): entweder die
@@ -1508,8 +1508,23 @@ def _trip_links_block(reise_vorgang: str, reise_label: str) -> str:
         if reise_label
         else "Zur aktuell geöffneten Reise:"
     )
+    dokumente_zeile = (
+        f"Dokumente dieser Buchung: {dokumente}. Was hier fehlt, gibt es noch "
+        "nicht — sag das, statt ein anderes Dokument zu nennen."
+        + (
+            ""
+            if "Reiseanmeldung" in dokumente.split(", ")
+            else " Die Reiseanmeldung liegt für diese Buchung noch nicht vor: "
+            "sag das, wenn der Kunde danach fragt, und nenne die "
+            "Erlebnisberater*in; keine Reisebestätigung als Ersatz."
+        )
+        + "\n"
+        if dokumente
+        else ""
+    )
     return (
         f"{kopf}\n"
+        f"{dokumente_zeile}"
         f"- [Reisedaten]({reise_url}#reisedaten)"
         " — die Eckdaten deiner Buchung\n"
         f"- [Gäste]({reise_url}#gaeste)"
@@ -1533,6 +1548,7 @@ def format_system_prompt(
     has_agentur_daten: bool = False,
     reise_vorgang: str = "",
     reise_label: str = "",
+    reise_dokumente: str = "",
 ) -> str:
     """Format the system prompt with current time information and endpoint.
 
@@ -1586,7 +1602,7 @@ def format_system_prompt(
         # hier ankommen (aufgelöst in agent.py: Nummer aus der geöffneten Seite,
         # sonst die nächste offene Reise des Kunden). Ohne Nummer bleiben die
         # vier Reise-Links weg — wie bisher.
-        trip_links_block = _trip_links_block(reise_vorgang, reise_label)
+        trip_links_block = _trip_links_block(reise_vorgang, reise_label, reise_dokumente)
         # Auf der Startseite las Gemini „Fragen beziehen sich auf diese Seite“
         # als Katalogfrage: „Wie viel Gepäck darf ich mitnehmen?“ ging 3 von 4
         # Mal an die Koffer-FAQ statt an die Unterlagen (auf der Reiseseite
@@ -1639,6 +1655,17 @@ def format_system_prompt(
             "nie nur als Text. Immer als Link: das PDF, wenn du seinen Link "
             "hast (aus „Quelle: …“ oder der Dokumentliste im buchungen_tool), "
             "sonst den Link zum Bereich Reiseunterlagen der Reise.\n"
+            "- Fragt der Kunde, wo er ein Dokument seiner Reise findet (etwa die "
+            "Reiseanmeldung, die Rechnung, den Flugplan), schau erst in die "
+            "Dokumentliste der Buchung (buchungen_tool) und verlinke das "
+            "Dokument direkt. Steht das gefragte Dokument nicht in der Liste (etwa "
+            "keine Reiseanmeldung), sag ausdrücklich, dass es noch nicht "
+            "bereitsteht, und verlinke die Unterlagen der Reise. Gib nie ein "
+            "anderes Dokument dafür aus (die Reisebestätigung ist keine "
+            "Reiseanmeldung).\n"
+            "- Bei jeder Frage zu seiner Reise verlinkst du die Unterlagen "
+            "dieser Buchung (das Dokument oder #unterlagen der Reise), nie die "
+            "allgemeine Seite /MeinChamaeleon.\n"
             "- Einreisebestimmungen aus den Unterlagen nennst du immer mit "
             "ihrem Stand-Datum (Stand bei Buchung); gibt es den Link zu den "
             "aktuellen Einreise-, Visa- und Impfbestimmungen der Reise, nenne "

@@ -47,6 +47,7 @@ AUSFUELLHILFE = {"id": "13", "name": "Visum Ausfüllhilfen.pdf", "link": _HOST +
 EINREISE = {"id": "12", "name": "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf",
             "link": _HOST + "einreisebestimmungen.pdf"}
 RECHNUNG = {"id": "10", "name": "Rechnung.pdf", "link": _HOST + "rechnung.pdf"}
+REISEANMELDUNG = {"id": "16", "name": "Reiseanmeldung.pdf", "link": _HOST + "reiseanmeldung.pdf"}
 TEILNEHMER = {"id": "14", "name": "Teilnehmerdaten.pdf", "link": _HOST + "teilnehmerdaten.pdf"}
 
 ALLE = [RECHNUNG, REISEBESTAETIGUNG, EINREISE, AUSFUELLHILFE, TEILNEHMER, REISEUNTERLAGEN]
@@ -207,3 +208,14 @@ def test_gepaeck_auf_der_startseite_aus_den_unterlagen(buchung):
         "https://www.chamaeleon-reisen.de/", kunden_id=KUNDEN_ID,
     )
     assert "23 kg" in reply, reply
+
+
+def test_reiseanmeldung_verlinkt_das_pdf(buchung):
+    """05.10.2026 (Katharina, Punkt 3): „Wo finde ich meine Reiseanmeldung?“
+    kam aus der FAQ ohne Link auf das Dokument. Die Buchung hat es: PDF direkt
+    verlinken, nie die allgemeine Seite /MeinChamaeleon."""
+    buchung(ALLE + [REISEANMELDUNG])
+    reply = frage("Wo finde ich meine Reiseanmeldung?")
+    assert REISEANMELDUNG["link"] in reply, reply
+    assert 'href="https://www.chamaeleon-reisen.de/MeinChamaeleon"' not in reply, reply
+

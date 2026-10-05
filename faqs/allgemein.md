@@ -60,7 +60,7 @@ A: Deine Reiseunterlagen bekommst du in der Regel etwa zwei Wochen vor Reisebegi
 A: Aus Gründen der Nachhaltigkeit versenden wir nur noch die Bestätigungsunterlagen per Post. Die Schlussunterlagen werden in der Regel nur noch in digitaler Form versendet.
 
 **F: Wo finde ich meine Reiseanmeldung?**
-A: Da hilft dir die Erlebnisberater*in deiner Reise weiter – frag sie danach.
+A: Sobald deine Reiseanmeldung erstellt ist, findest du sie in MeinChamäleon auf der Seite deiner Reise („Alles auf einen Blick“): Klappe den Bereich „Reiseanmeldung“ auf, darin liegt das Dokument „Reiseanmeldung“. Siehst du den Bereich noch nicht, hilft dir die Erlebnisberater*in deiner Reise weiter.
 
 **F: Wann erhalte ich meine Flugtickets?**
 A: Flugtickets gibt es seit einigen Jahren nicht mehr. Du erhältst mit deinen Reiseunterlagen einen Flugplan von uns. Dieser enthält alle wichtigen Informationen, die die Airline im Bedarfsfall benötigt.

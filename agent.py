@@ -36,6 +36,7 @@ from agent_base import (
 )
 from agenturdaten import make_buchungen_agentur_tool
 import kundendaten
+import unterlagen
 from kundendaten import make_buchungen_tool
 import tool_history
 
@@ -568,6 +569,42 @@ def _naechste_reise(kunden_id: str) -> tuple[str, str]:
         return "", ""
 
 
+def _dokumente_der_reise(kunden_id: str, vorgang: str) -> str:
+    """Die Dokumentnamen der gemeinten Buchung als ein String; "" ohne Treffer.
+
+    Der Prompt soll wissen, was es gibt UND was fehlt (keine Reiseanmeldung),
+    sonst antwortet Leon aus der FAQ und gibt die Reisebestätigung dafür aus.
+    Die Nummer kann aus der URL stammen, deshalb nur, wenn sie zu den eigenen
+    Buchungen des Kunden gehört. Ausfall → "" (der Chat läuft ohne Liste weiter).
+    """
+    try:
+        if vorgang not in (kundendaten.vorgangsnummern(kunden_id) or []):
+            return ""
+        buchung = kundendaten._buchung_roh(vorgang)
+        if not isinstance(buchung, dict) or kundendaten.ist_storniert(buchung.get("status")):
+            return ""
+        namen = []
+        for e in unterlagen._eintraege(buchung.get("unterlagen")):
+            name = unterlagen._anzeigename(e.get("name"))
+            if name and unterlagen.dokument_art(name) != "teilnehmerdaten" and name not in namen:
+                namen.append(name)
+        return ", ".join(namen)[:800]
+    except Exception as e:
+        print(f"[agent] Dokumente der Reise nicht abrufbar: {type(e).__name__}")
+        return ""
+
+
+def reise_dokumente(kunden_id: str, vorgang: str) -> str:
+    """``_dokumente_der_reise`` mit derselben Wartegrenze wie ``reise_fuer_links``."""
+    if not kunden_id or not vorgang:
+        return ""
+    abruf = gevent.spawn(_dokumente_der_reise, kunden_id, vorgang)
+    try:
+        return abruf.get(timeout=REISE_TIMEOUT_S)
+    except gevent.Timeout:
+        return ""
+
+
 def call_stream(
     messages: list,
     endpoint: str,
@@ -613,6 +650,7 @@ def call_stream(
     # im Prompt-Bau und nicht vom Modell: format_system_prompt bekommt zwei
     # fertige Strings und bleibt damit eine reine Textfunktion ohne Netz.
     reise_vorgang, reise_label = reise_fuer_links(endpoint, kunden_id)
+    reise_dokumente_liste = reise_dokumente(kunden_id, reise_vorgang)
 
     # Format system prompt with current time and endpoint
     system_prompt = format_system_prompt(
@@ -626,6 +664,7 @@ def call_stream(
         has_agentur_daten=bool(agentur_id),
         reise_vorgang=reise_vorgang,
         reise_label=reise_label,
+        reise_dokumente=reise_dokumente_liste,
     ) + begruessung_block(gruss_vorname, begruesst)
 
     # Was das Modell in früheren Turns nachgeschlagen hat (tool_history.py).
