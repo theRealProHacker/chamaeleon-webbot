@@ -211,7 +211,7 @@ def test_gepaeck_auf_der_startseite_aus_den_unterlagen(buchung):
 
 
 def test_reiseanmeldung_verlinkt_das_pdf(buchung):
-    """05.10.2026 (Katharina, Punkt 3): „Wo finde ich meine Reiseanmeldung?“
+    """05.10.2026: „Wo finde ich meine Reiseanmeldung?“
     kam aus der FAQ ohne Link auf das Dokument. Die Buchung hat es: PDF direkt
     verlinken, nie die allgemeine Seite /MeinChamaeleon."""
     buchung(ALLE + [REISEANMELDUNG])
@@ -219,3 +219,16 @@ def test_reiseanmeldung_verlinkt_das_pdf(buchung):
     assert REISEANMELDUNG["link"] in reply, reply
     assert 'href="https://www.chamaeleon-reisen.de/MeinChamaeleon"' not in reply, reply
 
+
+
+
+
+def test_ohne_reiseanmeldung_sagt_es_und_nennt_kein_ersatzdokument(buchung):
+    """05.10.2026: die Buchung hat noch keine Reiseanmeldung. Vorher: „Dort liegt
+    das Dokument Reiseanmeldung“ bzw. die Reisebestätigung als Ersatz."""
+    # Wie eine Buchung ohne Reiseanmeldung: auch ohne das Einreise-PDF „… der Reiseanmeldung“.
+    buchung([RECHNUNG, REISEBESTAETIGUNG, AUSFUELLHILFE, TEILNEHMER, REISEUNTERLAGEN])
+    reply = frage("Wo finde ich meine Reiseanmeldung?")
+    assert REISEBESTAETIGUNG["link"] not in reply, reply
+    assert re.search(r"noch nicht|noch kein|nicht (bereit|verfügbar|vorhanden)|Erlebnisberater", reply), reply
+    assert not re.search(r"Dort liegt das Dokument", reply), reply

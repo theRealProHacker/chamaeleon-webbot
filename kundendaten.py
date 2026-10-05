@@ -537,11 +537,15 @@ def naechste_offene_reise(
     naechste = next((b for b in offen if not storniert(str(b.get("vorgang") or ""))), None)
     if naechste is None:
         return "", ""
-    code = naechste.get("reiseCode")
-    titel = buchung_titel(naechste, _titel_aus_code(code) or code or "deine Reise")
-    von = str(naechste.get("vonDat") or "")
-    label = f"{titel}, {fmt_datum(von)}" if von else titel
-    return str(naechste.get("vorgang") or ""), label
+    return str(naechste.get("vorgang") or ""), reise_label(naechste)
+
+
+def reise_label(buchung: dict) -> str:
+    """„Ziel, Datum" einer Buchung der groben Liste."""
+    code = buchung.get("reiseCode")
+    titel = buchung_titel(buchung, _titel_aus_code(code) or code or "deine Reise")
+    von = str(buchung.get("vonDat") or "")
+    return f"{titel}, {fmt_datum(von)}" if von else titel
 
 
 def fetch_buchungen_text(

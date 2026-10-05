@@ -523,7 +523,15 @@ def reise_fuer_links(endpoint: str, kunden_id: str) -> tuple[str, str]:
         return "", ""
     seiten_vorgang = _vrrvorgang_from_url(endpoint)
     if seiten_vorgang:
-        return seiten_vorgang, ""
+        # Das Label kommt aus der (gecachten) groben Liste. Ohne es überlas
+        # Leon die Dokumentliste: „Wo finde ich meine Reiseanmeldung?“ ging auf
+        # der Reiseseite 0 von 4 Mal richtig aus, mit Label 5 von 5 (05.10.2026).
+        # Ausfall oder fremde Nummer → "" wie bisher.
+        suche = gevent.spawn(_label_zur_reise, kunden_id, seiten_vorgang)
+        try:
+            return seiten_vorgang, suche.get(timeout=REISE_TIMEOUT_S)
+        except gevent.Timeout:
+            return seiten_vorgang, ""
 
     # Eigener Greenlet statt Timeout um den Aufruf (Review 2026-09-24): der
     # Chat wartet hoechstens REISE_TIMEOUT_S, der Abruf laeuft aber zu Ende und
@@ -535,6 +543,16 @@ def reise_fuer_links(endpoint: str, kunden_id: str) -> tuple[str, str]:
         return auflosung.get(timeout=REISE_TIMEOUT_S)
     except gevent.Timeout:
         return "", ""
+
+
+def _label_zur_reise(kunden_id: str, vorgang: str) -> str:
+    try:
+        for b in kundendaten._buchungen_roh(kunden_id) or []:
+            if str(b.get("vorgang") or "") == vorgang:
+                return kundendaten.reise_label(b)
+    except Exception as e:
+        print(f"[agent] Label der Reise nicht abrufbar: {type(e).__name__}")
+    return ""
 
 
 def _naechste_reise(kunden_id: str) -> tuple[str, str]:

@@ -901,16 +901,17 @@ REISE_URL = (
 )
 
 
-def test_url_nummer_kostet_keinen_abruf(monkeypatch):
+def test_url_nummer_haengt_nicht_an_der_api(monkeypatch):
     """Pflicht-Regression (D3): trägt die Seite eine Nummer, ist die Frage
-    beantwortet — ohne API, also auch bei TourOne-Ausfall."""
+    beantwortet — die Nummer kommt aus der URL, nie aus der API. Nur das Label
+    kommt aus der gecachten groben Liste (ohne es überliest Leon die
+    Dokumentliste, 05.10.2026); eine fremde Nummer bekommt keins."""
     import agent
 
-    calls = fake_tourone(
+    fake_tourone(
         monkeypatch, {"/get/adresse": adresse_mit([eingebettete_buchung("126001")])}
     )
     assert agent.reise_fuer_links(REISE_URL, "999999999") == (URL_NUMMER, "")
-    assert calls == []
 
 
 def test_url_nummer_ueberlebt_den_tourone_ausfall(monkeypatch):
