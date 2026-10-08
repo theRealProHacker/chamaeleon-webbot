@@ -137,6 +137,11 @@ def render_beide(rows: list[dict]) -> tuple[str, str]:
     return render(rows), render([r for r in rows if r["quelle"] == "intern"])
 
 
+def fragen_antworten(rows: list[dict]) -> dict[str, str]:
+    """{Frage: Antwort} der allgemeinen FAQs (website + intern)."""
+    return {r["frage"]: r["antwort"] for r in rows if r["quelle"] in ("website", "intern")}
+
+
 def laender(rows: list[dict]) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     """land-Zeilen -> (Land -> Markdown fuer Tool und Prompt, Land -> {Frage: Antwort})."""
     faqs = {land: f"# {land}" for land in LAENDER}
@@ -240,6 +245,7 @@ def load() -> bool:
         print(f"[faq-sync] load failed, keeping current FAQs: {e}")
         return False
     agent_base.allgemeine_faqs, agent_base.allgemeine_faqs_agentur = render_beide(rows)
+    agent_base.general_faq_data = fragen_antworten(rows)
     land = sum(r["quelle"] == "land" for r in rows)
     status["load"] = {"ok": True, "zeilen": len(rows), "land": land, "zeit": _jetzt()}
     # Ohne land-Zeilen (z.B. vor dem Import) bleiben die Laender-FAQs, wie sie sind;

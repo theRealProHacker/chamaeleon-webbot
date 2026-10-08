@@ -712,9 +712,22 @@ def test_land(frage):
 # Jetzt ein normaler Test: er sagt, WELCHE Frage verschwunden ist.
 
 
+# Eval-Fragen, die nicht woertlich als FAQ-Frage in Supabase stehen: welche FAQ
+# sie beantwortet. Die Eval-Frage selbst bleibt, wie sie ist.
+FAQ_ZU_EVAL_FRAGE = {
+    "Versicherungsangebot": "Welche Versicherungen bieten Sie an?",
+    "Versicherungsbedingungen": "Kann ich über Chamäleon eine Reiseversicherung abschließen?",
+    "Mein gewünschter Termin ist online nicht mehr sichtbar": "Mein gewünschter Termin ist online nicht mehr sichtbar.",
+}
+
+
 def test_allgemeine_fragen_gibt_es_noch():
-    weg = [f for f in EXPECTED_KEYWORDS_GENERAL_FAQ if f not in general_faq_data]
-    assert not weg, f"nicht mehr in faqs/Allgemeine_FAQ.csv: {weg}"
+    weg = [
+        f
+        for f in EXPECTED_KEYWORDS_GENERAL_FAQ
+        if FAQ_ZU_EVAL_FRAGE.get(f, f) not in general_faq_data
+    ]
+    assert not weg, f"nicht mehr in den allgemeinen FAQs (Supabase-Snapshot): {weg}"
 
 
 def test_laender_fragen_gibt_es_noch():

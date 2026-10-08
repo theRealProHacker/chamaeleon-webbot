@@ -1,4 +1,3 @@
-import csv
 import datetime
 import json
 import locale
@@ -124,23 +123,12 @@ laender_faqs, laender_faq_data = faq_sync.laender(_faq_snapshot)
 with open("faqs/agentur.md", "r", encoding="utf-8") as f:
     agentur_wissensbasis = f.read().strip()
 
-general_faq_data: dict[str, str] = {}
-
-with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
-    reader = csv.reader(f, delimiter=";")
-    for row in reader:
-        row = [cell for _cell in row if (cell := _cell.strip())]
-        if (
-            row
-            and len(row) > 2
-            and all(row)
-            and row[0].isalnum()
-            and (q := row[1].strip())
-        ):
-            assert q in allgemeine_faqs, (
-                f"Frage '{q}' nicht in allgemeine FAQs gefunden"
-            )
-            general_faq_data[q] = row[2].strip()
+# {Frage: Antwort} der allgemeinen FAQs (website + intern) fuer chat_quality
+# und Tests; wie die Bloecke oben erst Snapshot, ab Serverstart faq_sync.load().
+# Frueher aus faqs/Allgemeine_FAQ.csv mit einem assert beim Import: eine in
+# Supabase umformulierte Frage haette nach dem naechsten Export den Deploy
+# abstuerzen lassen.
+general_faq_data = faq_sync.fragen_antworten(_faq_snapshot)
 
 # Visa labels
 with open("visa_labels.json", "r", encoding="utf-8") as f:

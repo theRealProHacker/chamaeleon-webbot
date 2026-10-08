@@ -94,7 +94,7 @@ class _Abfrage:
 
 def _load(monkeypatch, rows):
     monkeypatch.setattr(faq_sync, "_supabase", lambda: type("S", (), {"table": lambda self, t: _Abfrage(rows)})())
-    for name in ("allgemeine_faqs", "allgemeine_faqs_agentur", "laender_faqs", "laender_faq_data"):
+    for name in ("allgemeine_faqs", "allgemeine_faqs_agentur", "general_faq_data", "laender_faqs", "laender_faq_data"):
         monkeypatch.setattr(agent_base, name, getattr(agent_base, name))
     assert faq_sync.load()
 
@@ -104,6 +104,7 @@ def test_load_ohne_land_zeilen_behaelt_laender(monkeypatch):
     vorher = agent_base.laender_faqs
     _load(monkeypatch, parse_md("## Kataloge\n\n**F: Neu?**\nA: Ja."))
     assert agent_base.allgemeine_faqs == "## Kataloge\n\n**F: Neu?**\nA: Ja."
+    assert agent_base.general_faq_data == {"Neu?": "Ja."}
     assert agent_base.laender_faqs is vorher
 
 
