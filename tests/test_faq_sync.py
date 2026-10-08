@@ -62,7 +62,7 @@ def test_render_intern_vor_website():
 
 def test_laender_csv_rundlauf():
     # Der Import nach Supabase darf von den Laender-CSVs nichts verlieren.
-    daten = parse_laender_csv()
+    daten, _ = parse_laender_csv()
     assert set(daten) == set(LAENDER)
     faqs, neu = laender(land_zeilen(daten))
     # Reihenfolge zaehlt: Tool-Beschreibung und Prompt zeigen sie so.
@@ -112,3 +112,24 @@ def test_load_meldet_unbekannte_laender(monkeypatch):
     _load(monkeypatch, rows)
     assert faq_sync.status["load"]["unbekannte_laender"] == ["Namibia "]
     assert agent_base.laender_faqs["Namibia "].startswith("# Namibia ")
+
+
+def test_laender_csv_gruppen_verschlucken_nichts():
+    # Bis 2026-10 setzte "Chile/Bolivien/Peru" Chile und Peru zurueck und
+    # versteckte so 10 Fragen; eine Gruppen-Kopfzeile ergaenzt nur.
+    daten, _ = parse_laender_csv()
+    assert daten["Argentinien"].items() <= daten["Chile"].items()
+    assert daten["Bolivien"].items() <= daten["Peru"].items()
+    assert "Wie anspruchsvoll sind die Wanderungen ?" in daten["Albanien"]
+
+
+def test_laender_csv_rest_landet_ausgeblendet():
+    # Alles mit Text kommt nach Supabase; was keine ganze Frage-Antwort-Zeile ist,
+    # ausgeblendet. Visum bleibt mit Warnung draussen.
+    _, versteckt = parse_laender_csv()
+    texte = {(land, frage) for land, frage, _ in versteckt}
+    assert ("Island", "Wie funktioniert die Fahrt mit dem Flybus?") in texte
+    assert ("Lettland", "Kombireise mit Estland und Litauen, siehe Estland") in texte
+    assert not any(f.startswith(("Nr.", "Reisenspezifische")) for _, f, _ in versteckt)
+    visum = [a for _, f, a in versteckt if "visum" in f.lower()]
+    assert len(visum) == 2 and all(a == faq_sync.VISUM_HINWEIS for a in visum)

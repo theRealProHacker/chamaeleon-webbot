@@ -7,7 +7,7 @@ Supabase Table Editor gepflegt. DDL: sql/faq.sql. Ueberschneiden sich beide,
 blendet der Owner eine Zeile per ``ausgeblendet`` aus; der Sync aendert das nie.
 
     python faq_sync.py import [--replace]   allgemein.md -> intern-Zeilen
-    python faq_sync.py import-laender [--replace]   FAQ_*.csv -> land-Zeilen
+    python faq_sync.py import-laender [--replace]   FAQ_*.csv -> land-Zeilen (Rest ausgeblendet)
     python faq_sync.py sync [--force]       /Infos -> website-Zeilen
     python faq_sync.py export               aktive Zeilen -> faqs/snapshot.json
 
@@ -150,18 +150,25 @@ def laender(rows: list[dict]) -> tuple[dict[str, str], dict[str, dict[str, str]]
     return faqs, daten
 
 
-def parse_laender_csv(zuruecksetzen: bool = True) -> dict[str, dict[str, str]]:
-    """faqs/FAQ_*.csv -> {Land: {Frage: Antwort}}, Parser wie bis 2026-10 in agent_base.
+# Bewusst ausgeblendete Zeile: Visum-Fragen sind seit Sept. 2026 absichtlich
+# nicht in den Laender-FAQs (visum.de-Tool und allgemeine FAQs decken sie ab).
+VISUM_HINWEIS = "Nicht einblenden: Visum-Fragen sind seit Sept. 2026 bewusst nicht in den Länder-FAQs (visum.de-Tool)."
 
-    Eine Kopfzeile wie "Chile/Bolivien/Peru" gilt fuer mehrere Laender und setzt
-    jedes davon zurueck; so hat der Bot die CSVs immer gelesen. Mit
-    ``zuruecksetzen=False`` bleiben frühere Fragen stehen (nur fuer die Liste der
-    verschluckten Fragen beim Import).
+
+def parse_laender_csv() -> tuple[dict[str, dict[str, str]], list[tuple[str, str, str]]]:
+    """faqs/FAQ_*.csv -> ({Land: {Frage: Antwort}}, [(Land, Frage, Antwort)] ausgeblendet).
+
+    Eine Kopfzeile wie "Chile/Bolivien/Peru" gilt fuer mehrere Laender und
+    ergaenzt deren Fragen. (Bis 2026-10 setzte sie sie zurueck und versteckte so
+    Chile 7, Peru 3 und Albanien 1 Frage.) Zweite Liste: alles andere mit Text,
+    das keine vollstaendige Frage-Antwort-Zeile ist (Frage ohne Antwort, Notiz),
+    damit es in Supabase liegt, ohne dass der Bot es sieht.
     """
     daten: dict[str, dict[str, str]] = {}
+    versteckt: list[tuple[str, str, str]] = []
     for kontinent in KONTINENTE:
         with open(f"faqs/FAQ_{kontinent}.csv", "r", encoding="utf-8") as f:
-            aktuelle: list[str] = []
+            aktuelle: list[str] = [kontinent]
             for row in csv.reader(f, delimiter=";"):
                 row = [cell for _cell in row if (cell := _cell.strip())]
                 if not row:
@@ -169,19 +176,27 @@ def parse_laender_csv(zuruecksetzen: bool = True) -> dict[str, dict[str, str]]:
                 if row[0].isdigit() and len(row) == 3:
                     for land in aktuelle:
                         daten[land][row[1]] = row[2]
-                elif (
-                    not row[0].isdigit()
-                    and len(row) == 1
-                    and row[0] not in ("Nr.",)
-                    and len(row[0]) < 50
-                ):
+                elif row[0].isdigit():
+                    for land in aktuelle:
+                        for text in row[1:]:  # Nummer ohne Text: leere Vorlage
+                            versteckt.append(
+                                (land, text, VISUM_HINWEIS if "visum" in text.lower() else "")
+                            )
+                elif row[0].startswith("Reisenspezifische Fragen") or row[0] == "Nr.":
+                    continue  # Zwischenueberschrift der Vorlage
+                elif len(row) == 1 and len(row[0]) < 50:
                     aktuelle = " ".join(
                         part for part in row[0].split(" ") if "(" not in part
                     ).split("/")
                     for land in aktuelle:
-                        if zuruecksetzen or land not in daten:
-                            daten[land] = {}
-    return daten
+                        daten.setdefault(land, {})
+                else:
+                    for land in aktuelle:
+                        text = " ".join(row)
+                        versteckt.append(
+                            (land, text, VISUM_HINWEIS if "visum" in text.lower() else "")
+                        )
+    return daten, versteckt
 
 
 def land_zeilen(daten: dict[str, dict[str, str]]) -> list[dict]:
@@ -302,34 +317,47 @@ def import_md(replace: bool = False) -> int:
 
 
 def import_laender(replace: bool = False) -> int:
-    """Einmalig: faqs/FAQ_*.csv -> land-Zeilen, genau das, was der Bot bisher sah."""
-    daten = parse_laender_csv()
+    """Einmalig: faqs/FAQ_*.csv -> land-Zeilen, alles mit Text.
+
+    Vollstaendige Paare aktiv, der Rest (Fragen ohne Antwort, Notizen) mit
+    ausgeblendet=true: liegt in Supabase, der Bot sieht ihn nicht.
+    """
+    daten, versteckt = parse_laender_csv()
     rows = land_zeilen(daten)
     if set(daten) != set(LAENDER) or laender(rows)[1] != daten:
         raise SystemExit("Rundlauf weicht ab: laender(land_zeilen(csv)) != csv oder LAENDER")
+    rest = [
+        {
+            "quelle": "land",
+            "extern_id": None,
+            "kategorie": land,
+            "frage": frage,
+            "antwort": antwort,
+            "position": LAND_POSITION + len(rows) + i,
+            "ausgeblendet": True,
+        }
+        for i, (land, frage, antwort) in enumerate(versteckt)
+    ]
     db = _supabase().table(TABLE)
     if db.select("id").eq("quelle", "land").limit(1).execute().data:
         if not replace:
             raise SystemExit("land-Zeilen gibt es schon; --replace ersetzt sie")
         db.delete().eq("quelle", "land").execute()  # alte Zeilen landen in faq_history
-    db.insert(rows).execute()
-    # Gegenprobe gegen das, was load() wirklich liest.
+    db.insert([r | {"ausgeblendet": False} for r in rows] + rest).execute()
+    # Gegenprobe gegen das, was load() wirklich liest, und gegen die ausgeblendeten.
     zurueck = (
         db.select(",".join(FELDER)).eq("quelle", "land")
         .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
     )
-    if laender(zurueck)[1] != daten:
+    aus = db.select("id").eq("quelle", "land").eq("ausgeblendet", True).execute().data
+    if laender(zurueck)[1] != daten or len(aus) != len(rest):
         raise SystemExit(
             "land-Zeilen in Supabase weichen vom CSV ab und sind schon aktiv: "
             "sofort mit --replace wiederholen, vorher kein Push 2"
         )
-    # Fragen, die der alte Parser durch Zuruecksetzen verschluckt hat: nicht
-    # importiert, der Owner entscheidet je Frage und traegt sie von Hand ein.
-    for land, fragen in parse_laender_csv(zuruecksetzen=False).items():
-        for f, a in fragen.items():
-            if f not in daten.get(land, {}):
-                print(f"[verschluckt] {land}\nF: {f}\nA: {a}\n")
-    return len(rows)
+    for r in rest:
+        print(f"[ausgeblendet] {r['kategorie']}: {r['frage']}" + (f"  ({r['antwort']})" if r["antwort"] else ""))
+    return len(rows) + len(rest)
 
 
 def export() -> int:

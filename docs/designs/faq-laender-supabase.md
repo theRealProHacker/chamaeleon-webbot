@@ -273,3 +273,20 @@ Parallelisierung: Sequential implementation, no parallelization opportunity.
 - **VERDICT:** Eng Review mit offenen, aber vollständig entschiedenen Befunden; bereit zur Umsetzung.
 
 NO UNRESOLVED DECISIONS
+
+## Nachtrag: alle Daten nach Supabase (Owner, 2026-10-08)
+
+Owner: „please make sure to get all data into supabase, even currently accidentally hidden
+data“. Ersetzt „Import: genau das, was der Bot heute sieht“. Umsetzung (Details von Fable
+für den Owner entschieden):
+- Gruppen-Kopfzeilen ergänzen statt zurückzusetzen: Chile +7, Peru +3, Albanien +1 Frage,
+  aktiv (344 statt 333 Paare). Peru bekommt damit auch die Impf-Frage zur Reise Altiplano,
+  die Chile und Bolivien heute schon sehen (nie bewusst entfernt, `git log -S` geprüft).
+- Alles andere mit Text (14 Zeilen: Fragen ohne Antwort, Notizen wie „siehe oben“,
+  „Kombireise … siehe Estland“, „CAROC:“) kommt mit `ausgeblendet = true` und leerer
+  Antwort nach Supabase; der Bot sieht es nicht, Mitarbeiter können ergänzen und einblenden.
+- Die zwei Visum-Zeilen (Afrika-Kopf, Namibia) ebenfalls ausgeblendet, Antwort = Warnung
+  „Nicht einblenden …“ (Visum-Fragen seit Sept. 2026 bewusst raus).
+- Leere Vorlagenzeilen (nur Nummer) und Zwischenüberschriften („Nr.“, „Reisenspezifische
+  Fragen“) sind keine Daten.
+- `import-laender` listet jede ausgeblendete Zeile (Land: Frage).

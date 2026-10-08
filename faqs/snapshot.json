@@ -1531,17 +1531,73 @@
   "quelle": "land",
   "extern_id": null,
   "kategorie": "Chile",
-  "frage": "Mit welcher Airline wird bei der Reise Altiplano geflogen?",
-  "antwort": "Je nach Reisetermin und gewünschter Beförderungsklasse (Economy, Business etc) wird mit Iberia, KLM und/oder Air France geflogen. Wenn deine Flugverbindung vom Gruppenflug abweicht, können Extrakosten für separate Transfers entstehen. Erkundige dich gern bei unserer Erlebnisberatung, welche Möglichkeiten zu deinem Wunschtermin bestehen.",
+  "frage": "Wie lange fliegt man nach Argentinien?",
+  "antwort": "Bei der Direktverbindung mit der Lufthansa beträgt die Flugdauer 13 Stunden und 45 Minuten.",
   "position": 2114
  },
  {
   "quelle": "land",
   "extern_id": null,
   "kategorie": "Chile",
+  "frage": "Wann ist die beste Reisezeit?",
+  "antwort": "Die Hauptreisezeit für Patagonien ist von November bis Februar.",
+  "position": 2115
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Welche Landeswährung hat Argentinien bzw. Chile?",
+  "antwort": "Argentinien hat den argentisnischen Peso und Chile den chilenischen Peso.",
+  "position": 2116
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Muss vor Abreise Geld getauscht werden?",
+  "antwort": "Vor Abreise muss keine Geld in die jeweilige Landeswährung getauscht werden. Es reicht, wenn Euro und USD mitgenommen werden.",
+  "position": 2117
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Kann bei der Aerolinas Argentinas schon vorher Gepäck dazugebucht werden, da die Freigepäckmenge ja nur 15KG beeinhaltet.",
+  "antwort": "Tatsächlich können wir vorher keine Gepäck dazubuchen. Dies kann beim Check-In am Schlater problemlos gemacht werden. Wichtig ist, dass die 23KG nicht überschritten werden dürfen.",
+  "position": 2118
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Wieviele Reiseleiter gibt es auf der Reise?",
+  "antwort": "Es gibt nach jedem Flug und Grenzübertritt eine neue Reiseleitung. Insgesamt 6 Reiseleiter.",
+  "position": 2119
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Mit welcher Airline wird bei der Reise Patagonia geflogen.",
+  "antwort": "Wir fliegen bei dieser Reise mit der LATAM und der Aerolinas Argentinas.",
+  "position": 2120
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
+  "frage": "Mit welcher Airline wird bei der Reise Altiplano geflogen?",
+  "antwort": "Je nach Reisetermin und gewünschter Beförderungsklasse (Economy, Business etc) wird mit Iberia, KLM und/oder Air France geflogen. Wenn deine Flugverbindung vom Gruppenflug abweicht, können Extrakosten für separate Transfers entstehen. Erkundige dich gern bei unserer Erlebnisberatung, welche Möglichkeiten zu deinem Wunschtermin bestehen.",
+  "position": 2121
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Chile",
   "frage": "Welche Impfungen brauche ich für die Reise Altiplano?",
   "antwort": "Es sind keine Impfungen vorgeschrieben. Lass dich am besten in deiner Hausarztpraxis oder beim BCRT beraten, ob es empfohlene Impfungen gibt, die bei dir z. B. aufgefrischt werden müssen. Wenn du auf Galápagos verlängerst und unter 60 Jahre alt bist, ist eine Gelbfieberimpfung verpflichtend (Stand 12.05.2025).",
-  "position": 2115
+  "position": 2122
  },
  {
   "quelle": "land",
@@ -1549,7 +1605,7 @@
   "kategorie": "Chile",
   "frage": "Wie viel Gepäck ist auf den Inlandsflügen inbegriffen?",
   "antwort": "Auf den Inlandsflügen in Chile und Peru fliegst du in der Regel mit der LATAM, dort sind 23 kg inkludiert. Der Inlandsflug von Uyuni nach La Paz wird von Boliviana durchgeführt, dort beträgt das Freigepäck 20 kg, kann jedoch am Flughafen problemlos gegen eine kleine Gebühr auf 23 kg aufgestockt werden. Deine Reiseleitung ist hierbei gern behilflich, wenn nötig.",
-  "position": 2116
+  "position": 2123
  },
  {
   "quelle": "land",
@@ -1557,7 +1613,7 @@
   "kategorie": "Bolivien",
   "frage": "Mit welcher Airline wird bei der Reise Altiplano geflogen?",
   "antwort": "Je nach Reisetermin und gewünschter Beförderungsklasse (Economy, Business etc) wird mit Iberia, KLM und/oder Air France geflogen. Wenn deine Flugverbindung vom Gruppenflug abweicht, können Extrakosten für separate Transfers entstehen. Erkundige dich gern bei unserer Erlebnisberatung, welche Möglichkeiten zu deinem Wunschtermin bestehen.",
-  "position": 2117
+  "position": 2124
  },
  {
   "quelle": "land",
@@ -1565,7 +1621,7 @@
   "kategorie": "Bolivien",
   "frage": "Welche Impfungen brauche ich für die Reise Altiplano?",
   "antwort": "Es sind keine Impfungen vorgeschrieben. Lass dich am besten in deiner Hausarztpraxis oder beim BCRT beraten, ob es empfohlene Impfungen gibt, die bei dir z. B. aufgefrischt werden müssen. Wenn du auf Galápagos verlängerst und unter 60 Jahre alt bist, ist eine Gelbfieberimpfung verpflichtend (Stand 12.05.2025).",
-  "position": 2118
+  "position": 2125
  },
  {
   "quelle": "land",
@@ -1573,7 +1629,7 @@
   "kategorie": "Bolivien",
   "frage": "Wie viel Gepäck ist auf den Inlandsflügen inbegriffen?",
   "antwort": "Auf den Inlandsflügen in Chile und Peru fliegst du in der Regel mit der LATAM, dort sind 23 kg inkludiert. Der Inlandsflug von Uyuni nach La Paz wird von Boliviana durchgeführt, dort beträgt das Freigepäck 20 kg, kann jedoch am Flughafen problemlos gegen eine kleine Gebühr auf 23 kg aufgestockt werden. Deine Reiseleitung ist hierbei gern behilflich, wenn nötig.",
-  "position": 2119
+  "position": 2126
  },
  {
   "quelle": "land",
@@ -1581,7 +1637,7 @@
   "kategorie": "Brasilien",
   "frage": "Wann ist die Trockenzeit im Amazonas?",
   "antwort": "Die Trockenzeit im Amazonas sind die Sommermonate Juli bis September",
-  "position": 2120
+  "position": 2127
  },
  {
   "quelle": "land",
@@ -1589,7 +1645,7 @@
   "kategorie": "Brasilien",
   "frage": "Welche Reisestecker muss man für Brasilien mitnehmen?",
   "antwort": "Für Brasilien benötig tman den Reisestecker Typ N",
-  "position": 2121
+  "position": 2128
  },
  {
   "quelle": "land",
@@ -1597,7 +1653,7 @@
   "kategorie": "Brasilien",
   "frage": "Muss man in Deutschland schon Euro in die Landeswährung tauschen?",
   "antwort": "Nein, es reicht aus Euro mitzunhemen. Man sollte allerdings genügend Bargeld mitnehmen, da im Amazonas Kreditkartenzahlung nicht immer verfügbar ist.",
-  "position": 2122
+  "position": 2129
  },
  {
   "quelle": "land",
@@ -1605,7 +1661,7 @@
   "kategorie": "Brasilien",
   "frage": "Wann ist die beste Zeit um Jaguare zu beobachten?",
   "antwort": "Die beste Zeit um Jaguare im Pantanal zu beobachten ist Juni-September.",
-  "position": 2123
+  "position": 2130
  },
  {
   "quelle": "land",
@@ -1613,7 +1669,7 @@
   "kategorie": "Brasilien",
   "frage": "Bieten Sie diese Reise auch im Februar an?",
   "antwort": "Nein, da unser Hauptaugenmerk auf Pantanl und Amazonas liegt und im Februar noch Regenzeit ist, bieten wir diese Reise erst ab April an.",
-  "position": 2124
+  "position": 2131
  },
  {
   "quelle": "land",
@@ -1621,7 +1677,31 @@
   "kategorie": "Brasilien",
   "frage": "Mit welcher Airline wird bei Pantanal Reise geflogen?",
   "antwort": "Wir fliegen sowohl auf der Langstrecke als auch in Brasilien mit der LATAM.",
-  "position": 2125
+  "position": 2132
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Peru",
+  "frage": "Mit welcher Airline wird bei der Reise Altiplano geflogen?",
+  "antwort": "Je nach Reisetermin und gewünschter Beförderungsklasse (Economy, Business etc) wird mit Iberia, KLM und/oder Air France geflogen. Wenn deine Flugverbindung vom Gruppenflug abweicht, können Extrakosten für separate Transfers entstehen. Erkundige dich gern bei unserer Erlebnisberatung, welche Möglichkeiten zu deinem Wunschtermin bestehen.",
+  "position": 2133
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Peru",
+  "frage": "Welche Impfungen brauche ich für die Reise Altiplano?",
+  "antwort": "Es sind keine Impfungen vorgeschrieben. Lass dich am besten in deiner Hausarztpraxis oder beim BCRT beraten, ob es empfohlene Impfungen gibt, die bei dir z. B. aufgefrischt werden müssen. Wenn du auf Galápagos verlängerst und unter 60 Jahre alt bist, ist eine Gelbfieberimpfung verpflichtend (Stand 12.05.2025).",
+  "position": 2134
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Peru",
+  "frage": "Wie viel Gepäck ist auf den Inlandsflügen inbegriffen?",
+  "antwort": "Auf den Inlandsflügen in Chile und Peru fliegst du in der Regel mit der LATAM, dort sind 23 kg inkludiert. Der Inlandsflug von Uyuni nach La Paz wird von Boliviana durchgeführt, dort beträgt das Freigepäck 20 kg, kann jedoch am Flughafen problemlos gegen eine kleine Gebühr auf 23 kg aufgestockt werden. Deine Reiseleitung ist hierbei gern behilflich, wenn nötig.",
+  "position": 2135
  },
  {
   "quelle": "land",
@@ -1629,7 +1709,7 @@
   "kategorie": "Peru",
   "frage": "Wie ist es mit der Höhenkrankheit?",
   "antwort": "Hat nichts mit Alter u. körperlicher Fitness zu tun, man tastet sich langsam in die Höhe vor, viel trinken ist wichtig, evtl. blutverdünnendes Mittel, Sauerstoff im Fahrzeug vorhanden, ggf. Rücksprache mit Hausarzt bei Herz-Kreislauf Vorerkrankungen",
-  "position": 2126
+  "position": 2136
  },
  {
   "quelle": "land",
@@ -1637,7 +1717,7 @@
   "kategorie": "Peru",
   "frage": "Beste Reisezeit",
   "antwort": "Trockenzeit (Mitte/ Ende März - Anfang/ Mitte November)",
-  "position": 2127
+  "position": 2137
  },
  {
   "quelle": "land",
@@ -1645,7 +1725,7 @@
   "kategorie": "Peru",
   "frage": "Schuhwerk",
   "antwort": "feste Schuhe mit gutem Profil, in denen man guten Halt hat",
-  "position": 2128
+  "position": 2138
  },
  {
   "quelle": "land",
@@ -1653,7 +1733,7 @@
   "kategorie": "Peru",
   "frage": "Geld",
   "antwort": "Bezahlung mit Kreditkarte oder Bargeld; am besten Euro vor Ort tauschen (um Bankgebühren am Automaten zu sparen)",
-  "position": 2129
+  "position": 2139
  },
  {
   "quelle": "land",
@@ -1661,7 +1741,7 @@
   "kategorie": "Peru",
   "frage": "Sicherheit",
   "antwort": "ja, an kann gut in der Gruppe nach Peru reisen, RL kennen sich aus, geben Tipps, man ist nicht allein unterwegs",
-  "position": 2130
+  "position": 2140
  },
  {
   "quelle": "land",
@@ -1669,7 +1749,7 @@
   "kategorie": "Costa Rica",
   "frage": "Kann man überall rauchen?",
   "antwort": "Costa Rica nimmt sein Rauchergesetz ernst. Es wird darauf geachtet, dass nur in ausgewiesenen Bereichen geraucht wird.",
-  "position": 2131
+  "position": 2141
  },
  {
   "quelle": "land",
@@ -1677,7 +1757,7 @@
   "kategorie": "Costa Rica",
   "frage": "Wie schwer sind die Wanderungen?",
   "antwort": "Je nach Reise ist es unterschiedlich. Ruf uns hierzu an, damit wir dir konkrete Auskünfte zu deiner geplanten Reise geben können.",
-  "position": 2132
+  "position": 2142
  },
  {
   "quelle": "land",
@@ -1685,7 +1765,7 @@
   "kategorie": "Costa Rica",
   "frage": "Braucht man eine gute Kondition, um alle Touren mitzumachen?",
   "antwort": "Nein, i.d.R.  Reicht eine \"normale\" Kondition aus.",
-  "position": 2133
+  "position": 2143
  },
  {
   "quelle": "land",
@@ -1693,7 +1773,7 @@
   "kategorie": "Costa Rica",
   "frage": "In welcher Höhe ist man maximal unterwegs?",
   "antwort": "Je nach Reise ist es unterschiedlich.",
-  "position": 2134
+  "position": 2144
  },
  {
   "quelle": "land",
@@ -1701,7 +1781,7 @@
   "kategorie": "Costa Rica",
   "frage": "Welche Stromadapter brauche ich?",
   "antwort": "Am besten hier schauen: https://www.welt-steckdosen.de/",
-  "position": 2135
+  "position": 2145
  },
  {
   "quelle": "land",
@@ -1709,7 +1789,7 @@
   "kategorie": "Costa Rica",
   "frage": "Wie lange dauert der Flug?",
   "antwort": "Von Frankfurt nach San José nonstopp ca. 12h",
-  "position": 2136
+  "position": 2146
  },
  {
   "quelle": "land",
@@ -1717,7 +1797,7 @@
   "kategorie": "Costa Rica",
   "frage": "Kann ich auch mal \"aussetzen\" mit den Touren/Ausflügen?",
   "antwort": "Frag die RL an welchem Tag du im Hotel bleiben kannst, weil dieselbe Unterkunft wie am Vortag oder du fährst mit und wartest am/im Bus.",
-  "position": 2137
+  "position": 2147
  },
  {
   "quelle": "land",
@@ -1725,7 +1805,7 @@
   "kategorie": "Costa Rica",
   "frage": "Muss ich Moskitonetze mitbringen?",
   "antwort": "Nein, das ist nicht notwendig. Dort, wo vermehrt Moskitos auftreten, verfügen die Unterkünfte in der Regel über entsprechende Vorkehrungen. In anderen Unterkünften bestehen auch in der Regel keine Möglichkeiten, Netze anzubringen.",
-  "position": 2138
+  "position": 2148
  },
  {
   "quelle": "land",
@@ -1733,7 +1813,7 @@
   "kategorie": "Costa Rica",
   "frage": "Schuhwerk",
   "antwort": "Feste Schuhe mit guter Profilsohle, schon eingetragen",
-  "position": 2139
+  "position": 2149
  },
  {
   "quelle": "land",
@@ -1741,7 +1821,7 @@
   "kategorie": "Costa Rica",
   "frage": "Welche Zahlungsmittel und Währungen sind empfohlen?",
   "antwort": "Am besten hast du eine Kreditkarte (Visa oder Master), die für Costa Rica freigeschaltet wurde. Vor Ort kannst du mit US-Dollar bezahlen. An Geldautomaten erhältst du die lokale Währung CRC (Costa Rica Colón). Wenn du davon etwas am Ende der Tour übrig hast, kannst du sie gern in den Trinkgeldbeutel geben. US-Dollar kannst du zu Hause auch wieder zurücktauschen.",
-  "position": 2140
+  "position": 2150
  },
  {
   "quelle": "land",
@@ -1749,7 +1829,7 @@
   "kategorie": "Costa Rica",
   "frage": "Welche Flüge sind nach Costa Rica vorgesehen?",
   "antwort": "Wir fliegen in der Regel mit der Lufthansa auf den Direktflügen von Frankfurt nach San José und zurück. Der Hinflug ist ein Tagflug, du kommst noch am selben Tag an. Zurück geht es durch die Nacht mit Ankunft am nächsten Tag.",
-  "position": 2141
+  "position": 2151
  },
  {
   "quelle": "land",
@@ -1757,7 +1837,7 @@
   "kategorie": "Costa Rica",
   "frage": "Wann muss ich die Schildkrötentour buchen? Wie läuft das ab?",
   "antwort": "Die Touren werden in der Tat erst vor Ort gebucht. Buchbar über die Reiseleitung, abhängig von Saison, Naturschutzregelungen und Wetter.",
-  "position": 2142
+  "position": 2152
  },
  {
   "quelle": "land",
@@ -1765,7 +1845,7 @@
   "kategorie": "Costa Rica",
   "frage": "Wie wird der Transfer auf der Tortuguero-Reise (CRTOR) vom Tango Mar zum Flughafen gestaltet?",
   "antwort": "Der Transferbus bringt dich vom Tango-Mar-Hotel zur Fähre. Auf diese gehst du selbstständig mit deinem Gepäck und fährst über den Golf von Nicoya. Am Ankunftshafen erwartet dich wieder das Transferauto und bringt dich direkt zum Flughafen San José.",
-  "position": 2143
+  "position": 2153
  },
  {
   "quelle": "land",
@@ -1773,7 +1853,7 @@
   "kategorie": "Costa Rica",
   "frage": "Kann man im Pazifik baden?",
   "antwort": "Der Pazifik ist von starken Strömungen geprägt, sodass das Baden - insbesondere das Schwimmen - oft nicht möglich ist. Die meisten unserer Unterkünfte verfügen für die Abkühlung über herrliche Pools. Und ein Strandspaziergang ist jederzeit möglich.",
-  "position": 2144
+  "position": 2154
  },
  {
   "quelle": "land",
@@ -1781,7 +1861,7 @@
   "kategorie": "Costa Rica",
   "frage": "CRMIR: kann man, obwohl die Reise in Panama endet, treotzdem ein Anschlussprogramm in Costa Rica buchen?",
   "antwort": "Da der Rückflug von Panama City sowieso über San José geht, kann man auch in Costa Rica ein Anschlussprogramm buchen.",
-  "position": 2145
+  "position": 2155
  },
  {
   "quelle": "land",
@@ -1789,7 +1869,7 @@
   "kategorie": "Ecuador",
   "frage": "Wann ist die beste Reisezeit für Ecuador?",
   "antwort": "Ecuador ist ein ganzjähriges Reiseziel. Die meisten Regionen haben eine Regen- und Trockenzeit. Welche Reisezeit für dich am besten geeignet ist, ist auch davon abhängig, worauf dein Fokus liegt (z. B. Tierbeobachtungen auf Galápagos). Kontaktiere zu diesem Thema gern unsere Erlebnisberatung.",
-  "position": 2146
+  "position": 2156
  },
  {
   "quelle": "land",
@@ -1797,7 +1877,7 @@
   "kategorie": "Ecuador",
   "frage": "Welche Impfungen brauche ich für Ecuador?",
   "antwort": "Ecuador schreibt für alle Personen unter 60 Jahren eine Gelbfieberimpfung vor, wenn man aus einem Gelbfiebergebiet (z. B. Peru) einreist. Bei direkter Einreise aus Europa ist keine Impfung verpflichtend. Wenden Sie sich bei Fragen rund ums Thema Impfungen am besten an Ihre Hausarztpraxis oder z. B. das BCRT.",
-  "position": 2147
+  "position": 2157
  },
  {
   "quelle": "land",
@@ -1805,7 +1885,7 @@
   "kategorie": "Ecuador",
   "frage": "Welche Währung brauche ich für Ecuador?",
   "antwort": "In Ecuador wird mit US-Dollar bezahlt, es gibt dort keine eigene Landeswährung mehr.",
-  "position": 2148
+  "position": 2158
  },
  {
   "quelle": "land",
@@ -1813,7 +1893,7 @@
   "kategorie": "Ecuador",
   "frage": "Muss ich vor der Reise Euro in Landeswährung tauschen?",
   "antwort": "Wenn du noch US-Dollar von einer vergangenen Reise hast, nimm diese gern mit. Ansonsten kannst du problemlos vor Ort Euro in US-Dollar tauschen. In den meisten Orten kannst du auch mit deiner Kreditkarte US-Dollar abheben.",
-  "position": 2149
+  "position": 2159
  },
  {
   "quelle": "land",
@@ -1821,7 +1901,7 @@
   "kategorie": "Ecuador",
   "frage": "Ist man auf der Ecuador-Reise in Malariagebieten unterwegs?",
   "antwort": "Nein, die Reiseroute befindet sich vollständig außerhalb von Malariagebieten. Guter Insektenschutz ist trotzdem sehr zu Empfehlen, besonders im Regenwald und auf Galápagos.",
-  "position": 2150
+  "position": 2160
  },
  {
   "quelle": "land",
@@ -1829,7 +1909,7 @@
   "kategorie": "Ecuador",
   "frage": "Sind die Wanderungen auf der Reise anstrengend?",
   "antwort": "Die meisten inbegriffenen Wanderungen sind leicht bis mittelschwer. Für die Wanderung im Regenwald ist aufgrund steiler Abhänge und des matschigen Untergrundes sehr gute Trittsicherheit erforderlich.",
-  "position": 2151
+  "position": 2161
  },
  {
   "quelle": "land",
@@ -1837,7 +1917,7 @@
   "kategorie": "Ecuador",
   "frage": "Wie viel Gepäck ist bei den Inlandsflügen nach und von Galápagos inbegriffen?",
   "antwort": "Die Gepäckmenge für die Inlandsflüge beträgt 23 kg. Dies gilt auch, wenn du auf der Langstrecke Premium Economy oder Business Class fliegst.",
-  "position": 2152
+  "position": 2162
  },
  {
   "quelle": "land",
@@ -1845,7 +1925,7 @@
   "kategorie": "Ecuador",
   "frage": "Habe ich auf den Galápagos-Inseln Zeit zum Tauchen oder Schnorcheln?",
   "antwort": "In der Reise sind mehrere Schnorchelgelegenheiten enthalten. Masken, Schnorchel und Flossen werden vor Ort gestellt, du kannst aber natürlich auch eigenes Equipment mitbringen. Neoprenanzüge (kurz oder lang) können bei Bedarf vorab über unsere Erlebnisberatung vorreserviert werden. Möglichkeiten zum Tauchen gibt es während der Reise nicht, hier ist eine individuelle Verlängerung ratsam. Kontaktiere dazu gern unsere Erlebnisberatung.",
-  "position": 2153
+  "position": 2163
  },
  {
   "quelle": "land",
@@ -1853,7 +1933,7 @@
   "kategorie": "Kanada",
   "frage": "Brauche ich für Kanada ein Visum?",
   "antwort": "Nein, aber es es muss eine elektronische Reisegenehmigung beantragt werden (eTA). Die Bearbeitungszeit beträgt in der Regel 1-3 Tage und ist kostenpflichtig.",
-  "position": 2154
+  "position": 2164
  },
  {
   "quelle": "land",
@@ -1861,7 +1941,7 @@
   "kategorie": "Kanada",
   "frage": "Passdaten / Passkopien",
   "antwort": "werden vorab nicht von uns benötigt",
-  "position": 2155
+  "position": 2165
  },
  {
   "quelle": "land",
@@ -1869,7 +1949,7 @@
   "kategorie": "Kanada",
   "frage": "CAROC: Sind die Wanderungen anstrengend?",
   "antwort": "Die Wanderungen sind mittelmäßig anstrengend, du solltest einigermaßen fit sein. Alternativ kannst du aber auch eine Wanderung ausfallen lassen und auf die Gruppe warten.",
-  "position": 2156
+  "position": 2166
  },
  {
   "quelle": "land",
@@ -1877,7 +1957,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Ist die Reise anstrengend?",
   "antwort": "Nein, die Reise ist nicht besonders anstrengend,  eher durchschnittlich. Die Gruppe wird vor Ort von der Reiseleitung eingeschätzt und die Wanderungen können entsprechend angepasst werden.",
-  "position": 2157
+  "position": 2167
  },
  {
   "quelle": "land",
@@ -1885,7 +1965,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Müssen die optionalen Aktivitäten vorab angemeldet werden",
   "antwort": "Nein, die Anmeldung und Bezahlung erfolgt jeweils vor Ort.",
-  "position": 2158
+  "position": 2168
  },
  {
   "quelle": "land",
@@ -1893,7 +1973,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Gibt es für die Reise ein Anschlussprogramm?",
   "antwort": "Nein, wir bieten kein Anschlussprogramm an.",
-  "position": 2159
+  "position": 2169
  },
  {
   "quelle": "land",
@@ -1901,7 +1981,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Kann man früher anreisen und schon ein paar Tage in Toronto verbringen?",
   "antwort": "Ja, wir können die Flüge entsprechend anpassen und Vorübernachtungen im Gruppenhotel in Toronto buchen.",
-  "position": 2160
+  "position": 2170
  },
  {
   "quelle": "land",
@@ -1909,7 +1989,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Kann man später abreisen und noch ein paar Tage in Québec City oder in Montreal verbringen?",
   "antwort": "Ja, wir können die Flüge entsprechend anpassen und Zusatzübernachtungen im Gruppenhotel in Québec City oder Montreal buchen.",
-  "position": 2161
+  "position": 2171
  },
  {
   "quelle": "land",
@@ -1917,7 +1997,7 @@
   "kategorie": "Kanada",
   "frage": "CAQUE: Wann ist die beste Reisezeit?",
   "antwort": "Vor allem der Indian Summer von Anfang/MItte September bis Mitte/Ende Oktoberist ist sehr zu empfehlen.",
-  "position": 2162
+  "position": 2172
  },
  {
   "quelle": "land",
@@ -1925,7 +2005,7 @@
   "kategorie": "Kolumbien",
   "frage": "Ist für Kolumbien eine Gelbfieber-Impfung verpflichtend?",
   "antwort": "Nein, die Impfung ist nicht verpflichtend, wird jedoch dringend empfohlen.",
-  "position": 2163
+  "position": 2173
  },
  {
   "quelle": "land",
@@ -1933,7 +2013,7 @@
   "kategorie": "Kolumbien",
   "frage": "Brauche ich für Kolumbien ein Visum?",
   "antwort": "Wenn du einen deutschen, österreichischen oder schweizerischen Pass hast, brauchst du kein Visum. Du musst allerdings vor der Ein- und Ausreise ein Online-Formular ausfüllen. Dieses findest du unter https://apps.migracioncolombia.gov.co/pre-registro/en/DatosViaje.",
-  "position": 2164
+  "position": 2174
  },
  {
   "quelle": "land",
@@ -1941,7 +2021,7 @@
   "kategorie": "Kolumbien",
   "frage": "Was ist die beste Reisezeit für Kolumbien?",
   "antwort": "Generell kann Kolumbien ganzjährig bereist werden. Die Trockenzeiten (in unserem Winter und Sommer) sind dabei etwas beliebter als die Regenzeiten (im Frühling und Herbst).",
-  "position": 2165
+  "position": 2175
  },
  {
   "quelle": "land",
@@ -1949,7 +2029,7 @@
   "kategorie": "Kolumbien",
   "frage": "Wie viel Gepäck ist auf den Inlandsflügen in Kolumbien inkludiert?",
   "antwort": "Auf den meisten Strecken sind 23 kg Freigepäck inbegriffen. Die einzige Ausnahme bildet die Strecke Bogotá - Pitalito, dort hast du 15 kg Freigepäck. Diese können am Flughafen gegen eine geringe Gebühr auf 23 kg aufgestockt werden, häufig wird das große Gepäck der Gruppe allerdings auch auf dem Landweg transportiert und du packst für eine Übernachtung ein kleineres Gepäckstück (z. B. einen Rucksack oder eine kleine Sporttasche), welches du auf dem Flug mitnehmen kannst. Alle nötigen Informationen hierzu erhältst du von deiner Reiseleitung vor Ort.",
-  "position": 2166
+  "position": 2176
  },
  {
   "quelle": "land",
@@ -1957,7 +2037,7 @@
   "kategorie": "Kolumbien",
   "frage": "Sind die Wanderungen anstrengend?",
   "antwort": "Die Wanderungen sind alle leicht bis mittelschwer und gut zu bewältigen. Die Wanderungen starten und enden i. d. R. am gleichen Punkt, sodass du bei Bedarf auch im Bus oder in der Unterkunft warten kannst, wenn du spontan eine Tour auslassen möchtest.",
-  "position": 2167
+  "position": 2177
  },
  {
   "quelle": "land",
@@ -1965,7 +2045,7 @@
   "kategorie": "Kolumbien",
   "frage": "Kann ich meine Reise verlängern?",
   "antwort": "Du kannst gern früher an- oder später abreisen. Erkundige dich gern bei unserer Erlebnisberatung, welche Möglichkeiten es gibt.",
-  "position": 2168
+  "position": 2178
  },
  {
   "quelle": "land",
@@ -1973,7 +2053,7 @@
   "kategorie": "Kuba",
   "frage": "Wann ist die beste Reisezeit für Kuba?",
   "antwort": "Auf Kuba ist es ganzjährig warm, aber die Hochsaison ist November bis April",
-  "position": 2169
+  "position": 2179
  },
  {
   "quelle": "land",
@@ -1981,7 +2061,7 @@
   "kategorie": "Kuba",
   "frage": "Ist eine Krankenversicherung für die Einreise verpflichtend?",
   "antwort": "Ja, ein e Auslandskrankenversicherung muss bei Einreise nachgewiesen werden.",
-  "position": 2170
+  "position": 2180
  },
  {
   "quelle": "land",
@@ -1989,7 +2069,7 @@
   "kategorie": "Kuba",
   "frage": "Gibt es Internet/WLAN?",
   "antwort": "Ja es gibt Internet/WLAN ind en Unterkünften und Hotels. An öffentlich Orten nur teilweise. Das Internet ist nicht sehr beständig.",
-  "position": 2171
+  "position": 2181
  },
  {
   "quelle": "land",
@@ -1997,7 +2077,7 @@
   "kategorie": "Kuba",
   "frage": "Wie sieht es aus mit der Lebensmittelknappheit?",
   "antwort": "Der Tourismussektor ist davon nicht so sehr betroffen. Die Hotels und Casas Particulares werden mit Lebensmitteln versorgt. Die Knappheit trifft eher die lokale Bevölkerung.",
-  "position": 2172
+  "position": 2182
  },
  {
   "quelle": "land",
@@ -2005,7 +2085,7 @@
   "kategorie": "Kuba",
   "frage": "Was passiert bei einem Stromausfall?",
   "antwort": "Viele Hotels/Casas Particulares verfügen über Generatoren, wodurch eine gewisse Versorgung mit Strom gesichert ist. Diese werden allerdings meist mit Benzin betrieben. Also solang Benzin da ist, gibt es auch Strom.",
-  "position": 2173
+  "position": 2183
  },
  {
   "quelle": "land",
@@ -2013,7 +2093,7 @@
   "kategorie": "Kuba",
   "frage": "Was sind Casas Particulares?",
   "antwort": "Casas Particulares sind vergleichbar mit Pensionen. Diese sind privat geführt und versprühen einen familiären Charme.",
-  "position": 2174
+  "position": 2184
  },
  {
   "quelle": "land",
@@ -2021,7 +2101,7 @@
   "kategorie": "Kuba",
   "frage": "Wieviel Reiseleiter gibt es auf der Rundreise?",
   "antwort": "Bei dieser Reise haben wir 1 Reiseleiter und 1 Fahrer.",
-  "position": 2175
+  "position": 2185
  },
  {
   "quelle": "land",
@@ -2029,7 +2109,7 @@
   "kategorie": "Kuba",
   "frage": "Mit welcher Airline wird nach Kuba geflogen?",
   "antwort": "Nach Kuba fliegen wir mit der Air Europa.",
-  "position": 2176
+  "position": 2186
  },
  {
   "quelle": "land",
@@ -2037,7 +2117,7 @@
   "kategorie": "Kuba",
   "frage": "Kann man auf Kuba mit der Kreditkarte bezahlen?",
   "antwort": "Ja, aber da das Internet nicht allzu bestänsig ist, is auch Kreditkartenzahlung nicht zuverlässig. Es empfiehlt sich genügend Bargeld dabei zu haben in kleinen Scheinen. Das Abheben an Automaten ist ebenfalls nicht zuverlässig und kann unter Umständen sehr lange dauern.",
-  "position": 2177
+  "position": 2187
  },
  {
   "quelle": "land",
@@ -2045,7 +2125,7 @@
   "kategorie": "Mexiko",
   "frage": "Wieviele Stunden pro Tag sitzt man im Bus?",
   "antwort": "Das ist unterschiedlich und hängt von den Entfernungen ab. Die Kilometer pro Tag findest du in der Übersicht der Reise",
-  "position": 2178
+  "position": 2188
  },
  {
   "quelle": "land",
@@ -2053,7 +2133,7 @@
   "kategorie": "Mexiko",
   "frage": "MXOAX: Eigenanreise möglich?",
   "antwort": "Nein, diese Reise kann nur mit Flug gebucht werden",
-  "position": 2179
+  "position": 2189
  },
  {
   "quelle": "land",
@@ -2061,7 +2141,7 @@
   "kategorie": "Nicaragua",
   "frage": "Muss ich mich selbst um die Einreiseformulare für Nicaragua kümmern?",
   "antwort": "Nein, das übernimmt unsere Agentur vor Ort, dazu benötigen wir vorab deine Passkopie.",
-  "position": 2180
+  "position": 2190
  },
  {
   "quelle": "land",
@@ -2069,7 +2149,7 @@
   "kategorie": "Nicaragua",
   "frage": "Stimmt es, dass keine Kameras mit nach Nicaragua genommen werden dürfen?",
   "antwort": "Ja, aktuell verbietet die Regierung Nicaraguas (erneut und ohne Vorlauffrist) das Einführen von Kameras, Ferngläser, Drohnen und weiteren optischen Geräten. Daher wird deine Reiseleitung deine Kameras und Ferngläser einsammeln und beim costa-ricanischen Busfahrer in Obhut lassen. Du kannst in Nicaragua aber Fotos mit deinem Handy machen. Sobald ihr in Costa Rica zurück seid, wird dir deine Ausrüstung wieder von eurem Busfahrer übergeben. Dies finden wir sicherer, als die Ausrüstung von den Grenzbehörden verwalten zu lassen.",
-  "position": 2181
+  "position": 2191
  },
  {
   "quelle": "land",
@@ -2077,7 +2157,7 @@
   "kategorie": "Panama",
   "frage": "kann ich direkt von Panama nach Frankfurt fliegen?",
   "antwort": "Die Reise endet in Panama City. Der Rückflug erfolgt aber wieder über San José nach Frankfurt.",
-  "position": 2182
+  "position": 2192
  },
  {
   "quelle": "land",
@@ -2085,7 +2165,7 @@
   "kategorie": "Panama",
   "frage": "Gibt es in Panama ein Anschlussprogramm?",
   "antwort": "Ja, wir bieten das Anschlussprogramm Bocas del Toro an. Hier kannst du auf der Isla Colón noch ein paar Tage am Strand entspannen und die Reise ausklingen lassen.",
-  "position": 2183
+  "position": 2193
  },
  {
   "quelle": "land",
@@ -2093,7 +2173,7 @@
   "kategorie": "Panama",
   "frage": "fährt man durch die Miraflores-Schleuse?",
   "antwort": "Du fährst mit dem Boot auf dem Panama-Kanal, aber nicht direkt durch die Schleuse.",
-  "position": 2184
+  "position": 2194
  },
  {
   "quelle": "land",
@@ -2101,7 +2181,7 @@
   "kategorie": "Australien",
   "frage": "Fluggesellschaft?",
   "antwort": "Emirates auf Langstrecke / Qantas auf Inlandsflügen",
-  "position": 2185
+  "position": 2195
  },
  {
   "quelle": "land",
@@ -2109,7 +2189,7 @@
   "kategorie": "Australien",
   "frage": "Besonderheiten Flug?",
   "antwort": "Bei Emirates nur Economy und Business Class buchbar / Zubringer innerhalb deutschlands nicht möglich / Abflughäfen: München, Hamburg, Düsseldorf, Frankfurt",
-  "position": 2186
+  "position": 2196
  },
  {
   "quelle": "land",
@@ -2117,7 +2197,7 @@
   "kategorie": "Australien",
   "frage": "Beste Reisezeit?",
   "antwort": "Nach Australien können Sie das ganze Jahr über reisen. Grundsätzlich sind die Jahreszeiten entgegengesetzt zu unseren, wobei der australische Winter sehr mild ist. Im Süden zwischen Sydney und Adelaide liegen die Temperaturen von September bis April zwischen 25 und 30°C und in den australischen Wintermonaten (Juni bis August) bei 12 bis 20°C. Im Norden zwischen Cairns und Darwin betragen die Temperaturen ganzjährig 25 bis 30°C, von Dezember bis März sorgen tropische Gewitter für Abkühlung. Die zentralen Wüstenregionen um Alice Springs und bis zur Westküste sind ganzjährig trocken und heiß, nur nachts kann es in den Wintermonaten Juni bis August kühl werden",
-  "position": 2187
+  "position": 2197
  },
  {
   "quelle": "land",
@@ -2125,7 +2205,7 @@
   "kategorie": "Australien",
   "frage": "Aktivitätslevel?",
   "antwort": "einfach und bequem",
-  "position": 2188
+  "position": 2198
  },
  {
   "quelle": "land",
@@ -2133,7 +2213,7 @@
   "kategorie": "Australien",
   "frage": "Optionale Aktivitäten?",
   "antwort": "Opernbesuch in Sydney in Eigenregie / muss selbst gebucht werden // Sydney Harber Bridge Walk über CHA anmeldbar bis 6 Wochen vor Abreise",
-  "position": 2189
+  "position": 2199
  },
  {
   "quelle": "land",
@@ -2141,7 +2221,7 @@
   "kategorie": "Australien",
   "frage": "Eigenanreise?",
   "antwort": "möglich / alternative Flugverbindungen können jedoch ebenfalls über CHA geprüft werden",
-  "position": 2190
+  "position": 2200
  },
  {
   "quelle": "land",
@@ -2149,7 +2229,7 @@
   "kategorie": "Australien",
   "frage": "Gepäckbestimmungen?",
   "antwort": "Langstreckenflüge mit Emirates: 30KG in ECO / 40KG in BX // Inlandsflüge mit Qantas: i.d.R. 30KG",
-  "position": 2191
+  "position": 2201
  },
  {
   "quelle": "land",
@@ -2157,7 +2237,7 @@
   "kategorie": "Australien",
   "frage": "Essenspräferenzen / Allergien ?",
   "antwort": "i.d.R. ohne Probleme umsetzbar",
-  "position": 2192
+  "position": 2202
  },
  {
   "quelle": "land",
@@ -2165,7 +2245,7 @@
   "kategorie": "Australien",
   "frage": "Reiseleitungen ?",
   "antwort": "drei verschiedene Reiseleitungen // Melbourne inkl. Red Center, die 2. RL in Queensland/Cairns und die 3. in SYD",
-  "position": 2193
+  "position": 2203
  },
  {
   "quelle": "land",
@@ -2173,7 +2253,7 @@
   "kategorie": "Armenien",
   "frage": "Gibt es eine optionale Aktivität?",
   "antwort": "Ja, es besteht die Möglichkeit sich vorab für den vorletzten Tag der Reise für den kulinarischen Rundgang durch Jerewan anzumelden. Die Mindestteilnehmerzahl liegt bei 4 Personen und wir können bis kurz vor Abreise die Anfrage entgegennehmen.",
-  "position": 2194
+  "position": 2204
  },
  {
   "quelle": "land",
@@ -2181,7 +2261,7 @@
   "kategorie": "Armenien",
   "frage": "Wie werden die Grenzübergänge erfolgen?",
   "antwort": "Die beiden Grenzübergänge erfolgen über den Landweg etwa einen Kilometer zu Fuß. Dein Gepäck trägst du dabei selbstständig. Du wirst vor der Grenze von der letzten Reiseleitung und dem Fahrer verabschiedet und hinter der Passkontrolle erwartet dich die nächste Reiseleitung inkl. Fahrer.",
-  "position": 2195
+  "position": 2205
  },
  {
   "quelle": "land",
@@ -2189,7 +2269,7 @@
   "kategorie": "Armenien",
   "frage": "Gibt es eine besondere Kleidervorschrift?",
   "antwort": "Grundsätzlich kannst du dich im öffentlichen Raum mit Kleidung deiner Wahl bewegen – alle drei Länder sind in dieser Hinsicht offen. Für den Besuch religiöser Stätten, wie Kirchen empfiehlt es sich jedoch, etwas bedecktere Kleidung (z. B. lockere, längere Kleidung) mitzunehmen. Für Frauen ist es außerdem sinnvoll, ein leichtes Tuch dabeizuhaben, um bei Bedarf die Schultern oder das Haar bedecken zu können – so bist du bestens vorbereitet.",
-  "position": 2196
+  "position": 2206
  },
  {
   "quelle": "land",
@@ -2197,7 +2277,7 @@
   "kategorie": "Bhutan",
   "frage": "Airline ?",
   "antwort": "Wir fliegen mit Lufthansa ab/bis Delhi",
-  "position": 2197
+  "position": 2207
  },
  {
   "quelle": "land",
@@ -2205,7 +2285,7 @@
   "kategorie": "China",
   "frage": "Fluggesellschaft?",
   "antwort": "Lufthansa",
-  "position": 2198
+  "position": 2208
  },
  {
   "quelle": "land",
@@ -2213,7 +2293,7 @@
   "kategorie": "China",
   "frage": "Abflughafen?",
   "antwort": "CNYAN: ab/bis MUC // CNHON ab/bis FRA // CNZHA ab/bis FRA",
-  "position": 2199
+  "position": 2209
  },
  {
   "quelle": "land",
@@ -2221,7 +2301,7 @@
   "kategorie": "China",
   "frage": "Mitnahme von Drohnen nach China",
   "antwort": "man darf schon eine Drohne ohne Registierung online nach China mitnehmen. Aber in großen Städten wie Peking, Xian, Shanghai & Chongqing ist das Fliegen einer Drohne nicht erlaubt, aber in kleinen Städten wie Yangshuo & Longsheng ist es möglich.man darf schon eine Drohne ohne Registierung online nach China mitnehmen. Aber in großen Städten wie Peking, Xian, Shanghai & Chongqing ist das Fliegen einer Drohne nicht erlaubt, aber in kleinen Städten wie Yangshuo & Longsheng ist es möglich.",
-  "position": 2200
+  "position": 2210
  },
  {
   "quelle": "land",
@@ -2229,7 +2309,7 @@
   "kategorie": "China",
   "frage": "Adapter für Steckdosen?",
   "antwort": "gleiche Steckdosen wie bei uns",
-  "position": 2201
+  "position": 2211
  },
  {
   "quelle": "land",
@@ -2237,7 +2317,7 @@
   "kategorie": "China",
   "frage": "Geld wechseln?",
   "antwort": "Bargeld vor Ort bei RL tauschbar",
-  "position": 2202
+  "position": 2212
  },
  {
   "quelle": "land",
@@ -2245,7 +2325,7 @@
   "kategorie": "China",
   "frage": "Aktivitätslevel?",
   "antwort": "gewisse Grundfitness sollte vorhanden sein - Gehstrecken teilweise sehr lang",
-  "position": 2203
+  "position": 2213
  },
  {
   "quelle": "land",
@@ -2253,7 +2333,7 @@
   "kategorie": "China",
   "frage": "Bestuhlung vom Flugzeug?",
   "antwort": "EC: 3-3-3 PX: 2-3-2 BX: i.d.R. 2-2-2",
-  "position": 2204
+  "position": 2214
  },
  {
   "quelle": "land",
@@ -2261,7 +2341,7 @@
   "kategorie": "China",
   "frage": "Kommunikation:",
   "antwort": "über WLAN keine Internetdienste wie Soziale Medien / Google etc. VPN ist in China möglich, aber nicht alle. Wir schlagen den Kunden vor, selber auf dem Onlineshop www. amazon.de die China-Daten-SIM-Karte zu bestellen. Solche eSIM Karte unterstützt WhatApp und Google und es funktioniert in China sehr gut.\nZum Kontakt halten ist WeChat in China viel einfacher. Zur Zahlung empfehlen wir die Ali-Pay.  Ali-Pay zu installieren ist einfacher als WeChat-Pay.",
-  "position": 2205
+  "position": 2215
  },
  {
   "quelle": "land",
@@ -2269,7 +2349,7 @@
   "kategorie": "China",
   "frage": "relevante Personenbezogene Daten:",
   "antwort": "Passkopie wird benötigt --> idealer Weise gut lesbar und in Farbe / Körpergewicht für Floßfahrten /",
-  "position": 2206
+  "position": 2216
  },
  {
   "quelle": "land",
@@ -2277,7 +2357,7 @@
   "kategorie": "China",
   "frage": "Hinweise Kosmetik?",
   "antwort": "Duschgel und Shampoos in allen Unterkünften vorhanden auch auf Boot",
-  "position": 2207
+  "position": 2217
  },
  {
   "quelle": "land",
@@ -2285,7 +2365,7 @@
   "kategorie": "China",
   "frage": "Flüssigkeiten auf Inlandsflug und Zugfahrten?",
   "antwort": "keine Flüssigkeiten erlaubt / Bei Flug in Aufgabegepäck erlaubt / Bei Bahnfahrten nur bis zu 120ml NICHT BRENNBARE FLÜSSIGKEITEN erlaubt / bsp. Kein Deodorant oder Haarspray mitnehmen",
-  "position": 2208
+  "position": 2218
  },
  {
   "quelle": "land",
@@ -2293,7 +2373,7 @@
   "kategorie": "China",
   "frage": "Flusskreuzfahrt besonderheiten? (CNYAN)",
   "antwort": "drei unterschiedliche Schiffe mit relativ identischer Ausstattung / kein Pool an Bord",
-  "position": 2209
+  "position": 2219
  },
  {
   "quelle": "land",
@@ -2301,7 +2381,7 @@
   "kategorie": "Indien",
   "frage": "unterschied zwischen INRAJ und INTAJ",
   "antwort": "beide ähnlich, INTAJ 4 Tage länger und geht noch in die Wüste",
-  "position": 2210
+  "position": 2220
  },
  {
   "quelle": "land",
@@ -2309,7 +2389,7 @@
   "kategorie": "Indien",
   "frage": "Ist eine Eigenanreise möglich?",
   "antwort": "Nein, eine Eigenanreise ist bei unseren Indien Reisen nicht möglich.",
-  "position": 2211
+  "position": 2221
  },
  {
   "quelle": "land",
@@ -2317,7 +2397,7 @@
   "kategorie": "Indien",
   "frage": "Geldtauschen?",
   "antwort": "Wir empfehlen, Geld vor Ort zu tauschen",
-  "position": 2212
+  "position": 2222
  },
  {
   "quelle": "land",
@@ -2325,7 +2405,7 @@
   "kategorie": "Japan",
   "frage": "Airline ?",
   "antwort": "Direktflüge mit der Lufthansa",
-  "position": 2213
+  "position": 2223
  },
  {
   "quelle": "land",
@@ -2333,7 +2413,7 @@
   "kategorie": "Japan",
   "frage": "Bestuhlung ?",
   "antwort": "EC: 3-3-3 / PX: 2-3-2 / BX: 2-2-2",
-  "position": 2214
+  "position": 2224
  },
  {
   "quelle": "land",
@@ -2341,7 +2421,7 @@
   "kategorie": "Japan",
   "frage": "Eigenanreise?",
   "antwort": "Möglich / Jedoch sind private Transfers in Japan extrem teuer",
-  "position": 2215
+  "position": 2225
  },
  {
   "quelle": "land",
@@ -2349,7 +2429,7 @@
   "kategorie": "Japan",
   "frage": "Sitzplatzreservierung ?",
   "antwort": "ECO: Standardsitzplatz 65€ pro Person und Strecke / Sitzplatz mit mehr Beinfreiheit: 150€ pro Person und Strecke / PX: 95€ pro Person und Strecke / BX: kostenfrei",
-  "position": 2216
+  "position": 2226
  },
  {
   "quelle": "land",
@@ -2357,7 +2437,7 @@
   "kategorie": "Japan",
   "frage": "Höhere Buchungsklassen?",
   "antwort": "PX und BX können geprüft werden / PX kalkuliert: 1800€ pro Person / BX kalkuliert: 4200€ pro Person / oft können wir die kalkulierten Preise nicht einhalten, da die günstigen Buchungsklassen oft schnell vergriffen sind",
-  "position": 2217
+  "position": 2227
  },
  {
   "quelle": "land",
@@ -2365,7 +2445,7 @@
   "kategorie": "Japan",
   "frage": "Geld wechseln?",
   "antwort": "Am Flughafen kann man direkt EUR in JPY wechseln. Jedoch ist es ratsamer eine Kreditkarte mit günstigen Währungswechselgebühren zu holen. (Günstige Gebühren sind i.d.R. 2%)",
-  "position": 2218
+  "position": 2228
  },
  {
   "quelle": "land",
@@ -2373,7 +2453,7 @@
   "kategorie": "Japan",
   "frage": "JPKYO: Kann man Wanderung auf Pilgerweg aussetzen?",
   "antwort": "Ja, man kann mit dem Bus ein paar haltestellen weiter fahren und dann in einem Cafe auf die Gruppe warten",
-  "position": 2219
+  "position": 2229
  },
  {
   "quelle": "land",
@@ -2381,7 +2461,7 @@
   "kategorie": "Jordanien",
   "frage": "Brauche ich für das Visum ein Passfoto oder ähnliches?",
   "antwort": "Nein, es ist ausreichend, wenn du deinen Reisepass und die Reisunterlagen mitnimmst.",
-  "position": 2220
+  "position": 2230
  },
  {
   "quelle": "land",
@@ -2389,7 +2469,7 @@
   "kategorie": "Jordanien",
   "frage": "Findet die Reise statt, bzw. gibt es Sicherheitsbedenken?",
   "antwort": "Die Sicherheit unserer Gäste hat oberste Priorität. Wir stehen im engen Kontakt mit unseren Partnern vor Ort. Bei weiteren Frage, melde dich gerne telfonisch.",
-  "position": 2221
+  "position": 2231
  },
  {
   "quelle": "land",
@@ -2397,7 +2477,7 @@
   "kategorie": "Jordanien",
   "frage": "Mit welcher Airline wird geflogen?",
   "antwort": "Je nach Flugtagen entweder direkt mit der Lufthansa oder mit der Austrian Airlines mit Umstieg in Wien.",
-  "position": 2222
+  "position": 2232
  },
  {
   "quelle": "land",
@@ -2405,7 +2485,7 @@
   "kategorie": "Malaysia",
   "frage": "Was kostet die Business Class?",
   "antwort": "Wir haben die Business Class mit einem Flugaufpreis von 2800 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tages",
-  "position": 2223
+  "position": 2233
  },
  {
   "quelle": "land",
@@ -2413,92 +2493,12 @@
   "kategorie": "Malaysia",
   "frage": "Was kostet die Premium Economy?",
   "antwort": "Wir haben die Premium Economy mit einem Flugaufpreis von 1400 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss ta",
-  "position": 2224
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Ist eine Sitzplatzreservierung möglich?",
-  "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
-  "position": 2225
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Was kostet eine Sitzplatzreservierung?",
-  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzp",
-  "position": 2226
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Mit welcher Airline wird geflogen?",
-  "antwort": "Wir fliegen auf den Langstrecken mit Singapur Airlines über Singapur. Die Regionalstrecken von Singapur über Kuala Lumpur nach Kuching auf der Anreise, sowie von Kuala Lumpur nach Singapur auf der Rückreise werden mit Malaysian Airlines durchgeführt.",
-  "position": 2227
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Sind andere Abflughäfen möglich?",
-  "antwort": "Bedingt. Solltest du dich für das Nachträumen Langawi entscheiden, ist nur der Abflughafen Frankfurt möglich, da sich die Airline welche wir auf dem Flug von Langkawi nach Singapur nutzen, nicht mit innerdeutschen Zubringerflügen kombinieren lässt.",
-  "position": 2228
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Gibt es die Möglichkeit ein Stop over zu machen/ die Reise zu unterbrechen?",
-  "antwort": "Ein Stopover in Singapur ist möglich. Sieh dir dafür unsere Vorfreuen und/oder Nachträumen Singapur und unserer Nachträumen Langkawi an.",
-  "position": 2229
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Wann ist die beste Reisezeit für Malaysia?",
-  "antwort": "In Malaysia herscht tropisches Klima. Es ist immer wrm und schwül aufgrund der hohen Luftfeuchtigekit. Auch kann es täglich zu kruzen aber kräftigen Regenschauern kommen. Dies gilt für den gesamten Zeitraum in wlcher wir die Reise anbieten und durchführen.",
-  "position": 2230
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Malaysia",
-  "frage": "Wie viel Freigepäck ist dabei?",
-  "antwort": "Maximals Freigepäck auf der Reise sind 20kg pro Person aufgrund der Gewichtsbestimmungen der Flügen innerhalb der Rundirese",
-  "position": 2231
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Mongolei",
-  "frage": "Zurbinger Flüge möglich?",
-  "antwort": "Nein",
-  "position": 2232
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Neuseeland",
-  "frage": "Was kostet die Business Class?",
-  "antwort": "Wir haben die Business Class mit einem Flugaufpreis von 6000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
-  "position": 2233
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Neuseeland",
-  "frage": "Was kostet die Premium Economy?",
-  "antwort": "Wir haben die Premium Economy mit einem Flugaufpreis von 2000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
   "position": 2234
  },
  {
   "quelle": "land",
   "extern_id": null,
-  "kategorie": "Neuseeland",
+  "kategorie": "Malaysia",
   "frage": "Ist eine Sitzplatzreservierung möglich?",
   "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
   "position": 2235
@@ -2506,10 +2506,90 @@
  {
   "quelle": "land",
   "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Was kostet eine Sitzplatzreservierung?",
+  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzp",
+  "position": 2236
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Mit welcher Airline wird geflogen?",
+  "antwort": "Wir fliegen auf den Langstrecken mit Singapur Airlines über Singapur. Die Regionalstrecken von Singapur über Kuala Lumpur nach Kuching auf der Anreise, sowie von Kuala Lumpur nach Singapur auf der Rückreise werden mit Malaysian Airlines durchgeführt.",
+  "position": 2237
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Sind andere Abflughäfen möglich?",
+  "antwort": "Bedingt. Solltest du dich für das Nachträumen Langawi entscheiden, ist nur der Abflughafen Frankfurt möglich, da sich die Airline welche wir auf dem Flug von Langkawi nach Singapur nutzen, nicht mit innerdeutschen Zubringerflügen kombinieren lässt.",
+  "position": 2238
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Gibt es die Möglichkeit ein Stop over zu machen/ die Reise zu unterbrechen?",
+  "antwort": "Ein Stopover in Singapur ist möglich. Sieh dir dafür unsere Vorfreuen und/oder Nachträumen Singapur und unserer Nachträumen Langkawi an.",
+  "position": 2239
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Wann ist die beste Reisezeit für Malaysia?",
+  "antwort": "In Malaysia herscht tropisches Klima. Es ist immer wrm und schwül aufgrund der hohen Luftfeuchtigekit. Auch kann es täglich zu kruzen aber kräftigen Regenschauern kommen. Dies gilt für den gesamten Zeitraum in wlcher wir die Reise anbieten und durchführen.",
+  "position": 2240
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Malaysia",
+  "frage": "Wie viel Freigepäck ist dabei?",
+  "antwort": "Maximals Freigepäck auf der Reise sind 20kg pro Person aufgrund der Gewichtsbestimmungen der Flügen innerhalb der Rundirese",
+  "position": 2241
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Mongolei",
+  "frage": "Zurbinger Flüge möglich?",
+  "antwort": "Nein",
+  "position": 2242
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Neuseeland",
+  "frage": "Was kostet die Business Class?",
+  "antwort": "Wir haben die Business Class mit einem Flugaufpreis von 6000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
+  "position": 2243
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Neuseeland",
+  "frage": "Was kostet die Premium Economy?",
+  "antwort": "Wir haben die Premium Economy mit einem Flugaufpreis von 2000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
+  "position": 2244
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Neuseeland",
+  "frage": "Ist eine Sitzplatzreservierung möglich?",
+  "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
+  "position": 2245
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
   "kategorie": "Neuseeland",
   "frage": "Was kostet eine Sitzplatzreservierung?",
   "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
-  "position": 2236
+  "position": 2246
  },
  {
   "quelle": "land",
@@ -2517,7 +2597,7 @@
   "kategorie": "Neuseeland",
   "frage": "Mit welcher Airline wird geflogen?",
   "antwort": "Wir fliegen mit Singapore Airlines über Singapur",
-  "position": 2237
+  "position": 2247
  },
  {
   "quelle": "land",
@@ -2525,7 +2605,7 @@
   "kategorie": "Neuseeland",
   "frage": "Sind andere Abflughäfen möglich?",
   "antwort": "Ja, andere Abflughäfen außer Frankfurt sind möglich.  Wir können gerne verschiedene Zurbingerflüge für Sie prüfen. Welche dies sind, können Sie auf der Webseite im ersten Schritt der Reiseanmeldungsanlegung prüfen.",
-  "position": 2238
+  "position": 2248
  },
  {
   "quelle": "land",
@@ -2533,7 +2613,7 @@
   "kategorie": "Neuseeland",
   "frage": "Ist ein Stopover möglich? Kann die An- und Rückreise unterbrochen werden?",
   "antwort": "Ein Stopover in Singapur ist möglich. Sieh dir dafür unsere Vorfreuen und/oder Nachträumen Singapur an.",
-  "position": 2239
+  "position": 2249
  },
  {
   "quelle": "land",
@@ -2541,7 +2621,7 @@
   "kategorie": "Neuseeland",
   "frage": "Wann ist die beste Reisezeit für Neuseeland?",
   "antwort": "Wir bieten unsere Reise nach Neuseeland im neuseeländischen Frühling bis Herbst an. Zwischen Oktober und März.",
-  "position": 2240
+  "position": 2250
  },
  {
   "quelle": "land",
@@ -2549,7 +2629,7 @@
   "kategorie": "Neuseeland",
   "frage": "Ist eine Kombination mit Australien möglich?",
   "antwort": "Eine Kombination der Australien Reise und Neuseeland Reise ist möglich, kommt jedoch auf die Termine an, wie kombiniert werden kann.",
-  "position": 2241
+  "position": 2251
  },
  {
   "quelle": "land",
@@ -2557,7 +2637,7 @@
   "kategorie": "Neuseeland",
   "frage": "Wie kann ich in Neuseeland bezahlen?",
   "antwort": "In Neuseeland kann fast alles mit Karte (Kreditkarte) bezahlt werden. Es ist jedoch trotzdem empfehlenswert eine gewisse Menge an Brgeld mit sich zu führen. Unteranderem für die Trinkgelder.",
-  "position": 2242
+  "position": 2252
  },
  {
   "quelle": "land",
@@ -2565,7 +2645,7 @@
   "kategorie": "Neuseeland",
   "frage": "?",
   "antwort": "Auf dieser Reise ist deine Reiseleitung auch gleichzeitig dein:e Fahrer:in",
-  "position": 2243
+  "position": 2253
  },
  {
   "quelle": "land",
@@ -2573,7 +2653,7 @@
   "kategorie": "Neuseeland",
   "frage": "Kann man optionale Aktivitäten buchen? / Bis wann muss ich mich für die optionalen Ausflüge anmelden?",
   "antwort": "Die Ausflüge zum Milford Sound der Walbeobachtungsflug in Kaikoura und der Helikopterflug über die Gletscherwelt, kann bis 6 Wochen vor Abreise angemeldet werden. Bitte beachte, dass auf allen Ausflügen eine begrenzte Verfügbarkeit besteht. Um dir einen Platz auf deinem Wunschausflug zu sichern, ist eine Anmeldung so früh wie möglich ratsam.",
-  "position": 2244
+  "position": 2254
  },
  {
   "quelle": "land",
@@ -2581,7 +2661,7 @@
   "kategorie": "Neuseeland",
   "frage": "Können Wanderungen ausgelassen werden?",
   "antwort": "Einzelne Wanderungen können bis auf die Ausnahme vom Queen Charlotte Walkway nicht ausgelassen werden.",
-  "position": 2245
+  "position": 2255
  },
  {
   "quelle": "land",
@@ -2589,7 +2669,7 @@
   "kategorie": "Oman",
   "frage": "Einschränkungen zum Ramadan",
   "antwort": "Essen, Trinken und Rauchen in der Öffentlichkeit sind tagsüber untersagt, auch für Nicht-Muslime. In Hotels, abgeschirmten Bereichen und in den Fahrzeugen ist Essen und Trinken möglich.\nÖffnungszeiten von Geschäften und Märkten können reduziert sein.\nDas gesellschaftliche Leben verlagert sich in die Abendstunden – dann sind Märkte, Parks und Restaurants lebendig und festlich geschmückt.\nChamäleon-Tipp: Trotz der Einschränkungen ist der Ramadan eine besonders stimmungsvolle Zeit, um die omanische Kultur authentisch zu erleben",
-  "position": 2246
+  "position": 2256
  },
  {
   "quelle": "land",
@@ -2597,7 +2677,7 @@
   "kategorie": "Oman",
   "frage": "Welche Airline?",
   "antwort": "Oman Air",
-  "position": 2247
+  "position": 2257
  },
  {
   "quelle": "land",
@@ -2605,7 +2685,7 @@
   "kategorie": "Oman",
   "frage": "Brauche ich ein Visum?",
   "antwort": "Ein Touristenvisum wird erst ab einer Dauer von 15 Tagen im Oman benötigt. Das Visum muss online beantragt werden.",
-  "position": 2248
+  "position": 2258
  },
  {
   "quelle": "land",
@@ -2613,7 +2693,7 @@
   "kategorie": "Saudi-Arabien",
   "frage": "Wie muss ich mich kleiden?",
   "antwort": "Saudi-Arabien ist ein stark muslimisches Land. Man sollte also immer drauf achten, sich angemessen zu verhalten und zu kleiden. In der Altstadt von Medina müssen die Frauen eine Abaya und eine Hijab tragen. Die Männer müssen in Medina auch lange Kleidung tragen. Die Moschee in Medina kann nur von außen besichtigt werden. Außerhalb von Medina sollten die Gäste Kleidung tragen die Schultern und Knie bedecken.",
-  "position": 2249
+  "position": 2259
  },
  {
   "quelle": "land",
@@ -2621,7 +2701,7 @@
   "kategorie": "Saudi-Arabien",
   "frage": "Kann ich alkohlishce Getränke im Land kaufen?",
   "antwort": "In Saudi-Arabien gilt ein strenges Alkohlverbot. Im ganzen Land ist der Verkauf von alkohlischen Getränken verboten.",
-  "position": 2250
+  "position": 2260
  },
  {
   "quelle": "land",
@@ -2629,7 +2709,7 @@
   "kategorie": "Vietnam",
   "frage": "Beste Reisezeit?",
   "antwort": "Oktober - April (SAPA ganzjährig, da Reisfelder in Regenzeit am beeindruckensten aussehen)",
-  "position": 2251
+  "position": 2261
  },
  {
   "quelle": "land",
@@ -2637,7 +2717,7 @@
   "kategorie": "Vietnam",
   "frage": "Aktivitätslevel?",
   "antwort": "VNSAP: etwas anspruchsvoll bzgl. Wanderung / VNHAL: einfach VNSAO: einfach / VNSPU: einfach / VNBAY: einfach",
-  "position": 2252
+  "position": 2262
  },
  {
   "quelle": "land",
@@ -2645,7 +2725,7 @@
   "kategorie": "Vietnam",
   "frage": "Radtouren ?",
   "antwort": "es gibt für jede Radtour eine kostenfreie Alternative",
-  "position": 2253
+  "position": 2263
  },
  {
   "quelle": "land",
@@ -2653,7 +2733,7 @@
   "kategorie": "Vietnam",
   "frage": "Sitzplatzreservierung ?",
   "antwort": "2025: Standard Sitzplatz ECO: 35€ pro Person und Strecke / Bevorzugter Sitzplatz ECO: 80€ pro Person und Strecke (weiter vorne im Flugzeug, frühreres Ein-und Ausstreigen / Sitzplätze mit mehr Beinfreiheit: 130€ pro Person und Strecke (Tickets müssen vor Sitzplatzbuchung ausgestellt werden) (erhältlich von 15-60 Jahren / Nur bei Notausgangssitzen) Sitzplätze in PX und BX kostenfrei      2026: Standard Sitzplatz ECO: 10€ pro Person und Strecke / Bevorzugter Sitzplatz ECO: 80€ pro Person und Strecke (weiter vorne im Flugzeug, frühreres Ein-und Ausstreigen / Sitzplätze mit mehr Beinfreiheit: 130€ pro Person und Strecke (Tickets müssen vor Sitzplatzbuchung ausgestellt werden) (erhältlich von 15-60 Jahren / Nur bei Notausgangssitzen) Sitzplätze in PX und BX kostenfrei",
-  "position": 2254
+  "position": 2264
  },
  {
   "quelle": "land",
@@ -2661,7 +2741,7 @@
   "kategorie": "Vietnam",
   "frage": "Höhere Buchungsklassen?",
   "antwort": "Premium Economy Class kalkulierter Aufpreis 800€ pro Person Business Class kalkulierter Aufpreis 3200€ pro Person",
-  "position": 2255
+  "position": 2265
  },
  {
   "quelle": "land",
@@ -2669,7 +2749,7 @@
   "kategorie": "Vietnam",
   "frage": "Bestuhlung ?",
   "antwort": "EC: 3-3-3 / PX: 2-3-2 / BX: 1-2-1",
-  "position": 2256
+  "position": 2266
  },
  {
   "quelle": "land",
@@ -2677,7 +2757,7 @@
   "kategorie": "Vietnam",
   "frage": "Zubringerflüge?",
   "antwort": "können angefragt werden / jedoch meist zu höheren Aufpreisen, da Lufthansa und Vietnam Airlines nicht kooperieren",
-  "position": 2257
+  "position": 2267
  },
  {
   "quelle": "land",
@@ -2685,7 +2765,7 @@
   "kategorie": "Vietnam",
   "frage": "Fluggesellschaft?",
   "antwort": "ausschließlich Vietnam Airlines / bei Kambodscha meistens K6 von Saigon nach Siem Reap",
-  "position": 2258
+  "position": 2268
  },
  {
   "quelle": "land",
@@ -2693,7 +2773,7 @@
   "kategorie": "Vietnam",
   "frage": "Essenspräferenzen / Allergien ?",
   "antwort": "können bei Agentur vermerkt werden / in der Regel umsetzbar (unter Vorbehalt)",
-  "position": 2259
+  "position": 2269
  },
  {
   "quelle": "land",
@@ -2701,7 +2781,7 @@
   "kategorie": "Vietnam",
   "frage": "Eigenanreise?",
   "antwort": "okay / Inlandsflüge weiter über CHA",
-  "position": 2260
+  "position": 2270
  },
  {
   "quelle": "land",
@@ -2709,7 +2789,7 @@
   "kategorie": "Vietnam",
   "frage": "VNBAY / Visum Kambodscha",
   "antwort": "alle Gäste brauche ein E-Visum für Kambodscha / zusätzlich Einreiseformular (dieses wird mit Reiseleiter in Hanoi ausgefüllt)",
-  "position": 2261
+  "position": 2271
  },
  {
   "quelle": "land",
@@ -2717,7 +2797,7 @@
   "kategorie": "Indonesien",
   "frage": "Was kostet die Business Class?",
   "antwort": "Wir haben die Business Class mit einem Flugaufpreis von 6000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
-  "position": 2262
+  "position": 2272
  },
  {
   "quelle": "land",
@@ -2725,7 +2805,7 @@
   "kategorie": "Indonesien",
   "frage": "Was kostet die Premium Economy?",
   "antwort": "Wir haben die Premium Economy mit einem Flugaufpreis von 2000 Euro pro Person vorkalkuliert. Der tatsächliche Flugaufpreis muss tagesaktuell durch unsere interne Flugabteilung gepfrüft werden.",
-  "position": 2263
+  "position": 2273
  },
  {
   "quelle": "land",
@@ -2733,7 +2813,7 @@
   "kategorie": "Indonesien",
   "frage": "Ist eine Sitzplatzreservierung möglich?",
   "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
-  "position": 2264
+  "position": 2274
  },
  {
   "quelle": "land",
@@ -2741,7 +2821,7 @@
   "kategorie": "Indonesien",
   "frage": "Was kostet eine Sitzplatzreservierung?",
   "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
-  "position": 2265
+  "position": 2275
  },
  {
   "quelle": "land",
@@ -2749,7 +2829,7 @@
   "kategorie": "Indonesien",
   "frage": "Mit welcher Airline wird geflogen?",
   "antwort": "Wir fliegen mit Singapur Airline und Scoot.",
-  "position": 2266
+  "position": 2276
  },
  {
   "quelle": "land",
@@ -2757,7 +2837,7 @@
   "kategorie": "Indonesien",
   "frage": "Ist ein Stopover möglich? Kann die An- und Rückreise unterbrochen werden?",
   "antwort": "Ein Stopover in Singapur ist möglich. Sieh dir dafür unsere Vorfreuen und/oder Nachträumen Singapur an.",
-  "position": 2267
+  "position": 2277
  },
  {
   "quelle": "land",
@@ -2765,7 +2845,15 @@
   "kategorie": "Indonesien",
   "frage": "Geld tauschen?",
   "antwort": "Wir empfehlen Geld vor Ort zu tauschen.",
-  "position": 2268
+  "position": 2278
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Albanien",
+  "frage": "Wie anspruchsvoll sind die Wanderungen ?",
+  "antwort": "Auf dieser Reise gibt es nur eine größere Wanderung, welche circa 2,5 Stunden lang ist.  Diese findet im Llogara-Nationalpark statt. Die Pfade bestehen größtenteils aus ebenen Wegen, teils mit steinigen und steileren Abschnitten.",
+  "position": 2279
  },
  {
   "quelle": "land",
@@ -2773,7 +2861,7 @@
   "kategorie": "Albanien",
   "frage": "Muss ich vorher Euro in Landeswährung tauschen?",
   "antwort": "Ein Tausch vorab ist nicht notwendig und im Falle von Nordmazedonien auch gar nicht möglich, da deutsche Banken i. d. R. keinen Mazedonischen Denar (MKD) vorbestellen können. Du kannst am besten in Skopje Euro in Denar tauschen oder mit einer Kreditkarte Bargeld abheben. Für Albanien gilt das gleiche, dort tauschst du Euro in Albanische Lek (ALL). In Montenegro wird mit Euro bezahlt. Generell empfehlen wir, in eine kleine Stückelung (Noten von max. 1000 MKD oder 2000 ALL) zu tauschen, da du Bargeld vorwiegend in Restaurants/Cafés, Supermärkten oder für Souvenirs - also kleinere Beträge - brauchen wirst. An den meisten Orten kannst du zudem mit Kreditkarte zahlen.",
-  "position": 2269
+  "position": 2280
  },
  {
   "quelle": "land",
@@ -2781,7 +2869,7 @@
   "kategorie": "Albanien",
   "frage": "Welche Reisezeit ist am besten?",
   "antwort": "Die angenehmsten Badetemperaturen hast du zwischen Juni und September. Von Mitte Juli bis Mitte August führen wir die Reise nicht durch, da die Temperaturen dann für Stadterkundungen zu warm sind. Besonders angenehm sind auch die Temperaturen im April und Oktober, wenn du der Sommerhitze entgehen möchtest.",
-  "position": 2270
+  "position": 2281
  },
  {
   "quelle": "land",
@@ -2789,7 +2877,7 @@
   "kategorie": "Albanien",
   "frage": "Für wen ist die Reise geeignet?",
   "antwort": "Unsere Länderkombi »Balkan« liefert ein buntes Potpourri, bei dem sowohl Natur- als auch Kulturinteressierte gleichermaßen auf Ihre Kosten kommen. Kulturhighlights sind vor allem im Süden Albaniens zu finden, die Naturhighlights sind u. a. der Ohridsee und die Albanischen Alpen.",
-  "position": 2271
+  "position": 2282
  },
  {
   "quelle": "land",
@@ -2797,7 +2885,7 @@
   "kategorie": "Albanien",
   "frage": "Welche Reisedokumente brauche ich?",
   "antwort": "Du kannst mit deinem Personalausweis oder Reisepass reisen. Bitte beachte, dass das Reisedokument mindestens 6 Monate über das Reiseende hinaus gültig sein muss.",
-  "position": 2272
+  "position": 2283
  },
  {
   "quelle": "land",
@@ -2805,7 +2893,7 @@
   "kategorie": "Albanien",
   "frage": "Kann die Reise auch ohne Flug gebucht werden?",
   "antwort": "Eine Buchung mit Eigenanreise ist nur auf den Terminen möglich, bei denen die Gruppenflüge hin und rück mit Lufthansa nonstop durchgeführt werden. Kontaktiere hierzu gern unsere Erlebnisberatung.",
-  "position": 2273
+  "position": 2284
  },
  {
   "quelle": "land",
@@ -2813,7 +2901,7 @@
   "kategorie": "Albanien",
   "frage": "Werden viele Serpentinen gefahren?",
   "antwort": "Auf einzelnen Streckenabschnitten sind Serpentinen vorhanden. Wenn du zu Reiseübelkeit neigst, empfehlen wir dir, Reisetabletten/-kaugummis einzupacken.",
-  "position": 2274
+  "position": 2285
  },
  {
   "quelle": "land",
@@ -2821,7 +2909,7 @@
   "kategorie": "Albanien",
   "frage": "Ist die Reise anstrengend?",
   "antwort": "Es sind keine Wanderungen vorgesehen, eher Spaziergänge. Bitte beachte beim Kofferpacken, dass es in einigen Orten auf der Reise vorwiegend Kopfsteinpflaster und viele Treppen gibt, sodass du auch für einen Stadtspaziergang geeignetes Schuhwerk benötigst.",
-  "position": 2275
+  "position": 2286
  },
  {
   "quelle": "land",
@@ -2829,7 +2917,7 @@
   "kategorie": "Azoren",
   "frage": "Wie anstrengend ist die Reise?",
   "antwort": "Für die Reise ist kein spezielles Fitnesslevel vorgeschrieben. Es empfiehlt sich jedoch gut zu Fuß zu sein, da es öfter mal längere Spaziergänge in der Natur gibt.",
-  "position": 2276
+  "position": 2287
  },
  {
   "quelle": "land",
@@ -2837,7 +2925,7 @@
   "kategorie": "Azoren",
   "frage": "Wie lange ist der Flug auf die Azoren?",
   "antwort": "Ab/bis Frankfurt dauert der Flug auf die Azoren je ca. 5 Stunden.",
-  "position": 2277
+  "position": 2288
  },
  {
   "quelle": "land",
@@ -2845,7 +2933,7 @@
   "kategorie": "Azoren",
   "frage": "Wann ist die beste Zeit um Wale zu beobachten auf den Azoren?",
   "antwort": "Die Azoren sind ein ganzjährig hervorragendes Reiseziel für Walbeobachtungen, da einige Wal- und Delfinarten dort dauerhaft heimisch sind. Die Hauptsaison für die größte Artenvielfalt erstreckt sich jedoch von April bis Oktober. Im Frühling, besonders zwischen April und Juni, hat man die besten Chancen, wandernde Bartenwale wie Blau- oder Finnwale zu sichten. Auch im Sommer und Herbst sind viele verschiedene Wal- und Delfinarten zu beobachten. Selbst im Winter sind Walbeobachtungen von standorttreuen Arten wie Pottwalen möglich, obwohl das Wetter dann unbeständiger sein kann.",
-  "position": 2278
+  "position": 2289
  },
  {
   "quelle": "land",
@@ -2853,7 +2941,7 @@
   "kategorie": "Estland",
   "frage": "Alle Einzelzimmer sind ausgebucht, aber ich würde gerne ein Einzelzimmer buchen, was nun?",
   "antwort": "Schreib uns gerne direkt über das Kontaktformular, vielleicht können wir ein weiteres Einzelzimmer für dich anfragen",
-  "position": 2279
+  "position": 2290
  },
  {
   "quelle": "land",
@@ -2861,7 +2949,7 @@
   "kategorie": "Estland",
   "frage": "Baltikum: Wie viel läuft man auf der Reise?",
   "antwort": "Inklusive Stadtführungen etc. kommt man auf 10-12 gelaufene km am Tag",
-  "position": 2280
+  "position": 2291
  },
  {
   "quelle": "land",
@@ -2869,7 +2957,7 @@
   "kategorie": "Estland",
   "frage": "Baltikum: Wie anstrengend sind die Wanderungen?",
   "antwort": "Die Wanderungen sind mit ca. 2-3 km moderat, jedoch geht es teilweise durch Moorlandschaften, hier ist eine gewisse Triffsicherheit gefragt",
-  "position": 2281
+  "position": 2292
  },
  {
   "quelle": "land",
@@ -2877,7 +2965,7 @@
   "kategorie": "Estland",
   "frage": "Soomaa: Werden meine Schuhe bei der Moorwanderung dreckig?",
   "antwort": "Für die Wanderung werden Schneeschuhe zur Verfügung gestellt, die sich auch klasse als Moorschuhe eignen, so sinken die Schuhe nicht ein, und werden nur bedingt schmutzig",
-  "position": 2282
+  "position": 2293
  },
  {
   "quelle": "land",
@@ -2885,7 +2973,7 @@
   "kategorie": "Finnland",
   "frage": "Verlänegungen möglich ?",
   "antwort": "nein da nur einmal die woche geflogen wird",
-  "position": 2283
+  "position": 2294
  },
  {
   "quelle": "land",
@@ -2893,7 +2981,7 @@
   "kategorie": "Finnland",
   "frage": "wechseln wir das hotel",
   "antwort": "nein da standortreise",
-  "position": 2284
+  "position": 2295
  },
  {
   "quelle": "land",
@@ -2901,7 +2989,7 @@
   "kategorie": "Finnland",
   "frage": "benötigen wir besondere Wärmebekleidung",
   "antwort": "bekommen am 1. Tag vor Ort Wärmebekleidung (Anzug, Schuhe, Handschuhe usw.) zur Verfügung gestellt",
-  "position": 2285
+  "position": 2296
  },
  {
   "quelle": "land",
@@ -2909,7 +2997,7 @@
   "kategorie": "Finnland",
   "frage": "was gibt es zu essen",
   "antwort": "finnische Verpflegung ist eher deftig und herzhaft, viel Fleisch und Fisch",
-  "position": 2286
+  "position": 2297
  },
  {
   "quelle": "land",
@@ -2917,7 +3005,7 @@
   "kategorie": "Finnland",
   "frage": "Nebenkosten vor Ort",
   "antwort": "ca. 200-300 Euro pro person",
-  "position": 2287
+  "position": 2298
  },
  {
   "quelle": "land",
@@ -2925,7 +3013,7 @@
   "kategorie": "Frankreich",
   "frage": "Wie groß sind die Zimmer?",
   "antwort": "I.d.R. sind die Standard- Zimmer in franz. Hotels relativ klein und nicht mit US-amerikanischen oder deutschen zu vergleichen",
-  "position": 2288
+  "position": 2299
  },
  {
   "quelle": "land",
@@ -2933,7 +3021,7 @@
   "kategorie": "Frankreich",
   "frage": "Wie groß sind die Betten?",
   "antwort": "Franz. Standard-Doppelbetten sind 1,40 m breit und 1.90m  lang und haben i.d.R. Laken und eine Überdecke.",
-  "position": 2289
+  "position": 2300
  },
  {
   "quelle": "land",
@@ -2941,7 +3029,7 @@
   "kategorie": "Frankreich",
   "frage": "FRPRO: Wann ist die Lavendelblüte?",
   "antwort": "von Mitte Juni bis Anfang/Mitte August (je nach Region, Höhenlage, Wetter und Ernte (je trockener, desto früher wird geerntet)",
-  "position": 2290
+  "position": 2301
  },
  {
   "quelle": "land",
@@ -2949,7 +3037,7 @@
   "kategorie": "Frankreich",
   "frage": "FRPRO: muss man an der E-Bike Tour durch die Camargue teilnehmen?",
   "antwort": "Wenn du nicht an der Fahrradtour teilnehmen möchtest, findet die Reiseletiung eine Alternative für dich. Du kannst z.B. das Städtchen Aigues-Mortes erkunden",
-  "position": 2291
+  "position": 2302
  },
  {
   "quelle": "land",
@@ -2957,7 +3045,7 @@
   "kategorie": "Griechenland",
   "frage": "Gibt es Wanderungen auf dieser Reise?",
   "antwort": "Optional kann man zur Palamidi-Festung zu Fuß hochlaufen. Der Reisebus fährt aber alle Strecken mit, sodass dieser auch genutzt werden kann. Außer den Stadtbesichtigungen gibt es keine längeren Fußmärsche auf dieser Reise.",
-  "position": 2292
+  "position": 2303
  },
  {
   "quelle": "land",
@@ -2965,7 +3053,7 @@
   "kategorie": "Island",
   "frage": "Wann kann man am bsten Nordlichter beobachten?",
   "antwort": "Die beste Zeit um Nordlichter zu beobachten liegt zwischen Oktober und März.",
-  "position": 2293
+  "position": 2304
  },
  {
   "quelle": "land",
@@ -2973,7 +3061,7 @@
   "kategorie": "Island",
   "frage": "Was passiert, wenn ein Vulkan ausbricht?",
   "antwort": "Grundsätzlich ist es auf Island schon fast normal, dass ein Vulkan ausbricht und absolut sehenswert. Die Isländer sind da sehr entspannt, da es fast zum täglichen Leben gehört. Sollte es ein gravierender Ausbruch sein, sind wir immer im ständigen Kontakt mit unseren Partnern vor Ort und pürfen die Lage.",
-  "position": 2294
+  "position": 2305
  },
  {
   "quelle": "land",
@@ -2981,7 +3069,7 @@
   "kategorie": "Island",
   "frage": "Welche Zielgruppe bereist Island?",
   "antwort": "Nach Island kommen hauptsächlich Naturinteressierte.",
-  "position": 2295
+  "position": 2306
  },
  {
   "quelle": "land",
@@ -2989,7 +3077,7 @@
   "kategorie": "Island",
   "frage": "Wann ist die beste Reisezeit für Island?",
   "antwort": "Das kommt darauf an, was man sehen bzw machen möchte. Zum Wandern und Wale beobachten eignen sich die Monate Juni-August. Nordlichter kann man von Oktober bis März bestaunen. Grundsätzlich wechselt das Klima oft mehrmals am Tag.",
-  "position": 2296
+  "position": 2307
  },
  {
   "quelle": "land",
@@ -2997,7 +3085,7 @@
   "kategorie": "Island",
   "frage": "Wird es in Island richtig kalt?",
   "antwort": "In Island wird es weder richtig kalt, noch richtig warm. Aber das Wetter ist sehr wechselhaft und kann sich jeden Moment und mehrmals am Tag ändern.",
-  "position": 2297
+  "position": 2308
  },
  {
   "quelle": "land",
@@ -3005,7 +3093,7 @@
   "kategorie": "Island",
   "frage": "Ist diese Reise eine aktive Wanderreise?",
   "antwort": "Nein, wir sind zwar viel unterwegs, aber ausgedehnte Wanderungen sind es nicht.",
-  "position": 2298
+  "position": 2309
  },
  {
   "quelle": "land",
@@ -3013,7 +3101,7 @@
   "kategorie": "Island",
   "frage": "Wieviele Reiseleiter gibt es auf dieser Reise?",
   "antwort": "Auf unseren Island Reisen haben wir 1 Reiseleiter, der auch gleichzeitig Fahrer ist.",
-  "position": 2299
+  "position": 2310
  },
  {
   "quelle": "land",
@@ -3021,7 +3109,7 @@
   "kategorie": "Island",
   "frage": "Warum kommen wir am 1.Tag erst so spät in Reykjavik an?",
   "antwort": "Wir haben Flugkontingente mit der Lufthansa und kalkulieren die reise mit diesem Flug. Sollte eine frühere Verbindung gewünscht sein, prüfen wir dies gern.",
-  "position": 2300
+  "position": 2311
  },
  {
   "quelle": "land",
@@ -3029,103 +3117,103 @@
   "kategorie": "Kroatien",
   "frage": "Mit welcher Fluggesellschaft wird geflogen?",
   "antwort": "Es wird mit der Lufthansa geflogen.",
-  "position": 2301
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Muss ich vorher Euro in Landeswährung tauschen?",
-  "antwort": "Ein Tausch vorab ist nicht notwendig und im Falle von Nordmazedonien auch gar nicht möglich, da deutsche Banken i. d. R. keinen Mazedonischen Denar (MKD) vorbestellen können. Du kannst am besten in Skopje Euro in Denar tauschen oder mit einer Kreditkarte Bargeld abheben. Für Albanien gilt das gleiche, dort tauschst du Euro in Albanische Lek (ALL). In Montenegro wird mit Euro bezahlt. Generell empfehlen wir, in eine kleine Stückelung (Noten von max. 1000 MKD oder 2000 ALL) zu tauschen, da du Bargeld vorwiegend in Restaurants/Cafés, Supermärkten oder für Souvenirs - also kleinere Beträge - brauchen wirst. An den meisten Orten kannst du zudem mit Kreditkarte zahlen.",
-  "position": 2302
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Welche Reisezeit ist am besten?",
-  "antwort": "Die angenehmsten Badetemperaturen hast du zwischen Juni und September. Von Mitte Juli bis Mitte August führen wir die Reise nicht durch, da die Temperaturen dann für Stadterkundungen zu warm sind. Besonders angenehm sind auch die Temperaturen im April und Oktober, wenn du der Sommerhitze entgehen möchtest.",
-  "position": 2303
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Für wen ist die Reise geeignet?",
-  "antwort": "Unsere Länderkombi »Balkan« liefert ein buntes Potpourri, bei dem sowohl Natur- als auch Kulturinteressierte gleichermaßen auf Ihre Kosten kommen. Kulturhighlights sind vor allem im Süden Albaniens zu finden, die Naturhighlights sind u. a. der Ohridsee und die Albanischen Alpen.",
-  "position": 2304
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Welche Reisedokumente brauche ich?",
-  "antwort": "Du kannst mit deinem Personalausweis oder Reisepass reisen. Bitte beachte, dass das Reisedokument mindestens 6 Monate über das Reiseende hinaus gültig sein muss.",
-  "position": 2305
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Kann die Reise auch ohne Flug gebucht werden?",
-  "antwort": "Eine Buchung mit Eigenanreise ist nur auf den Terminen möglich, bei denen die Gruppenflüge hin und rück mit Lufthansa nonstop durchgeführt werden. Kontaktiere hierzu gern unsere Erlebnisberatung.",
-  "position": 2306
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Werden viele Serpentinen gefahren?",
-  "antwort": "Auf einzelnen Streckenabschnitten sind Serpentinen vorhanden. Wenn du zu Reiseübelkeit neigst, empfehlen wir dir, Reisetabletten/-kaugummis einzupacken.",
-  "position": 2307
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Nordmazedonien",
-  "frage": "Ist die Reise anstrengend?",
-  "antwort": "Es sind keine Wanderungen vorgesehen, eher Spaziergänge. Bitte beachte beim Kofferpacken, dass es in einigen Orten auf der Reise vorwiegend Kopfsteinpflaster und viele Treppen gibt, sodass du auch für einen Stadtspaziergang geeignetes Schuhwerk benötigst.",
-  "position": 2308
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Montenegro",
-  "frage": "Muss ich vorher Euro in Landeswährung tauschen?",
-  "antwort": "Ein Tausch vorab ist nicht notwendig und im Falle von Nordmazedonien auch gar nicht möglich, da deutsche Banken i. d. R. keinen Mazedonischen Denar (MKD) vorbestellen können. Du kannst am besten in Skopje Euro in Denar tauschen oder mit einer Kreditkarte Bargeld abheben. Für Albanien gilt das gleiche, dort tauschst du Euro in Albanische Lek (ALL). In Montenegro wird mit Euro bezahlt. Generell empfehlen wir, in eine kleine Stückelung (Noten von max. 1000 MKD oder 2000 ALL) zu tauschen, da du Bargeld vorwiegend in Restaurants/Cafés, Supermärkten oder für Souvenirs - also kleinere Beträge - brauchen wirst. An den meisten Orten kannst du zudem mit Kreditkarte zahlen.",
-  "position": 2309
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Montenegro",
-  "frage": "Welche Reisezeit ist am besten?",
-  "antwort": "Die angenehmsten Badetemperaturen hast du zwischen Juni und September. Von Mitte Juli bis Mitte August führen wir die Reise nicht durch, da die Temperaturen dann für Stadterkundungen zu warm sind. Besonders angenehm sind auch die Temperaturen im April und Oktober, wenn du der Sommerhitze entgehen möchtest.",
-  "position": 2310
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Montenegro",
-  "frage": "Für wen ist die Reise geeignet?",
-  "antwort": "Unsere Länderkombi »Balkan« liefert ein buntes Potpourri, bei dem sowohl Natur- als auch Kulturinteressierte gleichermaßen auf Ihre Kosten kommen. Kulturhighlights sind vor allem im Süden Albaniens zu finden, die Naturhighlights sind u. a. der Ohridsee und die Albanischen Alpen.",
-  "position": 2311
- },
- {
-  "quelle": "land",
-  "extern_id": null,
-  "kategorie": "Montenegro",
-  "frage": "Welche Reisedokumente brauche ich?",
-  "antwort": "Du kannst mit deinem Personalausweis oder Reisepass reisen. Bitte beachte, dass das Reisedokument mindestens 6 Monate über das Reiseende hinaus gültig sein muss.",
   "position": 2312
  },
  {
   "quelle": "land",
   "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Muss ich vorher Euro in Landeswährung tauschen?",
+  "antwort": "Ein Tausch vorab ist nicht notwendig und im Falle von Nordmazedonien auch gar nicht möglich, da deutsche Banken i. d. R. keinen Mazedonischen Denar (MKD) vorbestellen können. Du kannst am besten in Skopje Euro in Denar tauschen oder mit einer Kreditkarte Bargeld abheben. Für Albanien gilt das gleiche, dort tauschst du Euro in Albanische Lek (ALL). In Montenegro wird mit Euro bezahlt. Generell empfehlen wir, in eine kleine Stückelung (Noten von max. 1000 MKD oder 2000 ALL) zu tauschen, da du Bargeld vorwiegend in Restaurants/Cafés, Supermärkten oder für Souvenirs - also kleinere Beträge - brauchen wirst. An den meisten Orten kannst du zudem mit Kreditkarte zahlen.",
+  "position": 2313
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Welche Reisezeit ist am besten?",
+  "antwort": "Die angenehmsten Badetemperaturen hast du zwischen Juni und September. Von Mitte Juli bis Mitte August führen wir die Reise nicht durch, da die Temperaturen dann für Stadterkundungen zu warm sind. Besonders angenehm sind auch die Temperaturen im April und Oktober, wenn du der Sommerhitze entgehen möchtest.",
+  "position": 2314
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Für wen ist die Reise geeignet?",
+  "antwort": "Unsere Länderkombi »Balkan« liefert ein buntes Potpourri, bei dem sowohl Natur- als auch Kulturinteressierte gleichermaßen auf Ihre Kosten kommen. Kulturhighlights sind vor allem im Süden Albaniens zu finden, die Naturhighlights sind u. a. der Ohridsee und die Albanischen Alpen.",
+  "position": 2315
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Welche Reisedokumente brauche ich?",
+  "antwort": "Du kannst mit deinem Personalausweis oder Reisepass reisen. Bitte beachte, dass das Reisedokument mindestens 6 Monate über das Reiseende hinaus gültig sein muss.",
+  "position": 2316
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Kann die Reise auch ohne Flug gebucht werden?",
+  "antwort": "Eine Buchung mit Eigenanreise ist nur auf den Terminen möglich, bei denen die Gruppenflüge hin und rück mit Lufthansa nonstop durchgeführt werden. Kontaktiere hierzu gern unsere Erlebnisberatung.",
+  "position": 2317
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Werden viele Serpentinen gefahren?",
+  "antwort": "Auf einzelnen Streckenabschnitten sind Serpentinen vorhanden. Wenn du zu Reiseübelkeit neigst, empfehlen wir dir, Reisetabletten/-kaugummis einzupacken.",
+  "position": 2318
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Nordmazedonien",
+  "frage": "Ist die Reise anstrengend?",
+  "antwort": "Es sind keine Wanderungen vorgesehen, eher Spaziergänge. Bitte beachte beim Kofferpacken, dass es in einigen Orten auf der Reise vorwiegend Kopfsteinpflaster und viele Treppen gibt, sodass du auch für einen Stadtspaziergang geeignetes Schuhwerk benötigst.",
+  "position": 2319
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Montenegro",
+  "frage": "Muss ich vorher Euro in Landeswährung tauschen?",
+  "antwort": "Ein Tausch vorab ist nicht notwendig und im Falle von Nordmazedonien auch gar nicht möglich, da deutsche Banken i. d. R. keinen Mazedonischen Denar (MKD) vorbestellen können. Du kannst am besten in Skopje Euro in Denar tauschen oder mit einer Kreditkarte Bargeld abheben. Für Albanien gilt das gleiche, dort tauschst du Euro in Albanische Lek (ALL). In Montenegro wird mit Euro bezahlt. Generell empfehlen wir, in eine kleine Stückelung (Noten von max. 1000 MKD oder 2000 ALL) zu tauschen, da du Bargeld vorwiegend in Restaurants/Cafés, Supermärkten oder für Souvenirs - also kleinere Beträge - brauchen wirst. An den meisten Orten kannst du zudem mit Kreditkarte zahlen.",
+  "position": 2320
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Montenegro",
+  "frage": "Welche Reisezeit ist am besten?",
+  "antwort": "Die angenehmsten Badetemperaturen hast du zwischen Juni und September. Von Mitte Juli bis Mitte August führen wir die Reise nicht durch, da die Temperaturen dann für Stadterkundungen zu warm sind. Besonders angenehm sind auch die Temperaturen im April und Oktober, wenn du der Sommerhitze entgehen möchtest.",
+  "position": 2321
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Montenegro",
+  "frage": "Für wen ist die Reise geeignet?",
+  "antwort": "Unsere Länderkombi »Balkan« liefert ein buntes Potpourri, bei dem sowohl Natur- als auch Kulturinteressierte gleichermaßen auf Ihre Kosten kommen. Kulturhighlights sind vor allem im Süden Albaniens zu finden, die Naturhighlights sind u. a. der Ohridsee und die Albanischen Alpen.",
+  "position": 2322
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
+  "kategorie": "Montenegro",
+  "frage": "Welche Reisedokumente brauche ich?",
+  "antwort": "Du kannst mit deinem Personalausweis oder Reisepass reisen. Bitte beachte, dass das Reisedokument mindestens 6 Monate über das Reiseende hinaus gültig sein muss.",
+  "position": 2323
+ },
+ {
+  "quelle": "land",
+  "extern_id": null,
   "kategorie": "Montenegro",
   "frage": "Kann die Reise auch ohne Flug gebucht werden?",
   "antwort": "Eine Buchung mit Eigenanreise ist nur auf den Terminen möglich, bei denen die Gruppenflüge hin und rück mit Lufthansa nonstop durchgeführt werden. Kontaktiere hierzu gern unsere Erlebnisberatung.",
-  "position": 2313
+  "position": 2324
  },
  {
   "quelle": "land",
@@ -3133,7 +3221,7 @@
   "kategorie": "Montenegro",
   "frage": "Werden viele Serpentinen gefahren?",
   "antwort": "Auf einzelnen Streckenabschnitten sind Serpentinen vorhanden. Wenn du zu Reiseübelkeit neigst, empfehlen wir dir, Reisetabletten/-kaugummis einzupacken.",
-  "position": 2314
+  "position": 2325
  },
  {
   "quelle": "land",
@@ -3141,7 +3229,7 @@
   "kategorie": "Montenegro",
   "frage": "Ist die Reise anstrengend?",
   "antwort": "Es sind keine Wanderungen vorgesehen, eher Spaziergänge. Bitte beachte beim Kofferpacken, dass es in einigen Orten auf der Reise vorwiegend Kopfsteinpflaster und viele Treppen gibt, sodass du auch für einen Stadtspaziergang geeignetes Schuhwerk benötigst.",
-  "position": 2315
+  "position": 2326
  },
  {
   "quelle": "land",
@@ -3149,7 +3237,7 @@
   "kategorie": "Norwegen",
   "frage": "wo sind die Voucher?",
   "antwort": "bei Gruppentransfer nicht notwendig hat die Reiseleitung, bei unterschiedlichen Anreisen mit den Ulas",
-  "position": 2316
+  "position": 2327
  },
  {
   "quelle": "land",
@@ -3157,7 +3245,7 @@
   "kategorie": "Norwegen",
   "frage": "Sitzplatzreservierung vorab möglich",
   "antwort": "Standard Sitzplatz 25 € pro Person und Strecke / XL-Sitzplatz 45 € pro Person und Strecke",
-  "position": 2317
+  "position": 2328
  },
  {
   "quelle": "land",
@@ -3165,7 +3253,7 @@
   "kategorie": "Norwegen",
   "frage": "Aktivitätslevel",
   "antwort": "einfach",
-  "position": 2318
+  "position": 2329
  },
  {
   "quelle": "land",
@@ -3173,7 +3261,7 @@
   "kategorie": "Norwegen",
   "frage": "Tipps zur Kleidung",
   "antwort": "Zwiebellook & im Sommer Schlafmaske & Sonnenbrille, da lange Tage & kurze Nächte, (wärmender Pullover, Windjacke/Regenjacke stabile Turnschuhe oder leichte Wanderschuhe)",
-  "position": 2319
+  "position": 2330
  },
  {
   "quelle": "land",
@@ -3181,7 +3269,7 @@
   "kategorie": "Norwegen",
   "frage": "Nebenkosten vor Ort",
   "antwort": "Für Ihre Reise sollten Sie pro Woche etwa 300 bis 400 € pro Person",
-  "position": 2320
+  "position": 2331
  },
  {
   "quelle": "land",
@@ -3189,7 +3277,7 @@
   "kategorie": "Norwegen",
   "frage": "Aufgabegepäck bei LH ?",
   "antwort": "in der ECO 23KG pro Person / bei Business 32KG",
-  "position": 2321
+  "position": 2332
  },
  {
   "quelle": "land",
@@ -3197,7 +3285,7 @@
   "kategorie": "Norwegen",
   "frage": "Im Hotel Senja teilen sich die Gäste ein Apartment (NUR BEI NOLOF)",
   "antwort": "edoch ist nur der Wohnbereich zur gemeinsamen Nutzung. Jedes EZ/DZ hat ein eigenes Schlafzimmer und ein eigenes Bad. Auch mit Schlüssel um Ihren bereich zu verschließen.",
-  "position": 2322
+  "position": 2333
  },
  {
   "quelle": "land",
@@ -3205,7 +3293,7 @@
   "kategorie": "Portugal",
   "frage": "Haben die Unterkünfte Duschmittel?",
   "antwort": "In der Regel bieten die Unterkünfte kleine Dusch- und Shampooproben an. Wir empfehlen dennoch zusätzlich in kleinerer Menge Duschgel/Shampoo mitzunehmen.",
-  "position": 2323
+  "position": 2334
  },
  {
   "quelle": "land",
@@ -3213,7 +3301,7 @@
   "kategorie": "Portugal",
   "frage": "Muss ich gut zu Fuß sein?",
   "antwort": "Eine gewisse Grundfitness sollte vorhanden sein. Stadtbesichtigungen zum Beispiel erfolgen hauptsächlich zu Fuß und viele Sehenswürdigkeiten, wie zum Beispiel die Christusritterburg in Tomar, hat sehr viele Treppen.",
-  "position": 2324
+  "position": 2335
  },
  {
   "quelle": "land",
@@ -3221,7 +3309,7 @@
   "kategorie": "Rumänien",
   "frage": "gibt es im Kloster Strom",
   "antwort": "ja in den Gästeräumen gibt es Strom",
-  "position": 2325
+  "position": 2336
  },
  {
   "quelle": "land",
@@ -3229,7 +3317,7 @@
   "kategorie": "Schottland",
   "frage": "Ist die Tour anstrengend, muss man gut zu Fuß sein?",
   "antwort": "Tour ist nicht anstrengend, man muss nicht gut zu Fuß sein. Man fährt die meiste Zeit, hat ab-, und an Stopps. Die meiste Zeit zu Fuß dann tatsächlich in den Städten.",
-  "position": 2326
+  "position": 2337
  },
  {
   "quelle": "land",
@@ -3237,7 +3325,7 @@
   "kategorie": "Schottland",
   "frage": "Wie lange fährt man so circa täglich?",
   "antwort": "Ganz unterschiedlich, so circa 4-5 Stunden.",
-  "position": 2327
+  "position": 2338
  },
  {
   "quelle": "land",
@@ -3245,7 +3333,7 @@
   "kategorie": "Schottland",
   "frage": "Fährt man mit dem Harry Potter Zug oder sieht man ihn zumindest?",
   "antwort": "Nein, man fährt nicht mit dem Zug. Man hält dort an und kann Fotos machen, keine Garantie, dass der Zug vorbei fährt.",
-  "position": 2328
+  "position": 2339
  },
  {
   "quelle": "land",
@@ -3253,7 +3341,7 @@
   "kategorie": "Schweden",
   "frage": "benötigen wir Winterkleidung für die Huskyfahrt?",
   "antwort": "nein,die Agt stellt Winterbekleidung zur Verfügung, bitte lasse uns dafür deine Kleider- und Schuhgröße zukommen",
-  "position": 2329
+  "position": 2340
  },
  {
   "quelle": "land",
@@ -3261,7 +3349,7 @@
   "kategorie": "Spanien",
   "frage": "Beste Reisezeit",
   "antwort": "Frühjahr bis Herbst; ESALH: nicht über den heißen Sommer (keine Abreisen im Juli/ August); ESVER: Nordspanien kühler, daher auch im Sommer möglich",
-  "position": 2330
+  "position": 2341
  },
  {
   "quelle": "land",
@@ -3269,7 +3357,7 @@
   "kategorie": "Spanien",
   "frage": "Wird die Alhambra von innen und außen besucht? Genügend Zeit?",
   "antwort": "Beides \"ja\" - umfangreicher Besuch, sowohl der Paläste, als auch der Gärten",
-  "position": 2331
+  "position": 2342
  },
  {
   "quelle": "land",
@@ -3277,6 +3365,6 @@
   "kategorie": "Spanien",
   "frage": "Kann man die Wanderungen auslassen?",
   "antwort": "Ja, hier finden sich vor Ort Möglichkeiten, was man anstelle der Wanedrung machen kann bzw. es wird ein Treffpunkt ausgemacht, wo man sich anschließend wieder zusammen findet",
-  "position": 2332
+  "position": 2343
  }
 ]
