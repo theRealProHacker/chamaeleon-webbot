@@ -2,7 +2,8 @@
 
 Zwei Quellen, eine Tabelle: ``website`` (die Akkordeons auf /Infos, per Sync)
 und ``intern`` (vormals faqs/allgemein.md, einmal importiert, danach im
-Supabase Table Editor gepflegt). DDL: sql/faq.sql.
+Supabase Table Editor gepflegt). DDL: sql/faq.sql. Ueberschneiden sich beide,
+blendet der Owner eine Zeile per ``ausgeblendet`` aus; der Sync aendert das nie.
 
     python faq_sync.py import [--replace]   allgemein.md -> intern-Zeilen
     python faq_sync.py sync [--force]       /Infos -> website-Zeilen
@@ -105,6 +106,11 @@ def render(rows: list[dict]) -> str:
     return "\n\n".join(teile)
 
 
+def render_beide(rows: list[dict]) -> tuple[str, str]:
+    """(alle Zeilen, nur intern) fuer Endkunden- und Agentur-Prompt."""
+    return render(rows), render([r for r in rows if r["quelle"] == "intern"])
+
+
 def _mit_a(md: str) -> str:
     # ponytail: zwei Katalog-Antworten in allgemein.md haben kein "A: "; render setzt es immer.
     return re.sub(r"(\*\*F: .+?\*\*\n)(?!A: )", r"\1A: ", md.strip())
@@ -121,7 +127,7 @@ def load() -> bool:
     try:
         rows = (
             _supabase().table(TABLE).select(",".join(FELDER))
-            .eq("aktiv", True).order("position").execute().data
+            .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
         )
         if not any(r["quelle"] == "intern" for r in rows):
             raise ValueError("keine aktiven intern-Zeilen")
@@ -129,7 +135,7 @@ def load() -> bool:
         status["load"] = {"ok": False, "grund": f"{e}; alter Stand bleibt", "zeit": _jetzt()}
         print(f"[faq-sync] load failed, keeping current FAQs: {e}")
         return False
-    agent_base.allgemeine_faqs = render(rows)
+    agent_base.allgemeine_faqs, agent_base.allgemeine_faqs_agentur = render_beide(rows)
     status["load"] = {"ok": True, "zeilen": len(rows), "zeit": _jetzt()}
     return True
 
@@ -199,7 +205,7 @@ def export() -> int:
     """Aktive Zeilen -> faqs/snapshot.json (Grundstand beim Import von agent_base)."""
     rows = (
         _supabase().table(TABLE).select(",".join(FELDER))
-        .eq("aktiv", True).order("position").execute().data
+        .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
     )
     with open(SNAPSHOT, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=1)

@@ -103,8 +103,11 @@ def find_trip_site(recommendation: str) -> str:
 # {{allgemeine_faqs}} im Template und wird erst in format_system_prompt gefuellt.
 import faq_sync
 
+# Agenturen bekommen nur die intern-Zeilen: die Website-FAQs sind fuer
+# Endkunden geschrieben, und mit ihnen blieb Leon im Agentur-Modus stumm
+# (Termine-Frage, 8/8 leere Antworten).
 with open(faq_sync.SNAPSHOT, "r", encoding="utf-8") as f:
-    allgemeine_faqs = faq_sync.render(json.load(f))
+    allgemeine_faqs, allgemeine_faqs_agentur = faq_sync.render_beide(json.load(f))
 
 # Knowledge base for the agency area (agt.chamaeleon-reisen.de). Only injected
 # into the system prompt for requests coming from the Reisebüro subdomains.
@@ -1873,7 +1876,7 @@ def format_system_prompt(
 
     return system_prompt_template.format(
         **time_info,
-        allgemeine_faqs=allgemeine_faqs,
+        allgemeine_faqs=allgemeine_faqs_agentur if is_agentur else allgemeine_faqs,
         endpoint=endpoint,
         kunden_modus_block=kunden_modus_block,
         agentur_block=agentur_block,

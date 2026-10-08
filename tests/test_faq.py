@@ -87,9 +87,8 @@ EXPECTED_KEYWORDS_GENERAL_FAQ = {
         "https://www.chamaeleon-reisen.de/daten/pdfs/hansemerkur_versicherung.pdf"
     ],
     "Versicherungsbedingungen": [
-        re.escape(
-            "https://m.hmrv.de/documents/168711/897094/vb-rks+2021+%28t-d%29.pdf/01f6f36a-f275-41ee-8ad9-6944207b6fcd"
-        )
+        # Seit dem FAQ-Sync verlinkt Leon die aktuellen AVB von /Infos.
+        re.escape("https://secure-pro.hmrv.de/rda-web/servlet/dokumentadapter")
     ],
     "Ab wann kann ich meine Rail & Fly Tickets einbuchen?": [
         "10 wochen",
@@ -136,6 +135,7 @@ EXPECTED_KEYWORDS_GENERAL_FAQ = {
         "gebucht sind",
     ],
     "Wie löse ich einen Reisegutschein ein?": [
+        "schritt 2",
         "mail",
         "gutscheinnummer",
         "vorgang",

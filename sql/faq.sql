@@ -9,7 +9,8 @@ create table faq (
   frage       text not null,
   antwort     text not null,        -- Markdown, ohne "A: "
   position    int  not null,        -- Reihenfolge im Prompt: intern 0.., website 1000..
-  aktiv       boolean not null default true,
+  aktiv       boolean not null default true,   -- vom Sync gepflegt (auf /Infos vorhanden?)
+  ausgeblendet boolean not null default false, -- vom Owner gesetzt, z.B. bei Überschneidung; der Sync fasst es nie an
   updated_at  timestamptz not null default now()
 );
 

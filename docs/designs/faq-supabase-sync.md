@@ -483,3 +483,11 @@ Actual answer: A) Letzten Stand behalten (D5, 2026-10-08)
 Accepted scope: Scheitert load() (Fehler, leer, null intern-Zeilen), bleibt der Block im Speicher unverändert; Grund im /admin-Status.
 History: none
 
+
+### Nach dem Import in Supabase nachziehen (Eval-Fixes, 2026-10-08)
+
+Der Snapshot enthält diese Entscheidungen schon; Supabase braucht sie nach `import` + `sync` von Hand:
+- intern „Wie löse ich einen Reisegutschein ein?“: Antwort mit beiden Wegen (online Schritt 2,
+  schon gebucht per Mail mit Gutscheinnummer), Text wie in faqs/snapshot.json.
+- website `CHA-T-FAQ-39` (Gutschein) und `CHA-T-FAQ-40` (Gepäck): `ausgeblendet = true`.
+- Agentur-Modus rendert nur intern-Zeilen (mit allen Website-FAQs blieb Leon bei der Termine-Frage stumm).

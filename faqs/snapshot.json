@@ -100,7 +100,7 @@
   "extern_id": null,
   "kategorie": "Buchung & Bezahlung",
   "frage": "Wie löse ich einen Reisegutschein ein?",
-  "antwort": "Sende uns am besten per Mail die Gutscheinnummer und den dazugehörigen Vorgang. Wir werden anschließend den Gutschein deiner Buchung anrechnen.",
+  "antwort": "Dafür gibt es zwei Wege, je nachdem, ob deine Reise schon gebucht ist:\n- Neue Online-Buchung: Gib den Gutscheincode in Schritt 2 des Buchungsprozesses im vorgesehenen Feld ein.\n- Reise schon gebucht: Sende uns am besten per Mail die Gutscheinnummer und den dazugehörigen Vorgang. Wir werden anschließend den Gutschein deiner Buchung anrechnen.",
   "position": 12
  },
  {
@@ -393,14 +393,6 @@
  },
  {
   "quelle": "website",
-  "extern_id": "CHA-T-FAQ-39",
-  "kategorie": "Buchung deiner Chamäleon-Reise",
-  "frage": "Wie kann ich meinen Reisegutschein einlösen?",
-  "antwort": "Deinen Chamäleon-Gutschein kannst du ganz einfach während des Buchungsvorgangs einlösen, indem du den Gutscheincode im vorgesehenen Feld in Schritt 2 des Buchungsprozesses eingibst. Der Betrag wird unmittelbar mit dem Reisepreis verrechnet und in deiner Reisebestätigung ausgewiesen. Falls du mehrere Gutscheine besitzt oder Fragen dazu hast, unterstützt dich unser Team jederzeit gern persönlich.\n\nWenn du deine Chamäleon-Reise im Reisebüro buchst, kannst du dort deinen Gutscheincode angeben und einlösen lassen.",
-  "position": 1011
- },
- {
-  "quelle": "website",
   "extern_id": "CHA-T-FAQ-38",
   "kategorie": "Buchung deiner Chamäleon-Reise",
   "frage": "Kann ich bei der Buchung angeben, dass ich vegetarisch, vegan oder glutenfrei essen möchte?",
@@ -470,14 +462,6 @@
   "frage": "Was passiert, wenn ich meine Reise nicht antreten kann und welche Stornogebühren fallen an?",
   "antwort": "Für Stornierungen gelten die in unseren AGB festgelegten Bedingungen, die sich nach dem Zeitpunkt der Stornierung richten. Je früher du uns informierst, desto günstiger fallen die Stornokosten aus.   \nWir empfehlen dir, für jede Reise eine Reiserücktrittsversicherung abzuschließen, die in den meisten Fällen die Stornokosten übernimmt.",
   "position": 1020
- },
- {
-  "quelle": "website",
-  "extern_id": "CHA-T-FAQ-40",
-  "kategorie": "Vor der Reise",
-  "frage": "Wieviel Gepäck darf ich mitnehmen?",
-  "antwort": "Die erlaubte Gepäckmenge richtet sich nach den Bestimmungen der Fluggesellschaften für den internationalen Flug und die Inlandsflüge. Internationale Airlines erlauben in der Regel zwischen 20 und 23 kg Aufgabegepäck sowie ein zusätzliches Handgepäckstück. Für manche Programmpunkte auf einzelnen Reisen gelten spezielle Gepäckvorschriften. Informationen dazu findest du in deinen Reiseunterlagen.",
-  "position": 1021
  },
  {
   "quelle": "website",
