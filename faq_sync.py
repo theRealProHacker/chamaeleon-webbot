@@ -107,7 +107,9 @@ def render(rows: list[dict]) -> str:
 
 
 def render_beide(rows: list[dict]) -> tuple[str, str]:
-    """(alle Zeilen, nur intern) fuer Endkunden- und Agentur-Prompt."""
+    """(website + intern, nur intern) fuer Endkunden- und Agentur-Prompt."""
+    # Laender-FAQs (quelle land) gehoeren nie in den allgemeinen Block.
+    rows = [r for r in rows if r["quelle"] in ("website", "intern")]
     return render(rows), render([r for r in rows if r["quelle"] == "intern"])
 
 
