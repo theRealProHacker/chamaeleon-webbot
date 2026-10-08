@@ -64,7 +64,10 @@ def test_laender_csv_rundlauf():
     # Der Import nach Supabase darf von den Laender-CSVs nichts verlieren.
     daten = parse_laender_csv()
     assert set(daten) == set(LAENDER)
-    assert laender(land_zeilen(daten))[1] == daten
+    faqs, neu = laender(land_zeilen(daten))
+    # Reihenfolge zaehlt: Tool-Beschreibung und Prompt zeigen sie so.
+    assert list(faqs) == list(LAENDER)
+    assert [list(neu[land].items()) for land in daten] == [list(f.items()) for f in daten.values()]
 
 
 def test_laender_ohne_frage_bleiben():

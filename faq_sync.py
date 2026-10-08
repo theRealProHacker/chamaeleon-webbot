@@ -319,7 +319,10 @@ def import_laender(replace: bool = False) -> int:
         .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
     )
     if laender(zurueck)[1] != daten:
-        raise SystemExit("land-Zeilen in Supabase weichen vom CSV ab, bitte pruefen")
+        raise SystemExit(
+            "land-Zeilen in Supabase weichen vom CSV ab und sind schon aktiv: "
+            "sofort mit --replace wiederholen, vorher kein Push 2"
+        )
     # Fragen, die der alte Parser durch Zuruecksetzen verschluckt hat: nicht
     # importiert, der Owner entscheidet je Frage und traegt sie von Hand ein.
     for land, fragen in parse_laender_csv(zuruecksetzen=False).items():
@@ -335,6 +338,9 @@ def export() -> int:
         _supabase().table(TABLE).select(",".join(FELDER))
         .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
     )
+    # Ohne land-Zeilen hiesse der Snapshot: 73 Laender ohne eine Frage.
+    if not any(r["quelle"] == "land" for r in rows):
+        raise SystemExit("keine land-Zeilen in Supabase; erst import-laender, Snapshot unveraendert")
     with open(SNAPSHOT, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=1)
         f.write("\n")
