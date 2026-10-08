@@ -1123,6 +1123,23 @@ def reindex_travels():
     return jsonify({"status": "started", "last": travel_index.last_summary()})
 
 
+@auth_required
+def admin_faq_sync_get():
+    """Ergebnis des letzten FAQ-Ladens und -Syncs (nur im Speicher)."""
+    import faq_sync
+
+    return jsonify(faq_sync.status)
+
+
+@auth_required
+def admin_faq_sync_post():
+    """/Infos jetzt syncen; ?force=1 uebergeht die 80-%-Schwelle."""
+    import faq_sync
+
+    result = faq_sync.sync(force=request.args.get("force") == "1")
+    return jsonify(result), (200 if result["ok"] else 400)
+
+
 # (path, view, methods, limit). The limit is applied in app.py, where the
 # Limiter lives. Every route here was previously unthrottled: `default_limits`
 # is empty, so a route without its own decorator has no limit at all — see the
@@ -1153,4 +1170,6 @@ routes = [
     ("/admin/reindex", reindex_travels, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/admin/sitemap", admin_sitemap_get, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/sitemap", admin_sitemap_post, ["POST"], rate_limit.ADMIN_LIMIT),
+    ("/admin/faq-sync", admin_faq_sync_get, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin/faq-sync", admin_faq_sync_post, ["POST"], rate_limit.ADMIN_LIMIT),
 ]

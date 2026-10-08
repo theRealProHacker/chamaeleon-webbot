@@ -97,9 +97,14 @@ def find_trip_site(recommendation: str) -> str:
         raise ValueError(f"No site found for trip recommendation: {recommendation}")
 
 
-# Load general FAQs
-with open("faqs/allgemein.md", "r", encoding="utf-8") as f:
-    allgemeine_faqs = f.read().strip()
+# Allgemeine FAQs (intern + Website /Infos): Grundstand aus dem committeten
+# Snapshot, damit Tests und Evals offline laufen. Der Serverstart und der
+# naechtliche Sync ersetzen ihn per faq_sync.load() aus Supabase; deshalb steht
+# {{allgemeine_faqs}} im Template und wird erst in format_system_prompt gefuellt.
+import faq_sync
+
+with open(faq_sync.SNAPSHOT, "r", encoding="utf-8") as f:
+    allgemeine_faqs = faq_sync.render(json.load(f))
 
 # Knowledge base for the agency area (agt.chamaeleon-reisen.de). Only injected
 # into the system prompt for requests coming from the Reisebüro subdomains.
@@ -1225,7 +1230,7 @@ Falls dir diese FAQs nicht ausreichen, kannst du mit dem chamaeleon_website_tool
 
 Allgemeine FAQs:
 
-{allgemeine_faqs}
+{{allgemeine_faqs}}
 
 {{kunden_modus_block}}{{agentur_block}}Länderspezifische FAQs:
 
@@ -1868,6 +1873,7 @@ def format_system_prompt(
 
     return system_prompt_template.format(
         **time_info,
+        allgemeine_faqs=allgemeine_faqs,
         endpoint=endpoint,
         kunden_modus_block=kunden_modus_block,
         agentur_block=agentur_block,

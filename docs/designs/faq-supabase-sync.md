@@ -404,3 +404,82 @@ Findings below are retained from the last completed review; the current document
 
 > The core obligation is met by rollout step 4 ('Ab diesem Push liest kein Laufzeitcode mehr faqs/allgemein.md'), but Open Question 2 still offers deletion in the same push and the 'Parallelbeobachtung' wording, which conflicts with step 6.
 <!-- gstack:office-hours:concerns:end -->
+
+## Eng Review (/plan-eng-review, 2026-10-08)
+
+Target: docs/designs/faq-supabase-sync.md (Commit ce6bda0). Annahme des Owners: `tos-txtnr`
+ist stabil und auf /Infos eindeutig (nicht von der Redaktion bestätigt; Live-Probe
+2026-10-08: 41 Akkordeons, 41 eindeutige IDs, 4 Kategorien, ISO-8859-1).
+
+### Scope record
+
+feature answers: D1 = Behalten (Admin-Status + POST /admin/faq-sync bleiben), D2 = Bericht statt
+Skript (kein scripts/faq_abgleich.py; Gegenüberstellung einmalig als Markdown-Bericht);
+structure: B Smaller arrangement (D3); accepted scope: faq_sync.py mit Unterbefehlen
+`import | sync [--force] | export`, faqs/snapshot.json, tests/fixtures/infos.html,
+tests/test_faq_sync.py; Änderungen in agent_base.py, app.py, /admin-Vorlage,
+tests/test_faq.py; kein scripts/faq_import.py, kein scripts/faq_abgleich.py;
+pending remedies: alle Befunde ab Schritt C.
+Scope Challenge result: scope reduced per recommendation (Abgleich-Skript gestrichen).
+
+## Decision ledger
+
+### S1a: Quelle der FAQs beim Import von agent_base
+Finding: C-1, P1, confidence 9/10, docs/designs/faq-supabase-sync.md:171-175 + agent_base.py:101-102, Reviewer: plan-eng-review
+Plan baseline: Original-Vorschlag: Snapshot „nur gelesen, wenn Supabase beim Start nicht antwortet“; Quelle beim Import nicht festgelegt.
+Runtime evidence: agent_base liest heute allgemein.md beim Import (agent_base.py:101-102); Serverstart-Hooks laufen nur mit $PORT/WERKZEUG_RUN_MAIN (app.py:464); Vorbild sitemap.txt + restore_from_db (sitemap_sync.py:349-380).
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| S1a Quelle beim Import | unspezifiziert, pending | faqs/snapshot.json (offline, wie sitemap.txt); Serverstart ersetzt per faq_sync.load() aus Supabase | Supabase-Abfrage beim Import; Snapshot nur, wenn sie scheitert |
+| S1b Verhalten bei fehlgeschlagenem Neuladen zur Laufzeit | pending | pending | pending |
+| D1 Admin-Status | approved (D1) | unverändert | unverändert |
+| D3 Struktur, Export = `faq_sync.py export` | approved (D3) | unverändert | unverändert |
+Question D4:
+D4 — Woher kommen die FAQs, wenn agent_base geladen wird?
+Project/branch/task: main, Eng-Review FAQ-Sync, Kaltstart (R2-5, R2-7).
+ELI10: Heute liest agent_base beim Import faqs/allgemein.md. Tests und Evals starten nie den Server, sie importieren nur. Das Design sagt nicht, was nach dem Umzug beim Import gelesen wird. A macht es wie bei der Sitemap: Beim Import gilt der committete Snapshot, der Serverstart ersetzt ihn durch Supabase. B fragt schon beim Import Supabase ab.
+Stakes if we pick wrong: Mit B hängt jeder Testlauf und jeder Import-Fehler am Netz; ohne Festlegung ist general_faq_data in Tests leer und test_allgemeine_fragen_gibt_es_noch rot.
+Recommendation: A, weil sitemap.txt + restore_from_db genau dieses Muster schon im Repo fahren und Offline-Tests deterministisch bleiben.
+Completeness: A=9/10, B=7/10
+Header: FAQ-Quelle
+Options:
+A) Snapshot beim Import (recommended)
+agent_base liest beim Import faqs/snapshot.json (alle aktiven Zeilen, erzeugt mit `faq_sync.py export`); app.py ruft beim Serverstart faq_sync.load() und ersetzt den Block aus Supabase. Offline-Tests und Evals lesen den Snapshot. human: ~1h / CC: ~5min. Laufzeitverhalten bei Fehlern (S1b) bleibt offen.
+B) Supabase beim Import
+agent_base fragt beim Import Supabase ab, nur bei Fehler den Snapshot. Jeder Import (Tests, Skripte) macht einen Netzaufruf. human: ~1h / CC: ~5min. Laufzeitverhalten bei Fehlern (S1b) bleibt offen.
+
+State: approved
+Actual answer: A) Snapshot beim Import (D4, 2026-10-08)
+Accepted scope: agent_base liest beim Import faqs/snapshot.json (alle aktiven Zeilen website+intern, erzeugt mit `python faq_sync.py export`, committet); app.py ruft im $PORT/WERKZEUG_RUN_MAIN-Block faq_sync.load() und ersetzt Prompt-Block und general_faq_data aus Supabase. Offline-Tests/Evals lesen den Snapshot. S1b offen.
+History: none
+
+### S1b: Verhalten, wenn Neuladen aus Supabase scheitert
+Finding: C-1 (Teil 2), P2, confidence 8/10, docs/designs/faq-supabase-sync.md:149-152 („Null aktive intern-Zeilen, ein Fehler oder ein leeres Ergebnis zählen wie Supabase nicht erreichbar und führen zum Snapshot“), Reviewer: plan-eng-review
+Plan baseline: Original-Vorschlag: jeder Fehler in load() führt zum Snapshot, auch zur Laufzeit.
+Runtime evidence: Vorbild restore_from_db behält bei Fehler den aktuellen Stand im Speicher (sitemap_sync.py:362-366). Nach S1a ist der Snapshot ohnehin der Stand ab Import.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| S1b Fehler bei load() zur Laufzeit (nächtlich, nach Force-Sync) | Snapshot (Original-Vorschlag), pending | aktuellen Block im Speicher behalten (letzter guter Stand), Grund in den Sync-Status | auf Snapshot zurückfallen |
+| S1a Quelle beim Import | approved D4: Snapshot | unverändert | unverändert |
+| D1 Admin-Status | approved | unverändert | unverändert |
+Question D5:
+D5 — Was gilt, wenn das Neuladen aus Supabase scheitert?
+Project/branch/task: main, Eng-Review FAQ-Sync, load() zur Laufzeit (R2-5).
+ELI10: Nachts (und nach einem Force-Sync) lädt der Bot die FAQs neu aus Supabase. Das Design sagt: Jeder Fehler führt zum Snapshot aus git. Der kann Wochen alt sein. A behält stattdessen den Stand, den der Bot gerade hat. Beim Start ist das der Snapshot, danach der letzte erfolgreiche Stand aus Supabase.
+Stakes if we pick wrong: Mit B springt Leon bei einem kurzen Supabase-Ausfall um 02:05 auf alte Antworten zurück, bis zum nächsten erfolgreichen Laden.
+Recommendation: A, weil der letzte gute Stand immer neuer ist als der Snapshot und restore_from_db es genauso macht.
+Completeness: A=9/10, B=6/10
+Header: Ladefehler
+Options:
+A) Letzten Stand behalten (recommended)
+Scheitert load() (Fehler, leer, null intern-Zeilen), bleibt der Block im Speicher unverändert; der Grund steht im /admin-Status. human: ~30min / CC: ~3min.
+B) Auf Snapshot zurück
+Scheitert load(), lädt der Bot faqs/snapshot.json, wie im Design. human: ~30min / CC: ~3min.
+
+State: approved
+Actual answer: A) Letzten Stand behalten (D5, 2026-10-08)
+Accepted scope: Scheitert load() (Fehler, leer, null intern-Zeilen), bleibt der Block im Speicher unverändert; Grund im /admin-Status.
+History: none
+

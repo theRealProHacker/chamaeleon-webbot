@@ -1,0 +1,634 @@
+[
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reisearten",
+  "frage": "Welche Reisearten gibt es?",
+  "antwort": "Chamäleon ist dein Spezialist für Erlebnisreisen (https://www.chamaeleon-reisen.de/Erlebnisreisen). Alle Reisen überzeugen durch besondere Unterkünfte, deutschsprachige Reiseleiter*innen und maximal 12 Gäste. Es gibt auch Reisen, bei denen du aktiver sein oder besonders viele entspannte Momente genießen kannst. Du erkennst diese Reisen am Zusatz »aktiv« (https://www.chamaeleon-reisen.de/Erlebnisreisen/Erlebnisreisen-aktiv) und »genießen« (https://www.chamaeleon-reisen.de/Erlebnisreisen/Erlebnisreisen-geniessen).",
+  "position": 0
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Kataloge",
+  "frage": "Wohin werden Kataloge verschickt?",
+  "antwort": "Wir verschicken die Kataloge innerhalb Deutschlands, nach Österreich und in die Schweiz.",
+  "position": 1
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Kataloge",
+  "frage": "Wo kann ich Kataloge bestellen?",
+  "antwort": "Bestellung hier: https://www.chamaeleon-reisen.de/Bestellung#MODAL_FORM_BESTELLUNG",
+  "position": 2
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Findet meine Reise garantiert statt?",
+  "antwort": "Ja. Auf jede Chamäleon-Reise gibt es eine Durchführungsgarantie: Die Reise findet statt, auch wenn nur eine Person gebucht hat. Eine Mindestteilnehmerzahl für die Reise selbst gibt es nicht – Mindestteilnehmerzahlen auf den Reiseseiten gelten nur für einzelne Ausflüge, zum Beispiel eine Ballonfahrt ab 6 Personen.",
+  "position": 3
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Wie kann ich eine Reise buchen oder reservieren?",
+  "antwort": "Direkt auf der Website: Öffne auf der Seite deiner Wunschreise den Bereich »Termine & Preise«, wähle deinen Termin und klicke auf »Zur Buchung« oder »Unverbindlich reservieren«. Soll deine Buchung über ein Reisebüro laufen, sag das deiner Erlebnisberater*in – sie überträgt die Buchung an dein Reisebüro. Ein Reisebüro in deiner Nähe findest du unter https://www.chamaeleon-reisen.de/Reisebuero-finden",
+  "position": 4
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Wie lange gilt eine Reservierung?",
+  "antwort": "Eine Reservierung gilt 7 Tage. Danach wird sie automatisch in eine verbindliche Buchung umgewandelt.",
+  "position": 5
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Ab wann gibt es die Termine und Preise für 2028?",
+  "antwort": "Termine und Preise für 2028 sind ab Anfang 2027 online. Steht ein Reisejahr noch nicht auf der Reiseseite, ist es noch nicht veröffentlicht.",
+  "position": 6
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Bietet ihr Privatreisen an?",
+  "antwort": "Chamäleon reist in kleinen Gruppen mit höchstens 12 Gästen. Ob eine Reise auch als private Reise möglich ist, kann ich dir nicht zusagen – das klärt die Erlebnisberater*in der Reise mit dir. Die Erlebnisberatung erreichst du unter +49 30 347 996 0.",
+  "position": 7
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchen und Reservieren",
+  "frage": "Was ist Just4You?",
+  "antwort": "Bei Just4You bietet ein Reisebüro seinen Kund*innen eine Chamäleon-Reise exklusiv an, und eine Mitarbeiter*in des Reisebüros reist mit. Buchen kannst du sie nur über dieses Reisebüro, nicht direkt bei Chamäleon. Mit einer privaten Reise hat es nichts zu tun – dafür ist die Erlebnisberater*in deiner Wunschreise da.",
+  "position": 8
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Wie kann ich meine Reise bezahlen?",
+  "antwort": "Der Reisepreis kann per Überweisung oder per Kreditkarte (MasterCard, Visa oder Amex) bezahlt werden.",
+  "position": 9
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Wo finde ich den Zahlungslink für die Kreditkartenzahlung?",
+  "antwort": "Dieser steht auf deiner Rechnung und wird dir separat nochmal per Mail zugesandt.",
+  "position": 10
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Wie hoch ist die Anzahlung?",
+  "antwort": "Die Anzahlung beträgt in der Regel 20% des Reisepreises und die Restzahlung ist 4 Wochen vor Reiseantritt fällig. Bei kurzfristigen Buchungen (weniger als 4 Wochen vor Reisebeginn) ist der Reisepreis sofort fällig.",
+  "position": 11
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Wie löse ich einen Reisegutschein ein?",
+  "antwort": "Sende uns am besten per Mail die Gutscheinnummer und den dazugehörigen Vorgang. Wir werden anschließend den Gutschein deiner Buchung anrechnen.",
+  "position": 12
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Ich muss meine Reise stornieren wie mache ich das?",
+  "antwort": "Bitte sende eine E-Mail mit der Vorgangsnummer im Betreff an erlebnisberatung@chamaeleon-reisen.de",
+  "position": 13
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Kann ich die Buchung bei Chamäleon auch einsehen, wenn ich nicht der Hauptbucher bin?",
+  "antwort": "Nur der Hauptbucher kann die Reise in MeinCham anzeigen.",
+  "position": 14
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Wann erhalte ich meine Reiseunterlagen?",
+  "antwort": "Deine Reiseunterlagen bekommst du in der Regel etwa zwei Wochen vor Reisebeginn: Flugplan, aktualisierte Reisedetails und gegebenenfalls deine Rail&Fly-Gutscheincodes. Ob deine Unterlagen schon bereitstehen, siehst du in MeinChamäleon unter deiner Reise.",
+  "position": 15
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Erhalte ich die Reiseunterlagen auch noch per Post?",
+  "antwort": "Aus Gründen der Nachhaltigkeit versenden wir nur noch die Bestätigungsunterlagen per Post. Die Schlussunterlagen werden in der Regel nur noch in digitaler Form versendet.",
+  "position": 16
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Wo finde ich meine Reiseanmeldung?",
+  "antwort": "Sobald deine Reiseanmeldung erstellt ist, findest du sie in MeinChamäleon auf der Seite deiner Reise („Alles auf einen Blick“): Klappe den Bereich „Reiseanmeldung“ auf, darin liegt das Dokument „Reiseanmeldung“. Siehst du den Bereich noch nicht, hilft dir die Erlebnisberater*in deiner Reise weiter.",
+  "position": 17
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Wann erhalte ich meine Flugtickets?",
+  "antwort": "Flugtickets gibt es seit einigen Jahren nicht mehr. Du erhältst mit deinen Reiseunterlagen einen Flugplan von uns. Dieser enthält alle wichtigen Informationen, die die Airline im Bedarfsfall benötigt.",
+  "position": 18
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Wo finde ich die Flugzeiten meiner gebuchten Reise?",
+  "antwort": "Sobald deine Reise gebucht ist, findest du diese Information auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon.",
+  "position": 19
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Wo finde ich die Sitzplätze meiner gebuchten Reise?",
+  "antwort": "Sobald deine Reise gebucht ist, findest du diese Information auf deiner aktuellen Rechnung über unseren Unterlagenlink oder in Mein Chamäleon. Ganz rechts, neben den Flugzeiten findest du die gebuchten Sitzplätze, sofern diese gebucht sind.",
+  "position": 20
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Ich möchte Sitzplätze reservieren, wie kann ich das tun?",
+  "antwort": "Schicke hierzu bitte eine E-Mail an erlebnisberatung@chamaeleon-reisen.de mit der Vorgangsnummer im Betreff.",
+  "position": 21
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Die Reise fängt am 17.03. an, fliege ich dann am 16.03. schon los?",
+  "antwort": "Wenn die Reise am 17.03. startet, dann startet man am 17.03. in Deutschland. Das gilt für alle Reisen.",
+  "position": 22
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Kerosinzuschläge",
+  "antwort": "Bei gebuchten Reisen fallen keine zusätzlichen Zuschläge an. Bei Vorausbuchungen oder Just4You können wir Kerosin lt. den AGBs nachbelasten. ",
+  "position": 23
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Rail & Fly",
+  "frage": "Ab wann kann ich meine Rail & Fly Tickets einbuchen?",
+  "antwort": "Die Rail & Fly Tickets werden 10 Wochen vor Anreise erstellt und sind dann in den digitalen Reiseunterlagen für dich zugänglich.",
+  "position": 24
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Rail & Fly",
+  "frage": "Kann ich mit dem Rail&Fly 1 Tag früher anreisen?",
+  "antwort": "Ja, mit dem Rail&Fly Ticket hast du die Möglichkeit 1 Tag vor Abreise anzureisen, hierfür kannst du einfach das Datum während der Buchung anpassen.",
+  "position": 25
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Rail & Fly",
+  "frage": "Kann ich mit dem Rail&Fly 1 Tag später abreisen?",
+  "antwort": "Ja, mit dem Rail&Fly Ticket hast du die Möglichkeit 1 Tag nach deiner Ankunft abzureisen, hierfür kannst du einfach das Datum während der Buchung anpassen.",
+  "position": 26
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Rail & Fly",
+  "frage": "Kann ich über mein R&F eine Sitzplatzreservierung vornehmen?",
+  "antwort": "Du kannst die Sitzplatzreservierung im Zuge der Fahrkartenbuchung selbst vornehmen, sofern auf diesen Zügen grundsätzlich Sitzplätze reserviert werden können, im Allgemeinen also im Fernverkehr. ",
+  "position": 27
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Versicherungen",
+  "frage": "Welche Versicherungen bieten Sie an?",
+  "antwort": "Über unseren Partner, die HanseMerkur Reiseversicherung, können wir dir einen umfangreichen Versicherungsschutz vor und während der Reise anbieten. Du kannst dabei zwischen zwei Versicherungspaketen wählen:\n\n_Chamäleon-Premiumschutz:_\n\n- Reise-Rücktrittsversicherung\n- Urlaubsgarantie (Reise-Abbruchversicherung)\n- Reise-Krankenversicherung\n- Notfall-Versicherung\n- Reise-Unfallversicherung\n- Reisegepäck-Versicherung\n\n_Chamäleon-Basisschutz:_\n\n- Reise-Rücktrittsversicherung\n- Urlaubsgarantie (Reise-Abbruchversicherung)\n\nVersicherungsangebot: https://www.chamaeleon-reisen.de/daten/pdfs/HanseMerkur_Versicherung.pdf\nVersicherungsbedingungen: https://m.hmrv.de/documents/168711/897094/VB-RKS+2021+%28T-D%29.pdf/01f6f36a-f275-41ee-8ad9-6944207b6fcd",
+  "position": 28
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Einreisebestimmungen",
+  "frage": "Wo finde ich die Einreisebestimmungen für meine Reise – brauche ich ein Visum oder Impfungen?",
+  "antwort": "Bei bestehender Buchung: in der Reiseanmeldung unter \"Einreisebestimmungen Zeitpunkt der Reiseanmeldung\" und bei MeinChamäleon unter \"Deine Einreisebestimmungen und Visainformationen\". Wenn noch keine Buchung: auf der Website der jeweiligen Reise unter \"Länderinfos für dein Reiseziel\".\nFür eine individuelle reisemedizinische Vorsorge, inklusive Malaria-Prophylaxe, erhältst du mit deiner Reisebestätigung einen Coupon für ein kostenloses Informationsgespräch in einer BCRT-Reisepraxis. Die Standorte und Sprechzeiten findest du unter www.bcrt.de. Zurzeit bekannte Standorte: Berlin (Standorte Mitte und Steglitz), Dresden, Düsseldorf, Frankfurt a.M., Hamburg, Köln, München, Stuttgart und Wiesbaden. Eine telefonische Beratung ist dort nicht möglich. Bitte lass dich außerhalb dieser Standorte ärztlich beraten.",
+  "position": 29
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Wie ist der Altersdurchschnitt auf unseren Reisen?",
+  "antwort": "Ca. 50-60 Jahre.",
+  "position": 30
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Können Kinder mitreisen?",
+  "antwort": "Im Allgemeinen sind Chamäleon-Reisen für Kinder ab zwölf Jahren geeignet.",
+  "position": 31
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Wie hoch ist die maximale Teilnehmerzahl auf den Reisen?",
+  "antwort": "12 Teilnehmer.",
+  "position": 32
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Mein gewünschter Termin ist online nicht mehr sichtbar.",
+  "antwort": "Der Termin ist ausgebucht oder vorübergehend geschlossen. Schreib dem Chamäleon-Team eine Mail.",
+  "position": 33
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Was für Gepäck kann ich mitnehmen?",
+  "antwort": "Wir bitten dich, wenn möglich, auf Hartschalenkoffer zu verzichten, da diese im Bus viel Platz wegnehmen. Du musst dir aber kein neues Gepäck kaufen! Du darfst auch Stoffkoffer mit Rollen mitnehmen. Für deine Reise müssen es keine Reisetaschen sein. Feste Maße für Koffer mit Rollen gibt es bei Chamäleon nicht. Die Gewichts- und Größenbeschränkungen für deinen Flug findest du in den Vorgaben der jeweiligen Fluggesellschaft.",
+  "position": 34
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Allgemeine Informationen",
+  "frage": "Habe ich bei Jeep-Safaris einen Fenterplatz?",
+  "antwort": "In den offenen Safari-Jeeps sitzen jeweils drei Gäste nebeneinander. Daher kann nicht jeder am Rand sitzen.",
+  "position": 35
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Für Reisebüros",
+  "frage": "Wo finde ich die Provisionsabrechnung?",
+  "antwort": "Die finale Provisionsgutschrift für deine Buchungen wird nur noch im Agenturbereich hochgeladen. Hier kannst du die Provisionsabrechnung, sowie alle aktuellen Dokumente als Reisebüro einsehen, herunterladen und ggf. weiterleiten: https://agt.chamaeleon-reisen.de/Agentur/Buchungen",
+  "position": 36
+ },
+ {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Jüngste Ereignisse",
+  "frage": "Ebola?",
+  "antwort": "Was sagen wir anrufenden Gästen:\nDanke, dass du dich meldest – ich verstehe gut, dass dich die Meldungen beunruhigen. Deine Sicherheit hat für uns oberste Priorität. Das Auswärtige Amt rät Stand 26.05.2026 lediglich vom Besuch eines bestimmten Nationalparks ab, den wir nicht besuchen. Zurzeit gehen wir von einer ordnungsgemäßen Durchführung der Reise aus. Wir verfolgen die Lage sehr eng und stimmen uns mit unseren Partner\\*innen vor Ort und offiziellen Stellen ab. Wir prüfen täglich die Lage und unsere Route. Unsere Partner vor Ort achten darauf, dass wir betroffene Gebiete meiden. Sollte sich das Risiko verändern, informieren wir proaktiv über ev. Routenanpassung oder Absage.\n\nÜbertragung von Ebola:\nEbola wird in der Regel nur durch engen direkten Kontakt mit Körperflüssigkeiten von erkrankten Personen übertragen. Für Reisende ist das Risiko normalerweise sehr gering, solange man solche Kontakte konsequent meidet.\n\nDurchführung von Reisen nach Uganda:\nDa wir aufgrund der vorliegenden Informationen zurzeit von einer regulären Durchführung der nächsten Reisen ausgehen, gelten für Umbuchungen und Stornierungen die Chamäleon-Reisebedingungen.\n\nZum Schluss:\nFür Reisen nach Tansania, Kenia und alle anderen südafrikanischen Reiseziele gibt es zurzeit keine Anhaltspunkte für eine mögliche Gefährdung aufgrund des Ebola-Ausbruchs in der Grenzregion zwischen dem Kongo und Uganda. Wir führen die Reise regulär durch.\n\nGut zu wissen: In den Ländern Tansania und Namibia wurden laut WHO bisher noch nie Ebola-Fälle registriert. Aus Südafrika sind lediglich zwei Fälle aus 1996 bekannt. Alle drei Länder setzen auf Früherkennung an Einreisepunkten, verstärkte Überwachung und schnelle Isolations-/Reaktionsketten, um ein Einschleppen von Ebola zu verhindern.",
+  "position": 37
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-35",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Was ist eine Vorausbuchung?",
+  "antwort": "Für viele Reisetermine, die weit in der Zukunft liegen, kannst du eine unverbindliche Vorausbuchung anlegen. Klicke dafür in der Terminliste der entsprechenden Reise auf den Button »Jetzt vorausbuchen«. Wir halten dir einen Platz auf der Reise frei und melden uns bis spätestens 10 Monate vor der Abreise, wenn die Flugpreise bestätigt sind. Du erhältst dann eine unverbindliche Reservierung mit aktuellen Details zur Reise. Erst nach deiner Bestätigung wird die Buchung verbindlich. Sollten sich deine Reisewünsche zwischenzeitlich ändern, freuen wir uns über eine kurze Mitteilung.",
+  "position": 1000
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-20",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich eine Chamäleon-Reise kostenlos und unverbindlich reservieren?",
+  "antwort": "Wir bieten dir die Möglichkeit, eine Chamäleon-Reise kostenlos zu reservieren. Deine Reservierung besteht für sieben Tage und wird nach Ablauf des siebten Tages automatisch in eine Festbuchung umgewandelt und von uns binnen zehn Tagen schriftlich bestätigt. Falls du eine für dich eingerichtete Reservierung nicht wahrnehmen möchtest, storniere diese bitte bis zum siebten Tag schriftlich. Vor Ablauf der Frist erinnern wir dich per E-Mail.",
+  "position": 1001
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-06",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Wie funktioniert die Bezahlung meiner Chamäleon-Reise?",
+  "antwort": "Der Reisepreis kann per Überweisung oder per Kreditkarte bezahlt werden. Unabhängig von der Zahlungsart, die du wählst, muss der vollständige Rechnungsbetrag rechtzeitig vor der Abreise beglichen sein. Nur so können wir die Reiseunterlagen früh genug an dich verschicken.\n\nDie Anzahlung beträgt 20% des Reisepreises und die Restzahlung des Reisepreises ist 4 Wochen vor Reiseantritt fällig. Bei kurzfristigen Buchungen (weniger als 4 Wochen vor Reisebeginn) ist der Reisepreis sofort fällig.\n\n##### Überweisung:\n\nBitte überweise sowohl Anzahlung als auch Restzahlung unter Angabe deiner Kunden- und Vorgangsnummer auf das Konto der Chamäleon Reisen GmbH (IBAN DE50 1009 0000 7002 3300 02, BIC BEVODEBB). Überweisungen innerhalb der EU sind kostenfrei, bei Zahlungen aus dem EU-Ausland bitten wir um Verständnis, dass Bankgebühren sowie sogenannte »fremde Spesen« zu deinen Lasten gehen.\n\n##### Kreditkarte:\n\nDu hast alternativ die Möglichkeit sowohl die Anzahlung als auch die Restzahlung per MasterCard, Visa oder American Express zu begleichen. Den Link zum Bezahlformular findest du auf der Rechnung und in deinem Login-Bereich MeinChamäleon.",
+  "position": 1002
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-04",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich meine Chamäleon-Rundreise verlängern?",
+  "antwort": "Bei vielen Chamäleon-Reisen bieten wir dir Verlängerungen zum Vorfreuen bzw. Nachträumen an. Anders als bei den Hauptreisen stehen uns für die Verlängerungen in der Regel keine Kontingente zur Verfügung. Deshalb wird unmittelbar nach Eingang deiner Reiseanmeldung die Verfügbarkeit der Leistungen geprüft. Daraus können sich je nach Auslastung Aufpreise für die Verlängerung ergeben.",
+  "position": 1003
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-02",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich meinen Abflughafen wählen?",
+  "antwort": "Der Langstreckenflug ist bei unseren Reisen inklusive. Du findest den jeweiligen Abflughafen in der Leistungsbeschreibung der jeweiligen Reise. Passend zum Langstreckenflug können wir für dich Anschlussflüge von vielen Flughäfen in Deutschland, Österreich oder der Schweiz für einen Aufpreis ab 200 € pro Person dazu buchen. Gib deinen Wunsch-Flughafen einfach bei der Buchung an oder kontaktiere deine Erlebnisberater\\*in.",
+  "position": 1004
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-09",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Mit welchen Fluggesellschaften fliege ich auf meiner Reise?",
+  "antwort": "Bei allen Chamäleon-Reisen buchen wir für dich Linienflüge mit renommierten Fluggesellschaften. Deine Sicherheit liegt uns sehr am Herzen. Unter den Leistungen jeder Chamäleon-Reise sind die jeweils geplanten Fluggesellschaften für Lang-, Regional- und Inlandstrecken zu deiner Information aufgeführt.",
+  "position": 1005
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-08",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Warum können sich Flugpreise bei meiner Reise verändern?",
+  "antwort": "Unsere Ticketpreise inklusive Linienflug basieren auf speziellen Flugtarifen, die wir als Reiseveranstalter für die Erstellung von Pauschalreisen nutzen dürfen. Die Verfügbarkeit der Plätze zum Veranstaltertarif ist stark eingeschränkt. Daraus können sich je nach Auslastung Aufpreise für den Linienflug ergeben.",
+  "position": 1006
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-22",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich für meine Flugreise Sitzplätze reservieren?",
+  "antwort": "Du sitzt gern am Fenster, liebst einen Platz am Gang oder wünschst während des Fluges mehr Beinfreiheit? Gern nehmen wir Sitzplatzreservierungen für einen Aufpreis ab 20 € pro Person für dich vor. Selbstverständlich können alle noch verfügbaren Sitzplätze auch kostenfrei von dir ausgewählt werden, sobald der Online-Check-in für den betreffenden Flug freigeschaltet ist. Dies ist je nach Fluggesellschaft 23 bis 48 Stunden vor Abflug der Fall. Bitte beachte, dass die Auswahl dann unter Umständen eingeschränkt ist.",
+  "position": 1007
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-03",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Ist der Zug zum Flug (Rail&Fly) bei Chamäleon inklusive und kann ich 1. Klasse fahren?",
+  "antwort": "Bei uns beginnt der Urlaub bereits bei der Anreise: Reise bequem in der 1. Klasse mit dem Zug zum Flughafen. Rail&Fly ist bei uns immer inklusive, wenn du den Linienflug bei uns gebucht hast.  \nDas Rail&Fly-Ticket gilt in Zügen des Nah- und Fernverkehrs sowie in ausgewählten Nichtbundeseigenen Eisenbahnen (NE-Bahnen). Du profitierst von mehr Transparenz durch Fahrplaninformationen auf dem Ticket, bei voller Flexibilität und inklusive Nutzung aller öffentlichen Verkehrsmittel bei Innerverbundfahrten. Weitere Infos zum Geltungsbereich erhältst du unter [bahnanreise.de/geltungsbereich](https://www.bahnanreise.de/geltungsbereich).\n\nIn deinen digitalen Reiseunterlagen steht ca. 10 Wochen vor Abreise ein Link zur Rail&Fly-Buchungswebsite von Chamäleon zur Verfügung. Dort sind deine Gutscheincodes bereits vorausgefüllt, so dass du gleich in den Ticketbuchungsprozess starten kannst. Wähle deine gewünschte Verbindung aus und schließe die Buchung inklusive der kostenlosen Sitzplatzreservierung in wenigen Schritten ab. Die gebuchten Tickets kannst du dann herunterladen und ausdrucken.\n\nBitte beachte, dass du dich auf einen Reisetag (einen Tag vor Abflug oder am Abflugtag selbst bzw. am Tag der Rückkunft oder einen Tag nach Rückkunft) festlegen musst. An diesem gewählten Tag bist du flexibel in der Nutzung der Züge auf der gewählten Strecke. Nach der Buchung der Rail&Fly-Tickets bist du jedoch an den Reisetag gebunden.\n\nFür die pünktliche Anreise zum Flughafen bist du selbst verantwortlich. Wir empfehlen, eine Zugverbindung zu wählen, die es ermöglicht, mindestens 3 Stunden vor Abflug am Flughafen zu sein.  \nInformationen zum Fahrplan findest du auf [bahn.de](https://www.bahn.de) oder über die Servicenummer der Deutschen Bahn 030-2970 zum Ortstarif.\n\nÜbrigens: Die Nutzung der [DB Lounges](https://www.bahn.de/service/zug/db-lounge) an 13 Bahnhöfen (darunter Frankfurt/Main Flughafen) ist in deinem Rail&Fly-Ticket inklusive!",
+  "position": 1008
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-26",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann es vorkommen, dass alternative Unterkünfte gebucht werden?",
+  "antwort": "Für unsere Chamäleon-Reisen reservieren wir die Zimmer lange im Voraus. Trotzdem kann es vorkommen, dass eine Unterkunft an einigen Terminen keine Zimmer zur Verfügung stellen kann. In diesem Fall reservieren wir eine gleichwertige Alternative für dich und buchen die vorgesehene Unterkunft auf Warteliste. Für Anschlussprogramme haben wir keine Kontingente vorreserviert. Die Verfügbarkeit der Unterkünfte wird hier unmittelbar nach Eingang deiner Buchung geprüft.",
+  "position": 1009
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-28-DE",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich über Chamäleon eine Reiseversicherung abschließen?",
+  "antwort": "Über unseren Partner, die **HanseMerkur Reiseversicherung**, können wir dir einen umfangreichen Versicherungsschutz vor und während der Reise anbieten. Du kannst dabei zwischen zwei Versicherungspaketen wählen.\n\nDer **Chamäleon-Premiumschutz** umfasst folgende Versicherungen:  \n-          Reise-Rücktrittsversicherung  \n-          Reise-Abbruchversicherung  \n-          Reise-Krankenversicherung  \n-          Notfall-Versicherung  \n-          Reise-Unfallversicherung  \n-          Reisegepäck-Versicherung\n\n[Versicherungsbedingungen Chamäleon-Premiumschutz](https://secure-pro.hmrv.de/rda-web/servlet/DokumentAdapter?dokumentTyp=AVB&uuidGroup=7fb3f10a-20a0-f789-ead8-9d1b705cfb7d/168711)\n\nDer **Chamäleon-Basisschutz** umfasst folgende Versicherungen:  \n-          Reise-Rücktrittsversicherung  \n-          Reise-Abbruchversicherung\n\n[Versicherungsbedingungen Chamäleon-Basisschutz](https://secure-pro.hmrv.de/rda-web/servlet/DokumentAdapter?dokumentTyp=AVB&uuidGroup=24b926bc-1040-df6b-8153-d3cbecd4cc3b/168711)\n\nWir empfehlen dir den Abschluss des Versicherungspakets gleich bei der Reiseanmeldung, damit du keine Frist verpasst. Deine Versicherung kannst du innerhalb von 14 Tagen kostenfrei widerrufen.\n\nWir beraten dich gern dazu. **[Direkt zum Angebot als PDF](https://www.chamaeleon-reisen.de/daten/pdfs/HanseMerkur_Versicherung.pdf \"Zum Versicherungsangebot der HanseMerkur\")**\n\nÜbrigens: Für jede Versicherung spendet die HanseMerkur 1 Euro für Projekte zur medizinischen Versorgung von Kindern in Afrika.",
+  "position": 1010
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-39",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Wie kann ich meinen Reisegutschein einlösen?",
+  "antwort": "Deinen Chamäleon-Gutschein kannst du ganz einfach während des Buchungsvorgangs einlösen, indem du den Gutscheincode im vorgesehenen Feld in Schritt 2 des Buchungsprozesses eingibst. Der Betrag wird unmittelbar mit dem Reisepreis verrechnet und in deiner Reisebestätigung ausgewiesen. Falls du mehrere Gutscheine besitzt oder Fragen dazu hast, unterstützt dich unser Team jederzeit gern persönlich.\n\nWenn du deine Chamäleon-Reise im Reisebüro buchst, kannst du dort deinen Gutscheincode angeben und einlösen lassen.",
+  "position": 1011
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-38",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich bei der Buchung angeben, dass ich vegetarisch, vegan oder glutenfrei essen möchte?",
+  "antwort": "Verpflegungswünsche und -bedürfnisse können problemlos bereits während der Buchung hinterlegt werden - ob vegetarisch, vegan, glutenfrei oder einzelne Allergien. Wir leiten deine Angaben an unsere Partner vor Ort weiter. Auch wenn eine Garantie nicht möglich ist, wird unser Team alles daransetzen, deine Wünsche bestmöglich umzusetzen, damit du dich auf deiner Reise jederzeit rundum wohlfühlst.",
+  "position": 1012
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-37",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Kann ich zwei Chamäleon-Reisen miteinander kombinieren?",
+  "antwort": "Viele unserer Reisen lassen sich gut miteinander verbinden und eröffnen dir die Möglichkeit, gleich mehrere faszinierende Welten in einem größeren Reiseabenteuer zu vereinen. Unsere Erlebnisberater\\*innen prüfen für dich, welche Kombinationen sich zeitlich wie inhaltlich besonders gut ergänzen und welche Übergänge, etwa zwischen Ländern, Regionen oder Inlandsflügen ideal funktionieren.",
+  "position": 1013
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-49",
+  "kategorie": "Buchung deiner Chamäleon-Reise",
+  "frage": "Wie ist meine Chamäleon-Reise abgesichert? Bekomme ich einen Reisesicherungsschein?",
+  "antwort": "Deine Zahlungen an Chamäleon sind über den Deutschen Reisesicherungsfond abgesichert, wie gesetzlich vorgeschrieben. Wir schicken dir deinen Reisesicherungsschein mit den Bestätigungsunterlagen zu.",
+  "position": 1014
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-33",
+  "kategorie": "Vor der Reise",
+  "frage": "Welche Vorteile bietet mir der Login-Bereich »MeinChamäleon«?",
+  "antwort": "Ob zu Hause oder unterwegs – mit deinem persönlichen Login-Bereich »Mein Chamäleon« hast du immer und überall alles rund um deine Reise dabei. Als registrierter Gast kannst du im Login-Bereich alle gebuchten Reisen, individuellen Reiseunterlagen und wichtigen Dokumente einsehen: Von Reiseverlauf und Visadokumenten bis zu Länderhinweisen, Einreisebestimmungen und Flugplänen. Außerdem stehen dir bei Fragen immer genau die richtigen Ansprechpartner\\*innen zur Verfügung. [Registriere dich jetzt](/MeinChamaeleon/Registrieren) oder [logge dich bei »MeinChamäleon« ein](/MeinChamaeleon/Login).",
+  "position": 1015
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-31",
+  "kategorie": "Vor der Reise",
+  "frage": "Wo finde ich die Einreisebestimmungen zu meinem Reiseziel?",
+  "antwort": "Die aktuellen Einreisebestimmungen für dein Reiseziel findest du bei der Beschreibung der Reise unter »Übersicht« (ganz unten).",
+  "position": 1016
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-29",
+  "kategorie": "Vor der Reise",
+  "frage": "Brauche ich ein Visum für meine Chamäleon-Reise?",
+  "antwort": "Ob du für deine Reise ein Visum benötigst und wie dieses beantragt werden kann, erfährst du auf unserer [Partnerseite Visum.de](http://www.visum.de/partner/chamaeleon).\n\nWeitere Informationen zu den Visabestimmungen für dein Reiseland erhältst du nach der Buchung mit deinen digitalen Unterlagen.",
+  "position": 1017
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-14-DE",
+  "kategorie": "Vor der Reise",
+  "frage": "Brauche ich eine Impfung für meine Rundreise?",
+  "antwort": "Du findest die aktuellen Impfempfehlungen für dein Reiseziel bei der Beschreibung der Reise unter »Übersicht« (ganz unten).\n\nMit der Reisebestätigung erhältst du von uns einen Coupon für ein kostenloses Informationsgespräch zur reisemedizinischen Vorsorge in einer der BCRT-Reisepraxen, wo du von erfahrenen Ärzten individuell betreut wirst. Standorte und Sprechzeiten unter [www.bctropen.de](https://www.bcrt.de \"Zur Website BCTropen\"). Eine telefonische Beratung ist nicht möglich.",
+  "position": 1018
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-16",
+  "kategorie": "Vor der Reise",
+  "frage": "Was passiert wenn sich die Namen auf meinem Flugticket von meinem Reisepass unterscheiden?",
+  "antwort": "Bitte achte darauf, dass in deiner Reiseanmeldung die Schreibweise der Namen aller Gäste mit der maschinenlesbaren Zeile des jeweiligen Ausweisdokuments übereinstimmt. Der vollständige Name muss uns für die Flugreservierung korrekt vorliegen. Bei Abweichungen oder falscher Schreibweise können kostenpflichtige Umbuchungen notwendig werden, weil dir sonst das Boarding verweigert werden kann. Die Gebühren dafür müssen wir an dich weitergeben.",
+  "position": 1019
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-45",
+  "kategorie": "Vor der Reise",
+  "frage": "Was passiert, wenn ich meine Reise nicht antreten kann und welche Stornogebühren fallen an?",
+  "antwort": "Für Stornierungen gelten die in unseren AGB festgelegten Bedingungen, die sich nach dem Zeitpunkt der Stornierung richten. Je früher du uns informierst, desto günstiger fallen die Stornokosten aus.   \nWir empfehlen dir, für jede Reise eine Reiserücktrittsversicherung abzuschließen, die in den meisten Fällen die Stornokosten übernimmt.",
+  "position": 1020
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-40",
+  "kategorie": "Vor der Reise",
+  "frage": "Wieviel Gepäck darf ich mitnehmen?",
+  "antwort": "Die erlaubte Gepäckmenge richtet sich nach den Bestimmungen der Fluggesellschaften für den internationalen Flug und die Inlandsflüge. Internationale Airlines erlauben in der Regel zwischen 20 und 23 kg Aufgabegepäck sowie ein zusätzliches Handgepäckstück. Für manche Programmpunkte auf einzelnen Reisen gelten spezielle Gepäckvorschriften. Informationen dazu findest du in deinen Reiseunterlagen.",
+  "position": 1021
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-18",
+  "kategorie": "Vor der Reise",
+  "frage": "Wann erhalte ich meine Reisebestätigung?",
+  "antwort": "Sobald deine Reiseanmeldung eingegangen ist, bereiten wir die ausführliche Reisebestätigung vor. Diese enthält neben dem Tag-für-Tag-Programm auch die ausführlichen Reiseinformationen, den Sicherungsschein, Kofferanhänger und das Zertifikat über dein pesönliches Regenwaldstück. Gegebenenfalls kommen Informationen zur Reiseversicherung und zu Visa hinzu.\n\nWir benachrichtigen dich per E-Mail, wenn die Unterlagen zum Download in [MeinChamäleon](/MeinChamaeleon/Login) zur Verfügung stehen. Außerdem bekommst du ein liebevoll gepacktes Postpaket von uns.",
+  "position": 1022
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-19",
+  "kategorie": "Vor der Reise",
+  "frage": "Wann erhalte ich die finalen Reiseunterlagen?",
+  "antwort": "Deine Reiseunterlagen senden wir dir spätestens zwei Wochen vor Reisebeginn zu: Flugplan, aktualisierte Reisedetails und gegebenenfalls deine Rail&Fly-Gutscheincodes.",
+  "position": 1023
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-55",
+  "kategorie": "Vor der Reise",
+  "frage": "Was ist Modifly?",
+  "antwort": "Über das Onlineportal Modifly kannst du ausgewählte Zusatzleistungen für deinen Flug direkt bei der Airline buchen – zum Beispiel eine Sitzplatzreservierung, zusätzliches Gepäck oder ein Upgrade. Ob Modifly für deine Verbindung verfügbar ist, hängt von der Airline und deinem gebuchten Flug ab. Du erhältst eine E-Mail von uns, wenn du den Service nutzen kannst.",
+  "position": 1024
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-42",
+  "kategorie": "Unterwegs",
+  "frage": "Was zeichnet die Chamäleon-Reiseleiter*innen aus?",
+  "antwort": "Unsere deutschsprachigen [Reiseleiterinnen und Reiseleiter](/Reiseleiter) sind das Herzstück jeder Reise: Menschen mit fundiertem Wissen, großer Erfahrung und einer tiefen Verbindung zu ihren Ländern. Sie sind in den Reiseländern geboren oder leben schon lange dort. Abseits der üblichen Routen öffnen sie dir Türen zu Begegnungen, die authentisch und unvergesslich sind.",
+  "position": 1025
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-47",
+  "kategorie": "Unterwegs",
+  "frage": "Was zeichnet die Chamäleon-Unterkünfte aus?",
+  "antwort": "Auf deiner Reise übernachtest du in kleinen, meist inhabergeführten [Unterkünften](/Nachhaltigkeit/Lodges) – stets landestypisch und mit besonderem Charme. Das kann ein alter Palast in Indien, ein Wüstencamp in Marokko oder eine Lodge in der Kalahari-Wüste sein. Wir pflegen langjährige und freundschaftliche Beziehungen zu unseren Unterkünften und stellen dadurch sicher, dass du herzlich empfangen wirst.",
+  "position": 1026
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-44",
+  "kategorie": "Unterwegs",
+  "frage": "Gibt es eine Notfallnummer für den Fall, dass auf meiner Reise etwas passiert?",
+  "antwort": "Ja, für alle Chamäleon-Reisegäste steht eine rund um die Uhr erreichbare Notfallnummer bereit. Für den Fall, dass du unterwegs dringend Hilfe benötigst, ist unser Emergency Team 24/7 für dich erreichbar. Die Notfallnummer findest du in deinen Reiseunterlagen.\n\nDamit wir in echten Ausnahmesituationen schnell für dich da sein können, ist das Notfalltelefon nur für akute Notfälle gedacht, zum Beispiel, wenn:\n\n* Deine Gesundheit oder Sicherheit betroffen ist (Unfall, plötzliche Krankheit, Verlust wichtiger Reisedokumente)\n* Du unterwegs feststeckst und dringend Unterstützung für die Weiterreise brauchst\n* Sich rund um An- oder Abreise eine schwerwiegende Situation entwickelt, die nicht warten kann\n\nFür alles, was nicht dringend ist (z. B. Sitzplatzreservierungen, allgemeine Fragen zu Unterlagen, Zahlungs- oder Buchungsthemen), nutze gerne die regulären Kontaktwege während unserer Bürozeiten.",
+  "position": 1027
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-41",
+  "kategorie": "Unterwegs",
+  "frage": "Welche zusätzlichen Kosten fallen für mich vor Ort an?",
+  "antwort": "Bei Chamäleon sind viele Mahlzeiten und Erlebnisse bereits im Reisepreis inkludiert. Detaillierte Informationen dazu findest du in der Leistungsaufstellung deiner Reise.   \nZusätzliche Kosten vor Ort hängen vom jeweiligen Reiseziel und deinen persönlichen Vorlieben ab. Üblicherweise zählen Getränke, Trinkgelder, optionale Erlebnisse sowie individuelle Ausgaben wie Souvenirs oder zusätzliche Mahlzeiten dazu.",
+  "position": 1028
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-46",
+  "kategorie": "Unterwegs",
+  "frage": "Wenn an einzelnen Tagen nicht alle Mahlzeiten inkludiert sind, was esse ich dann?",
+  "antwort": "Bei Chamäleon sind viele Mahlzeiten im Reisepreis eingeschlossen und als Programmpunkt im Reiseverlauf vorgesehen. Ist das einmal nicht der Fall, wird deine Reiseleitung dafür sorgen, dass du die Möglichkeit hast, auf eigene Faust essen zu gehen oder etwas einzukaufen. Unsere Reiseleiter\\*innen kennen sich vor Ort gut aus und können dir ein Restaurant empfehlen, das deinen Vorlieben entspricht.",
+  "position": 1029
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-34",
+  "kategorie": "Unterwegs",
+  "frage": "Wo kann ich während der Reise meine Trinkflasche wieder auffüllen?",
+  "antwort": "Zu deiner Buchung bei Chamäleon erhältst du eine knallgelbe, wiederverwendbare Edelstahl-Trinkflasche, die NatureBottle. Sie kann während der Stopps auf der Reise immer wieder mit frischem Wasser aufgefüllt werden. So hast du deinen persönlichen Durstlöscher immer dabei, und die Umwelt freut sich über viel weniger Plastikmüll.\n\nDenke daher bitte daran, deine NatureBottle auf die Reise mitzunehmen. Weil die NatureBottle echt schick und praktisch ist, kannst du sie nach der Reise einfach weiter nutzen. Schluck für Schluck eine Erinnerung an Chamäleon.\n\nFalls dir aber nichts über deine eigene Trinkflasche geht, einfach mitbringen, auch diese kannst du immer wieder auffüllen.",
+  "position": 1030
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-23",
+  "kategorie": "Unterwegs",
+  "frage": "Sitze ich während der Rundreise im Minibus immer auf demselben Platz?",
+  "antwort": "In deinem Reiseminibus sind grundsätzlich keine festen Sitzplätze reserviert. Wir empfehlen, dass die Sitzplätze regelmäßig innerhalb der Gruppe gewechselt werden. Das heißt, du sitzt jeden Tag auf einem anderen Platz. So hast du täglich eine andere Aussicht, und eine gewisse Gerechtigkeit wird gewahrt.",
+  "position": 1031
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-25",
+  "kategorie": "Unterwegs",
+  "frage": "Gibt es von Chamäleon eine Trinkgeld-Empfehlung für die Reiseleitung?",
+  "antwort": "Reiseleitung und Fahrer\\*in tragen sehr zum Erfolg einer Reise bei und freuen sich neben einem mündlichen Dankeschön auch immer über etwas Bargeld in Landeswährung, US-Dollar oder Euro als Anerkennung ihrer Leistungen. Wir empfehlen als Trinkgeld einen Betrag ca. 5 € pro Person und Tag für die Reiseleitung und ca. 3 € pro Person und Tag für den Fahrer oder die Fahrerin. Bei Chamäleon-Reisen ist es üblich, dass die Gäste die Beträge in separaten Umschlägen sammeln und bei der jeweiligen Verabschiedung übergeben.  \nAuch die Personen, die im Hotel und an anderen Orten assistieren, sollten für ihre Hilfe belohnt werden: Zu Beginn der Reise sammelt deine Reiseleitung in vielen Ländern von dir einen pauschalen Betrag für die Trinkgeldkasse ein, die sie verwaltet und auf die zahlreichen Helfer angemessen verteilt. So musst du dir während der Reise um das Thema Trinkgeld keine Gedanken mehr machen und es ist sichergestellt, dass die Trinkgelder auch tatsächlich bei den Richtigen ankommen.",
+  "position": 1032
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-27",
+  "kategorie": "Unterwegs",
+  "frage": "An wen kann ich mich bei Verlust oder Beschädigung meines Reisegepäcks wenden?",
+  "antwort": "Sollte dein Reisegepäck nicht am Zielflughafen ankommen oder Beschädigungen aufweisen, musst du dies unverzüglich der entsprechenden Fluggesellschaft melden. Fluggesellschaften sind zur Ausstellung einer schriftlichen Bestätigung in Form einer Verlustanzeige (Lost Report) bzw. Schadensanzeige (Property Irregularity Report) verpflichtet. Bitte wende dich an den Lost-and-Found-Schalter des jeweiligen Ankunftsflughafens. In der Regel werden Erstattungen seitens der Fluggesellschaft abgelehnt, wenn die Schadens- bzw. Verlustanzeige nicht ausgefüllt worden ist.",
+  "position": 1033
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-36",
+  "kategorie": "Unterwegs",
+  "frage": "Kann ich unterwegs mit meinem Handy im Internet surfen?",
+  "antwort": "Wenn du unterwegs mit deinem Smartphone im Internet surfen möchtest, ohne das unerwartete Gebühren anfallen, beachte bitte folgende Hinweise:\n\n* Schalte außerhalb der EU am besten das Daten-Roaming aus.\n* Nutze das WLAN, das kostenlos in den meisten Unterkünften angeboten wird.\n* Eine praktische Alternative sind lokale SIM-Karten, die du oft vorab einfach online kaufen kannst.",
+  "position": 1034
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-05",
+  "kategorie": "Über uns",
+  "frage": "Gibt es bei Chamäleon Rundreisen die barrierefrei sind?",
+  "antwort": "Auf Chamäleon-Reisen nutzen wir eine Vielzahl unterschiedlicher Transportmittel und Unterkünfte. Wir können dabei keine durchgehende Barrierefreiheit garantieren, sodass Chamäleon-Reisen im Allgemeinen nicht für Personen mit eingeschränkter Mobilität geeignet sind. Wir beraten dich gern zu deinen Bedürfnissen und deinem gewählten Reiseziel.",
+  "position": 1035
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-15",
+  "kategorie": "Über uns",
+  "frage": "Ist eine Kleingruppenreise von Chamäleon auch für Kinder geeignet?",
+  "antwort": "Im Allgemeinen sind Chamäleon-Reisen für Kinder ab zwölf Jahren geeignet.",
+  "position": 1036
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-07",
+  "kategorie": "Über uns",
+  "frage": "Welche Projekte unterstützt die Chamäleon Stiftung?",
+  "antwort": "Die Chamäleon Stiftung unterstützt weltweit zahlreiche Projekte, die es sich zum Ziel gesetzt haben, benachteiligten Menschen zu helfen oder die Natur zu schützen. Auf deiner Chamäleon-Reise laden wir dich ein, die Projekte zu besuchen, und überraschen dich mit Geschenken, die dort hergestellt werden. Jeder zusätzlich von unseren Gästen gespendete Euro kommt bei den Projekten an, denn Chamäleon trägt alle Personal- und Verwaltungskosten der Stiftung. Mehr zu [unseren Projekten](/Nachhaltigkeit \"Zu den Stiftungsprojekten\").",
+  "position": 1037
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-17",
+  "kategorie": "Über uns",
+  "frage": "Wie erhalte ich mein persönliches Stück Regenwald?",
+  "antwort": "Unsere Rainforest Foundation hat viele Millionen Quadratmeter Primärregenwald in Ecuador gekauft und unter Schutz stellen lassen, um die Abholzung zu stoppen und so dem Klimawandel aktiv entgegenzuwirken. Wenn du mit Chamäleon auf Reisen gehst, erhältst du ein persönliches Regenwaldstück. Auf [rainforest-foundation.de](https://www.rainforest-foundation.de) kannst du unter Angabe deiner Zertifikatsnummer nachschauen, wo dein Grundstück liegt. Wenn du möchtest, kannst du zusätzliche Grundstücke für dich oder als Geschenk für andere erwerben.",
+  "position": 1038
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-43",
+  "kategorie": "Über uns",
+  "frage": "Gibt es bei Chamäleon einen Stammkundenrabatt oder ein Treueprogramm?",
+  "antwort": "Wenn deine erste Buchung bestätigt ist, wirst du automatisch Mitglied im Chamäleon Club. Als »Chamäleon-Freund« erhältst du einen Gutschein über 100 € für die nächste Buchung. Außerdem spenden wir in deinem Namen 50 € an die Projekte der Chamäleon Stiftung. Erfahre mehr über die Vorteile des [Chamäleon Clubs](/Club).",
+  "position": 1039
+ },
+ {
+  "quelle": "website",
+  "extern_id": "CHA-T-FAQ-48",
+  "kategorie": "Über uns",
+  "frage": "Gab es schon einmal ein Insolvenzverfahren bei Chamäleon?",
+  "antwort": "Wir sind stolz darauf, dass unser Unternehmen seit 30 Jahren finanziell auf sicheren Füßen steht. Ein Insolvenzverfahren gab es bei Chamäleon nie.",
+  "position": 1040
+ }
+]

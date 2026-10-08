@@ -20,6 +20,7 @@ import chat_segments
 import dashboard
 import quality_job
 import rate_limit
+import faq_sync
 import sitemap_sync
 import travel_index
 import unterlagen
@@ -465,7 +466,18 @@ if os.environ.get("PORT") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     # Restore the newest persisted sitemap (incl. /admin curation) BEFORE the
     # sync and the travel-index build, so both start from the curated URLs.
     sitemap_sync.restore_from_db()
-    sitemap_sync.start_scheduler()
+    # FAQs aus Supabase statt des committeten Snapshots; Fehler: Snapshot bleibt.
+    faq_sync.load()
+    sitemap_sync.start_scheduler().add_job(
+        faq_sync.sync,
+        "cron",
+        hour=2,
+        minute=5,
+        id="faq-sync",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
     travel_index.start_scheduler()
     # 04:00, after the sitemap sync (02:00) and the travel-index rebuild
     # (03:00): the country prior reads that index.

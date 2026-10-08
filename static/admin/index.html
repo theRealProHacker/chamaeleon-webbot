@@ -34,6 +34,22 @@
   </section>
 
   <section>
+    <h2>FAQs</h2>
+    <p class="muted">
+      Die allgemeinen FAQs liegen in der Supabase-Tabelle <code>faq</code>.
+      Website-FAQs von /Infos kommen per Sync (täglich 02:05). Der Sync schreibt
+      nichts, wenn /Infos weniger als 80 % der bisherigen Fragen liefert –
+      „Trotzdem syncen“ übergeht das, etwa nach einem Umbau der Seite.
+    </p>
+    <p class="muted" id="faq-leer">Wird geladen…</p>
+    <pre id="faq-status" hidden></pre>
+    <p>
+      <button id="faq-sync">Jetzt syncen</button>
+      <button id="faq-force" class="err">Trotzdem syncen</button>
+    </p>
+  </section>
+
+  <section>
     <h2>Sitemap</h2>
     <p class="muted">
       Die URL-Liste, die der Bot kennt (Grundlage für Seitenzugriff, Reise-Index
@@ -68,6 +84,41 @@
         btn.disabled = false;
       }
     });
+
+    // --- FAQ-Sync ---
+    const faqStatus = document.getElementById("faq-status");
+    const faqLeer = document.getElementById("faq-leer");
+    async function faqLaden() {
+      try {
+        const resp = await fetch("/admin/faq-sync");
+        const data = await resp.json();
+        const leer = !Object.keys(data).length;
+        faqStatus.hidden = leer;
+        faqLeer.hidden = !leer;
+        faqLeer.textContent = "Seit dem letzten Serverstart gab es weder ein Laden aus Supabase noch einen Sync.";
+        faqStatus.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        faqStatus.hidden = false;
+        faqStatus.textContent = "Fehler: " + e;
+      }
+    }
+    for (const [id, query] of [["faq-sync", ""], ["faq-force", "?force=1"]]) {
+      const b = document.getElementById(id);
+      b.addEventListener("click", async () => {
+        if (query && !confirm("Ohne 80-%-Schutz syncen? Fehlende Website-Fragen werden deaktiviert.")) return;
+        b.disabled = true;
+        faqStatus.hidden = false;
+        faqLeer.hidden = true;
+        faqStatus.textContent = "Läuft…";
+        try {
+          await fetch("/admin/faq-sync" + query, { method: "POST" });
+        } finally {
+          b.disabled = false;
+          faqLaden();
+        }
+      });
+    }
+    faqLaden();
 
     // --- Sitemap curation ---
     const smText = document.getElementById("sitemap-text");
