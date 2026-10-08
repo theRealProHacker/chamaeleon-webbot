@@ -107,7 +107,14 @@ import faq_sync
 # Endkunden geschrieben, und mit ihnen blieb Leon im Agentur-Modus stumm
 # (Termine-Frage, 8/8 leere Antworten).
 with open(faq_sync.SNAPSHOT, "r", encoding="utf-8") as f:
-    allgemeine_faqs, allgemeine_faqs_agentur = faq_sync.render_beide(json.load(f))
+    _faq_snapshot = json.load(f)
+allgemeine_faqs, allgemeine_faqs_agentur = faq_sync.render_beide(_faq_snapshot)
+
+# Laender-FAQs (land-Zeilen derselben Tabelle): Land -> Markdown fuer Tool und
+# Prompt, Land -> {Frage: Antwort} fuer chat_quality und Tests. Wie oben: erst
+# der Snapshot, ab Serverstart faq_sync.load(). Wer sie zur Laufzeit liest,
+# geht ueber agent_base.laender_faqs, nie ueber eine eigene Import-Bindung.
+laender_faqs, laender_faq_data = faq_sync.laender(_faq_snapshot)
 
 # Knowledge base for the agency area (agt.chamaeleon-reisen.de). Only injected
 # into the system prompt for requests coming from the Reisebüro subdomains.
@@ -134,35 +141,6 @@ with open("faqs/Allgemeine_FAQ.csv", "r", encoding="utf-8") as f:
                 f"Frage '{q}' nicht in allgemeine FAQs gefunden"
             )
             general_faq_data[q] = row[2].strip()
-
-# Load country-specific FAQs
-laender_faqs: dict[str, str] = {}
-laender_faq_data: dict[str, dict[str, str]] = {}
-
-for continent in ("Afrika", "Amerika", "Asien_und_Ozeanien", "Europa"):
-    with open(f"faqs/FAQ_{continent}.csv", "r", encoding="utf-8") as f:
-        reader = csv.reader(f, delimiter=";")
-        current_countries: list[str] = []
-        for row in reader:
-            row = [cell for _cell in row if (cell := _cell.strip())]
-            if not row:
-                continue
-            if row[0].isdigit() and len(row) == 3:
-                for current_country in current_countries:
-                    laender_faqs[current_country] += f"\n\n## {row[1]}\n\n{row[2]}"
-                    laender_faq_data[current_country][row[1]] = row[2]
-            elif (
-                not row[0].isdigit()
-                and len(row) == 1
-                and row[0] not in ("Nr.",)
-                and len(row[0]) < 50
-            ):
-                current_countries = " ".join(
-                    part for part in row[0].split(" ") if "(" not in part
-                ).split("/")
-                for current_country in current_countries:
-                    laender_faqs[current_country] = f"# {current_country}"
-                    laender_faq_data[current_country] = {}
 
 # Visa labels
 with open("visa_labels.json", "r", encoding="utf-8") as f:
@@ -941,11 +919,11 @@ Raises:
 
 
 def country_faq_tool_base(country: str) -> str:
-    if country not in laender_faqs:
+    faqs = laender_faqs.get(country)  # einmal lesen: load() kann neu binden
+    if faqs is None:
         raise ValueError(
             f"Unbekanntes Land: {country}. Verfügbare Länder: {', '.join(laender_faqs)}"
         )
-    faqs = laender_faqs[country]
     return faqs
 
 
@@ -1869,7 +1847,9 @@ def format_system_prompt(
         )
 
     for country in countries:
-        laenderspezifische_faqs += laender_faqs[country] + "\n\n"
+        # Ein naechtliches load() kann das Land zwischen Erkennung und hier entfernen.
+        if faqs := laender_faqs.get(country):
+            laenderspezifische_faqs += faqs + "\n\n"
 
     if countries:
         laenderspezifische_faqs += f"{nur_auf_frage}\n\n"

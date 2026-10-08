@@ -14,6 +14,7 @@ from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
+import agent_base
 from agent_base import (
     GEMINI_API_KEY,
     _vrrvorgang_from_url,
@@ -22,7 +23,6 @@ from agent_base import (
     country_faq_tool_description,
     detect_recommendation_links,
     format_system_prompt,
-    laender_faqs,
     reise_info_tools_description,
     reiseinfo_tool_base,
     berater_tool_base,
@@ -660,7 +660,7 @@ def call_stream(
 
     # Detect countries
     detected_countries: list[str] = []
-    for country in laender_faqs:
+    for country in agent_base.laender_faqs:  # zur Laufzeit: faq_sync.load() bindet neu
         if any(country in msg["content"] for msg in messages):
             detected_countries.append(country)
 

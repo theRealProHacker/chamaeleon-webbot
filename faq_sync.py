@@ -1,11 +1,13 @@
 """Alle allgemeinen FAQs als Frage-Antwort-Zeilen in der Supabase-Tabelle ``faq``.
 
-Zwei Quellen, eine Tabelle: ``website`` (die Akkordeons auf /Infos, per Sync)
-und ``intern`` (vormals faqs/allgemein.md, einmal importiert, danach im
-Supabase Table Editor gepflegt). DDL: sql/faq.sql. Ueberschneiden sich beide,
+Drei Quellen, eine Tabelle: ``website`` (die Akkordeons auf /Infos, per Sync),
+``intern`` (vormals faqs/allgemein.md) und ``land`` (vormals faqs/FAQ_*.csv,
+``kategorie`` = genau ein Land); intern und land einmal importiert, danach im
+Supabase Table Editor gepflegt. DDL: sql/faq.sql. Ueberschneiden sich beide,
 blendet der Owner eine Zeile per ``ausgeblendet`` aus; der Sync aendert das nie.
 
     python faq_sync.py import [--replace]   allgemein.md -> intern-Zeilen
+    python faq_sync.py import-laender [--replace]   FAQ_*.csv -> land-Zeilen
     python faq_sync.py sync [--force]       /Infos -> website-Zeilen
     python faq_sync.py export               aktive Zeilen -> faqs/snapshot.json
 
@@ -14,6 +16,7 @@ auch fuer Tests und Evals); der Serverstart und der naechtliche Sync laden per
 ``load()`` aus Supabase. Scheitert das, bleibt der aktuelle Stand im Speicher.
 """
 
+import csv
 import datetime
 import json
 import re
@@ -31,6 +34,27 @@ SNAPSHOT = "faqs/snapshot.json"
 FELDER = ("quelle", "extern_id", "kategorie", "frage", "antwort", "position")
 # intern zuerst (0..), Website dahinter: der bisherige Prompt-Text bleibt vorne unverändert.
 WEBSITE_POSITION = 1000
+LAND_POSITION = 2000
+KONTINENTE = ("Afrika", "Amerika", "Asien_und_Ozeanien", "Europa")
+# Alle Reiseländer, auch die ohne eine einzige Frage: Sie bleiben im
+# country_faq_tool, in der Länder-Erkennung und im Vokabular von
+# chat_quality.country_vocabulary(). Ein Land kommt per land-Zeile dazu,
+# verschwindet aber nur hier. Reihenfolge wie früher aus den CSVs.
+LAENDER = (
+    "Ägypten", "Botswana", "Kap Verde", "Kenia", "Madagaskar", "Marokko",
+    "Mosambik", "Namibia", "Simbabwe", "Südafrika", "Tansania", "Uganda",
+    "Mauritius", "Argentinien", "Chile", "Belize", "Bolivien", "Brasilien",
+    "Peru", "Costa Rica", "Ecuador", "Guatemala", "Kanada", "Kolumbien", "Kuba",
+    "Mexiko", "Nicaragua", "Panama", "USA", "Australien", "Armenien",
+    "Aserbaidschan", "Bhutan", "China", "Georgien", "Indien", "Japan",
+    "Jordanien", "Kambodscha", "Kirgisistan", "Laos", "Malaysia", "Mongolei",
+    "Nepal", "Neuseeland", "Oman", "Saudi-Arabien", "Sri Lanka", "Thailand",
+    "Usbekistan", "Vietnam", "Indonesien", "Albanien", "Azoren", "Estland",
+    "Finnland", "Frankreich", "Griechenland", "Großbritannien", "Irland",
+    "Island", "Italien", "Kroatien", "Lettland", "Litauen", "Nordmazedonien",
+    "Montenegro", "Norwegen", "Portugal", "Rumänien", "Schottland", "Schweden",
+    "Spanien",
+)
 MIN_FRAGEN = 20
 
 status: dict = {}  # letzter load/sync, fuer /admin
@@ -113,6 +137,69 @@ def render_beide(rows: list[dict]) -> tuple[str, str]:
     return render(rows), render([r for r in rows if r["quelle"] == "intern"])
 
 
+def laender(rows: list[dict]) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """land-Zeilen -> (Land -> Markdown fuer Tool und Prompt, Land -> {Frage: Antwort})."""
+    faqs = {land: f"# {land}" for land in LAENDER}
+    daten: dict[str, dict[str, str]] = {land: {} for land in LAENDER}
+    for r in sorted(rows, key=lambda r: r["position"]):
+        if r["quelle"] != "land":
+            continue
+        land = r["kategorie"]
+        faqs[land] = faqs.get(land, f"# {land}") + f"\n\n## {r['frage']}\n\n{r['antwort']}"
+        daten.setdefault(land, {})[r["frage"]] = r["antwort"]
+    return faqs, daten
+
+
+def parse_laender_csv(zuruecksetzen: bool = True) -> dict[str, dict[str, str]]:
+    """faqs/FAQ_*.csv -> {Land: {Frage: Antwort}}, Parser wie bis 2026-10 in agent_base.
+
+    Eine Kopfzeile wie "Chile/Bolivien/Peru" gilt fuer mehrere Laender und setzt
+    jedes davon zurueck; so hat der Bot die CSVs immer gelesen. Mit
+    ``zuruecksetzen=False`` bleiben frühere Fragen stehen (nur fuer die Liste der
+    verschluckten Fragen beim Import).
+    """
+    daten: dict[str, dict[str, str]] = {}
+    for kontinent in KONTINENTE:
+        with open(f"faqs/FAQ_{kontinent}.csv", "r", encoding="utf-8") as f:
+            aktuelle: list[str] = []
+            for row in csv.reader(f, delimiter=";"):
+                row = [cell for _cell in row if (cell := _cell.strip())]
+                if not row:
+                    continue
+                if row[0].isdigit() and len(row) == 3:
+                    for land in aktuelle:
+                        daten[land][row[1]] = row[2]
+                elif (
+                    not row[0].isdigit()
+                    and len(row) == 1
+                    and row[0] not in ("Nr.",)
+                    and len(row[0]) < 50
+                ):
+                    aktuelle = " ".join(
+                        part for part in row[0].split(" ") if "(" not in part
+                    ).split("/")
+                    for land in aktuelle:
+                        if zuruecksetzen or land not in daten:
+                            daten[land] = {}
+    return daten
+
+
+def land_zeilen(daten: dict[str, dict[str, str]]) -> list[dict]:
+    """{Land: {Frage: Antwort}} -> land-Zeilen, eine je Land und Frage."""
+    paare = [(land, f, a) for land, fragen in daten.items() for f, a in fragen.items()]
+    return [
+        {
+            "quelle": "land",
+            "extern_id": None,
+            "kategorie": land,
+            "frage": f,
+            "antwort": a,
+            "position": LAND_POSITION + i,
+        }
+        for i, (land, f, a) in enumerate(paare)
+    ]
+
+
 def _mit_a(md: str) -> str:
     # ponytail: zwei Katalog-Antworten in allgemein.md haben kein "A: "; render setzt es immer.
     return re.sub(r"(\*\*F: .+?\*\*\n)(?!A: )", r"\1A: ", md.strip())
@@ -138,7 +225,18 @@ def load() -> bool:
         print(f"[faq-sync] load failed, keeping current FAQs: {e}")
         return False
     agent_base.allgemeine_faqs, agent_base.allgemeine_faqs_agentur = render_beide(rows)
-    status["load"] = {"ok": True, "zeilen": len(rows), "zeit": _jetzt()}
+    land = sum(r["quelle"] == "land" for r in rows)
+    status["load"] = {"ok": True, "zeilen": len(rows), "land": land, "zeit": _jetzt()}
+    # Ohne land-Zeilen (z.B. vor dem Import) bleiben die Laender-FAQs, wie sie sind;
+    # website und intern kommen trotzdem an.
+    if land:
+        agent_base.laender_faqs, agent_base.laender_faq_data = laender(rows)
+        # Tippfehler im Table Editor ("Namibia ", "namibia") wuerden still ein neues
+        # Land anlegen, das die Erkennung nie trifft: sichtbar machen.
+        if neu := sorted({r["kategorie"] for r in rows if r["quelle"] == "land"} - set(LAENDER)):
+            status["load"]["unbekannte_laender"] = neu
+    else:
+        status["load"]["grund"] = "keine land-Zeilen; Laender-FAQs bleiben, wie sie sind"
     return True
 
 
@@ -203,6 +301,34 @@ def import_md(replace: bool = False) -> int:
     return len(rows)
 
 
+def import_laender(replace: bool = False) -> int:
+    """Einmalig: faqs/FAQ_*.csv -> land-Zeilen, genau das, was der Bot bisher sah."""
+    daten = parse_laender_csv()
+    rows = land_zeilen(daten)
+    if set(daten) != set(LAENDER) or laender(rows)[1] != daten:
+        raise SystemExit("Rundlauf weicht ab: laender(land_zeilen(csv)) != csv oder LAENDER")
+    db = _supabase().table(TABLE)
+    if db.select("id").eq("quelle", "land").limit(1).execute().data:
+        if not replace:
+            raise SystemExit("land-Zeilen gibt es schon; --replace ersetzt sie")
+        db.delete().eq("quelle", "land").execute()  # alte Zeilen landen in faq_history
+    db.insert(rows).execute()
+    # Gegenprobe gegen das, was load() wirklich liest.
+    zurueck = (
+        db.select(",".join(FELDER)).eq("quelle", "land")
+        .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
+    )
+    if laender(zurueck)[1] != daten:
+        raise SystemExit("land-Zeilen in Supabase weichen vom CSV ab, bitte pruefen")
+    # Fragen, die der alte Parser durch Zuruecksetzen verschluckt hat: nicht
+    # importiert, der Owner entscheidet je Frage und traegt sie von Hand ein.
+    for land, fragen in parse_laender_csv(zuruecksetzen=False).items():
+        for f, a in fragen.items():
+            if f not in daten.get(land, {}):
+                print(f"[verschluckt] {land}\nF: {f}\nA: {a}\n")
+    return len(rows)
+
+
 def export() -> int:
     """Aktive Zeilen -> faqs/snapshot.json (Grundstand beim Import von agent_base)."""
     rows = (
@@ -219,6 +345,8 @@ if __name__ == "__main__":
     befehl = sys.argv[1] if len(sys.argv) > 1 else ""
     if befehl == "import":
         print(f"{import_md('--replace' in sys.argv)} intern-Zeilen importiert")
+    elif befehl == "import-laender":
+        print(f"{import_laender('--replace' in sys.argv)} land-Zeilen importiert")
     elif befehl == "sync":
         print(sync(force="--force" in sys.argv))
     elif befehl == "export":

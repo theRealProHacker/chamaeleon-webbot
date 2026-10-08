@@ -2,7 +2,19 @@ import pytest
 
 import common as _  # noqa: F401  (adds repo root to sys.path)
 
-from faq_sync import _mit_a, parse_infos, parse_md, render
+import agent_base
+import faq_sync
+from faq_sync import (
+    LAENDER,
+    _mit_a,
+    land_zeilen,
+    laender,
+    parse_infos,
+    parse_laender_csv,
+    parse_md,
+    render,
+    render_beide,
+)
 
 
 def _seite(n, ids=None):
@@ -46,3 +58,54 @@ def test_allgemein_md_rundlauf():
 def test_render_intern_vor_website():
     rows = parse_infos(_seite(20)) + parse_md("## Kataloge\n\n**F: Wo?**\nA: Hier.")
     assert render(rows).startswith("## Kataloge\n\n**F: Wo?**\nA: Hier.\n\n## Unterwegs")
+
+
+def test_laender_csv_rundlauf():
+    # Der Import nach Supabase darf von den Laender-CSVs nichts verlieren.
+    daten = parse_laender_csv()
+    assert set(daten) == set(LAENDER)
+    assert laender(land_zeilen(daten))[1] == daten
+
+
+def test_laender_ohne_frage_bleiben():
+    faqs, daten = laender(land_zeilen({"Namibia": {"Visum?": "Ja."}}))
+    assert faqs["Namibia"] == "# Namibia\n\n## Visum?\n\nJa."
+    assert faqs["USA"] == "# USA" and daten["USA"] == {}
+
+
+def test_render_beide_ohne_laender():
+    rows = parse_md("## Kataloge\n\n**F: Wo?**\nA: Hier.") + land_zeilen({"Namibia": {"Visum?": "Ja."}})
+    assert render_beide(rows) == ("## Kataloge\n\n**F: Wo?**\nA: Hier.",) * 2
+
+
+class _Abfrage:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __getattr__(self, name):
+        return lambda *a, **k: self
+
+    def execute(self):
+        return type("R", (), {"data": self.rows})
+
+
+def _load(monkeypatch, rows):
+    monkeypatch.setattr(faq_sync, "_supabase", lambda: type("S", (), {"table": lambda self, t: _Abfrage(rows)})())
+    for name in ("allgemeine_faqs", "allgemeine_faqs_agentur", "laender_faqs", "laender_faq_data"):
+        monkeypatch.setattr(agent_base, name, getattr(agent_base, name))
+    assert faq_sync.load()
+
+
+def test_load_ohne_land_zeilen_behaelt_laender(monkeypatch):
+    # Vor dem Import: website/intern kommen an, die Laender-FAQs bleiben stehen.
+    vorher = agent_base.laender_faqs
+    _load(monkeypatch, parse_md("## Kataloge\n\n**F: Neu?**\nA: Ja."))
+    assert agent_base.allgemeine_faqs == "## Kataloge\n\n**F: Neu?**\nA: Ja."
+    assert agent_base.laender_faqs is vorher
+
+
+def test_load_meldet_unbekannte_laender(monkeypatch):
+    rows = parse_md("## K\n\n**F: A?**\nA: B.") + land_zeilen({"Namibia ": {"Visum?": "Ja."}})
+    _load(monkeypatch, rows)
+    assert faq_sync.status["load"]["unbekannte_laender"] == ["Namibia "]
+    assert agent_base.laender_faqs["Namibia "].startswith("# Namibia ")
