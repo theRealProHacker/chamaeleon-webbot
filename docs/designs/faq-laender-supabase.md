@@ -1,6 +1,6 @@
 # Plan: Länder-FAQs nach Supabase
 
-Status: DRAFT (2026-10-08)
+Status: APPROVED (Eng Review 2026-10-08)
 Vorgänger: docs/designs/faq-supabase-sync.md (allgemeine FAQs, dort „Länder-CSVs nicht in V1“).
 
 ## Ziel
