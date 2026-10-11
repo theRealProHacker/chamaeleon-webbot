@@ -280,3 +280,11 @@ Die Kürzel (F1–F11, W5, D13) stammen aus dem gelöschten Plan:
       echten Reiseunterlagen (drei Live-Buchungen, 2026-09-28) findet `gliedern` keine
       Abschnitte `leistungen`/`hinweise` — schon vor dem Review so; prüfen,
       wie die Überschriften dort heißen.
+
+## FAQ-Editor (aus dem Eng Review, 2026-10-11)
+- [ ] **Snapshot nach Pflege nachziehen.** Sobald Mitarbeiter unter /admin/faq pflegen,
+      veraltet `faqs/snapshot.json` laufend. Er ist der Rückfall, wenn `faq_sync.load()`
+      nach einem Deploy scheitert, und die Grundlage von `test_allgemeine_fragen_gibt_es_noch`
+      und `test_laender_fragen_gibt_es_noch`. Regelmäßig `python faq_sync.py export` und
+      committen (Eval-Schlüssel nachziehen, nie löschen), oder ein Hinweis unter /admin,
+      wenn Supabase und Snapshot auseinanderliegen. Plan: docs/designs/admin-faq-editor.md (R10).
