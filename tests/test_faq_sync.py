@@ -60,6 +60,28 @@ def test_render_intern_vor_website():
     assert render(rows).startswith("## Kataloge\n\n**F: Wo?**\nA: Hier.\n\n## Unterwegs")
 
 
+def _zeile(quelle, kategorie, frage, position):
+    return {"quelle": quelle, "kategorie": kategorie, "frage": frage, "antwort": "Ja.", "position": position}
+
+
+def test_render_trennt_quellen():
+    # Gleicher Kategoriename in intern und website: zwei Bloecke, nicht einer.
+    rows = [_zeile("intern", "Unterwegs", "A?", 0), _zeile("website", "Unterwegs", "B?", 1000)]
+    assert render(rows) == "## Unterwegs\n\n**F: A?**\nA: Ja.\n\n## Unterwegs\n\n**F: B?**\nA: Ja."
+
+
+def test_neue_frage_landet_in_ihrer_kategorie():
+    # Der Editor vergibt hoechste Position + 1; die Frage gehoert trotzdem in ihren Block.
+    rows = [
+        _zeile("intern", "Kataloge", "A?", 0),
+        _zeile("intern", "Reisearten", "B?", 1),
+        _zeile("intern", "Kataloge", "Neu?", 2),
+    ]
+    assert render(rows) == (
+        "## Kataloge\n\n**F: A?**\nA: Ja.\n\n**F: Neu?**\nA: Ja.\n\n## Reisearten\n\n**F: B?**\nA: Ja."
+    )
+
+
 def test_laender_csv_rundlauf():
     # Der Import nach Supabase darf von den Laender-CSVs nichts verlieren.
     daten, _ = parse_laender_csv()

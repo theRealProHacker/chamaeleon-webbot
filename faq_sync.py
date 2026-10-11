@@ -121,13 +121,15 @@ def parse_md(text: str) -> list[dict]:
 
 def render(rows: list[dict]) -> str:
     """Zeilen -> Prompt-Block im Format von allgemein.md."""
-    teile, kategorie = [], None
+    # Je (quelle, kategorie) ein Block, in der Reihenfolge des ersten Auftretens:
+    # eine neue Frage (hoechste Position + 1) landet so in ihrer Kategorie, und
+    # eine interne Kategorie mit Website-Namen rutscht nicht in den Website-Block.
+    gruppen: dict[tuple, list[str]] = {}
     for r in sorted(rows, key=lambda r: r["position"]):
-        if r["kategorie"] != kategorie:
-            kategorie = r["kategorie"]
-            teile.append(f"## {kategorie}")
-        teile.append(f"**F: {r['frage']}**\nA: {r['antwort']}")
-    return "\n\n".join(teile)
+        gruppen.setdefault((r["quelle"], r["kategorie"]), [f"## {r['kategorie']}"]).append(
+            f"**F: {r['frage']}**\nA: {r['antwort']}"
+        )
+    return "\n\n".join(teil for gruppe in gruppen.values() for teil in gruppe)
 
 
 def render_beide(rows: list[dict]) -> tuple[str, str]:
@@ -236,7 +238,7 @@ def load() -> bool:
     try:
         rows = (
             _supabase().table(TABLE).select(",".join(FELDER))
-            .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
+            .eq("aktiv", True).eq("ausgeblendet", False).order("position").order("id").execute().data
         )
         if not any(r["quelle"] == "intern" for r in rows):
             raise ValueError("keine aktiven intern-Zeilen")
@@ -301,8 +303,9 @@ def sync(force: bool = False) -> dict:
             print(f"[faq-sync] sync failed: {e}")
         ergebnis["zeit"] = _jetzt()
         status["sync"] = ergebnis
-    if ergebnis["ok"]:
-        load()
+        # Innerhalb der Sperre: Schreiben und Laden haben genau eine Reihenfolge.
+        if ergebnis["ok"]:
+            load()
     return ergebnis
 
 
@@ -370,7 +373,7 @@ def export() -> int:
     """Aktive Zeilen -> faqs/snapshot.json (Grundstand beim Import von agent_base)."""
     rows = (
         _supabase().table(TABLE).select(",".join(FELDER))
-        .eq("aktiv", True).eq("ausgeblendet", False).order("position").execute().data
+        .eq("aktiv", True).eq("ausgeblendet", False).order("position").order("id").execute().data
     )
     # Ohne land-Zeilen hiesse der Snapshot: 73 Laender ohne eine Frage.
     if not any(r["quelle"] == "land" for r in rows):
