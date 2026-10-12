@@ -160,8 +160,10 @@
     border: 0; border-radius: 0; box-shadow: none; background: none;
   }
   .cat-head:hover, .q-head:hover { background: var(--surface-muted); box-shadow: none; }
+  /* Die Liste schneidet ab (runde Ecken): der Fokusring liegt deshalb innen. */
+  .cat-head:focus-visible, .q-head:focus-visible { outline-offset: -2px; }
   .cat-head { padding: 14px var(--space-4); font-weight: 600; }
-  .cat-head .name { flex: 1; }
+  .cat-head .name { flex: 1; overflow-wrap: anywhere; }
   .cat-head.gone { font-weight: 400; color: var(--text-muted); }
   .cat-head .n { font-weight: 400; font-size: .9rem; color: var(--text-muted); }
   .qs { border-top: 1px solid var(--border); background: var(--bg); padding: var(--space-1) 0; }
@@ -207,6 +209,10 @@
   .dlg .actions { justify-content: flex-end; }
   @media (max-width: 640px) {
     main { padding-top: var(--space-5); }
+    /* Finger statt Zeiger: 44px hohe Ziele, und 16px in Feldern, sonst zoomt iOS beim Antippen. */
+    button { min-height: 44px; }
+    input, textarea, select { font-size: 16px; }
+    input, select { min-height: 44px; }
     .q-head, .del-row { padding-left: var(--space-5); }
     .body, .read { padding-left: var(--space-5); }
     .read { padding-right: var(--space-4); }
@@ -216,6 +222,7 @@
     .item.open .body > .actions { position: sticky; bottom: 0; z-index: 1; background: var(--surface);
       padding: var(--space-3) 0; margin-bottom: calc(-1 * var(--space-3)); border-top: 1px solid var(--border); }
   }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
