@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>FAQs für Leon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* Tokens wie static/dashboard/index.html, damit /admin/faq aussieht wie das Dashboard. */
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-muted: #f1f5f9;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-soft: #dbeafe;
+    --danger: #b91c1c;
+    --danger-hover: #991b1b;
+    --danger-soft: #fef2f2;
+    --ins-bg: #dcfce7;
+    --ins-text: #14532d;
+    --del-bg: #fee2e2;
+    --del-text: #7f1d1d;
+
+    /* Layered shadows: inset top highlight + dark drop + soft drop. */
+    --shadow-s:
+      inset 0 1px 2px #ffffff30,
+      0 1px 2px #00000030,
+      0 2px 4px #00000015;
+    --shadow-m:
+      inset 0 1px 2px #ffffff50,
+      0 2px 4px #00000030,
+      0 4px 8px #00000015;
+    --shadow-l:
+      inset 0 1px 2px #ffffff70,
+      0 4px 6px #00000030,
+      0 6px 10px #00000015;
+
+    --radius: 8px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Inter", "Segoe UI", system-ui, sans-serif; }
+  h1, h2, h3 { margin: 0; line-height: 1.25; }
+  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
+  h2 { font-size: 1.05rem; font-weight: 600; }
+  p { margin: 0; }
+  .muted { color: var(--text-muted); }
+  .small { font-size: .85rem; }
+
+  button {
+    font: inherit; font-weight: 500; border-radius: var(--radius); padding: 7px 14px;
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+    cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-s); transition: background .12s, box-shadow .12s;
+  }
+  button:hover { background: var(--surface-muted); box-shadow: var(--shadow-m); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-hover); }
+  button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.danger:hover { background: var(--danger-hover); }
+  button.link { border: 0; background: none; box-shadow: none; padding: 4px 6px; color: var(--accent); }
+  button.link:hover { background: var(--accent-soft); box-shadow: none; color: var(--accent-hover); }
+  button.link.danger-text { color: var(--danger); }
+  button.link.danger-text:hover { background: var(--danger-soft); color: var(--danger-hover); }
+  /* Textknöpfe stehen bündig an der Kante ihres Blocks, nicht um ihr Polster eingerückt. */
+  button.link.flush { margin-left: -6px; }
+  button.link .chev { margin-left: 4px; }
+  /* Ein ruhender Knopf reagiert nicht auf den Zeiger. */
+  button:disabled, button.primary:disabled, button.danger:disabled,
+  button:disabled:hover, button.primary:disabled:hover, button.danger:disabled:hover {
+    background: var(--surface-muted); border-color: var(--border-strong); color: var(--text-muted); cursor: default; box-shadow: none;
+  }
+  button.link:disabled, button.link:disabled:hover { background: none; color: var(--text-muted); }
+
+  input, textarea, select {
+    font: inherit; font-weight: 400; color: var(--text); width: 100%; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+  }
+  textarea { resize: vertical; min-height: 6rem; line-height: 1.55; overflow: hidden; }
+  /* Die Frage ist einzeilig gemeint, darf im Feld aber umbrechen, damit man eine lange ganz sieht. */
+  textarea.zeile { min-height: 0; resize: none; line-height: 1.5; }
+  input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  label.field { display: grid; gap: var(--space-1); font-size: .85rem; font-weight: 600; color: var(--text-muted); }
+  .hint { font-weight: 400; }
+  .err { color: var(--danger); font-weight: 500; }
+  label.field .err { font-size: .85rem; }
+  label.field:has(.err) :is(input, textarea, select) { border-color: var(--danger); }
+  label.field:has(.err) :is(input, textarea, select):focus { outline-color: var(--danger); }
+
+  ins, del { text-decoration: none; border-radius: 3px; padding: 0 2px; }
+  ins { background: var(--ins-bg); color: var(--ins-text); }
+  del { background: var(--del-bg); color: var(--del-text); text-decoration: line-through; }
+  .diff { white-space: pre-wrap; line-height: 1.6; }
+  strong.lost { font-weight: 700; background: #fca5a5; border-radius: 3px; padding: 0 2px; }
+  /* Lange URLs in Antworten dürfen umbrechen, sonst sprengen sie auf dem Handy jedes Grid. */
+  .diff, li, .ver, .dlg, .folge { overflow-wrap: anywhere; }
+  .lnk { display: block; margin-top: 2px; }
+  .legend { font-size: .85rem; color: var(--text-muted); margin-bottom: var(--space-1); }
+  .l-del { color: var(--del-text); font-weight: 600; }
+  .l-ins { color: var(--ins-text); font-weight: 600; }
+  /* Komplett neu formuliert: zwei lesbare Blöcke statt einer durchgestrichenen Wand. */
+  .blk-label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-muted); margin: 14px 0 2px; }
+  .blk-label:first-child { margin-top: 0; }
+  del.blk, ins.blk, del.plain, span.blk.neutral { display: block; text-decoration: none; padding: 6px 0; border-radius: 0; }
+  span.blk.neutral { background: var(--surface-muted); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: var(--space-5); transform: translateX(-50%); z-index: 3;
+    background: var(--text); color: #fff; padding: 10px 16px; border-radius: var(--radius);
+    box-shadow: var(--shadow-l); display: flex; gap: var(--space-3); align-items: center;
+    width: max-content; max-width: calc(100vw - 32px);
+  }
+  .toast button.link { color: #bfdbfe; }
+  .toast button.link:hover { background: #ffffff20; color: #fff; }
+
+  .form { display: grid; gap: var(--space-3); }
+  .katf { display: grid; gap: var(--space-3); }
+  .actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+  /* Nebenaktionen rechts; brechen sie um, bleiben sie rechts und weg vom Speichern. */
+  .sec { display: flex; gap: var(--space-2); margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .sec button.link:last-child { margin-right: -6px; }
+  .chev { display: inline-block; color: var(--text-muted); transition: transform .15s; flex: none; }
+  [aria-expanded="true"] > .chev { transform: rotate(90deg); }
+
+  nav.tabs { display: flex; gap: var(--space-5); border-bottom: 1px solid var(--border); margin-bottom: var(--space-2); }
+  nav.tabs button { border: 0; border-radius: 0; background: none; box-shadow: none; padding: var(--space-2) 0; margin-bottom: -1px;
+    border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 600; }
+  nav.tabs button:hover { color: var(--text); background: none; box-shadow: none; }
+  nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+
+  main { max-width: 760px; margin: 0 auto; padding: var(--space-6) var(--space-4) 96px; }
+  h1 { margin-bottom: var(--space-3); }
+
+  /* Suche und „Neue Frage“ bleiben oben stehen, auch tief in der Länderliste. */
+  .tools { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); position: sticky; top: 0; z-index: 2; background: var(--bg);
+    padding: var(--space-3) var(--space-2); margin-left: calc(-1 * var(--space-2)); margin-right: calc(-1 * var(--space-2)); }
+  .tools::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--space-3); background: linear-gradient(var(--bg), transparent); pointer-events: none; }
+  .tools input { flex: 1; }
+  .neu { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-m);
+    padding: var(--space-4); display: grid; gap: var(--space-3); margin-bottom: var(--space-5); }
+  .list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-s); overflow: hidden; }
+  .list + .list { margin-top: var(--space-5); }
+  .cat + .cat { border-top: 1px solid var(--border); }
+  .cat-head, .q-head {
+    display: flex; align-items: center; gap: var(--space-3); width: 100%; text-align: left; white-space: normal;
+    border: 0; border-radius: 0; box-shadow: none; background: none;
+  }
+  .cat-head:hover, .q-head:hover { background: var(--surface-muted); box-shadow: none; }
+  .cat-head { padding: 14px var(--space-4); font-weight: 600; }
+  .cat-head .name { flex: 1; }
+  .cat-head.gone { font-weight: 400; color: var(--text-muted); }
+  .cat-head .n { font-weight: 400; font-size: .9rem; color: var(--text-muted); }
+  .qs { border-top: 1px solid var(--border); background: var(--bg); padding: var(--space-1) 0; }
+  .q-head { padding: 10px var(--space-4) 10px var(--space-6); font-weight: 400; }
+  .q-head .q { flex: 1; overflow-wrap: anywhere; }
+  .item.open .q-head .q { font-weight: 600; }
+  .item.hidden-faq .q { color: var(--text-muted); }
+  .item.open { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .qs > .item.open:first-child { border-top: 0; margin-top: calc(-1 * var(--space-1)); }
+  .qs > .item.open:last-child { border-bottom: 0; margin-bottom: calc(-1 * var(--space-1)); }
+  .body { padding: var(--space-1) var(--space-4) var(--space-4) var(--space-6); display: grid; gap: var(--space-4); }
+  .verlauf { display: grid; gap: var(--space-3); justify-items: start; }
+  .ver { display: grid; gap: var(--space-2); justify-items: start; width: 100%; padding-top: var(--space-3); border-top: 1px solid var(--border); }
+  .ver strong { font-weight: 600; font-size: .9rem; }
+  .ver .diff { font-size: .9rem; }
+  .ver > div { justify-self: stretch; }
+  .extra { margin-top: var(--space-6); }
+  .extra h2 { margin-bottom: var(--space-1); }
+  .extra > p { margin: 0 0 var(--space-3); }
+  .web .list { box-shadow: none; background: transparent; }
+  .web .qs { background: transparent; padding: 0; }
+  .web .qs > .item.open:first-child, .web .qs > .item.open:last-child { margin: 0; }
+  .web .cat-head { font-weight: 500; }
+  .web .item.open { background: transparent; }
+  .nowrap { white-space: nowrap; }
+  .read { padding: 0 calc(var(--space-6) + var(--space-3)) var(--space-4) var(--space-6); line-height: 1.55; overflow-wrap: anywhere; }
+  .read > :first-child { margin-top: 0; } .read > :last-child { margin-bottom: 0; }
+  .read p, .read ul, .read ol { margin: 0 0 var(--space-3); } .read ul, .read ol { padding-left: 1.2rem; }
+  .read h1, .read h2, .read h3, .read h4 { font-size: 1rem; font-weight: 600; margin: var(--space-4) 0 var(--space-2); letter-spacing: 0; }
+  .read a { color: var(--accent); } .read a:hover { color: var(--accent-hover); }
+  .read.plain { white-space: pre-wrap; }
+  .del-row { display: flex; gap: var(--space-3); align-items: center; padding: 10px var(--space-4) 10px var(--space-6); }
+  .del-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .lade { display: grid; gap: var(--space-3); justify-items: start; padding-top: var(--space-3); }
+  dialog:focus { outline: none; }
+  dialog { border: 0; border-radius: 12px; padding: 0; width: min(560px, calc(100vw - 32px)); box-shadow: var(--shadow-l); color: var(--text); }
+  dialog::backdrop { background: #0f172a99; }
+  .dlg { padding: var(--space-5); display: grid; gap: var(--space-4); }
+  .dlg h2 { font-size: 1.2rem; }
+  .folgen { margin: 0; padding-left: 1.1rem; list-style: disc; display: grid; gap: var(--space-2); }
+  .folgen li, .folge { color: var(--del-text); font-weight: 500; }
+  .dlg .diff { font-size: .9rem; }
+  .dlg .actions { justify-content: flex-end; }
+  @media (max-width: 640px) {
+    main { padding-top: var(--space-5); }
+    .q-head, .del-row { padding-left: var(--space-5); }
+    .body, .read { padding-left: var(--space-5); }
+    .read { padding-right: var(--space-4); }
+    .del-row { flex-direction: column; align-items: stretch; }
+    .dlg .actions { flex-direction: column; align-items: stretch; }
+    /* Bei langen Antworten bleibt „Speichern“ im Sichtfeld. */
+    .item.open .body > .actions { position: sticky; bottom: 0; z-index: 1; background: var(--surface);
+      padding: var(--space-3) 0; margin-bottom: calc(-1 * var(--space-3)); border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>FAQs für Leon</h1>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div class="tools">
+    <input id="suche" type="search" placeholder="Fragen durchsuchen" aria-label="Fragen durchsuchen">
+    <button class="primary" id="neu" disabled>Neue Frage</button>
+  </div>
+  <div id="neu-form"></div>
+  <div id="cats"><p class="muted">Die Fragen werden geladen …</p></div>
+</main>
+
+<dialog id="dlg" tabindex="-1"><div class="dlg" id="dlg-body"></div></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"
+  integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"
+  integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+// Editor für die Tabelle faq (Routen in dashboard.py, Regeln in faq_sync.py).
+// Jede Änderung geht sofort an den Server und gilt danach für Leon.
+const API = "/admin/faq";
+let zeilen = [], LAENDER = [];
+const ui = { bereich: "intern", cat: null, open: null, neu: null, query: "", verlauf: false, fassungen: null, delOpen: false };
+
+// --- Server ---------------------------------------------------------------------
+// Ohne body: GET. Mit body: POST als JSON (die schreibenden Routen verlangen es).
+async function api(pfad, body) {
+  let resp, data = {};
+  try {
+    resp = await fetch(API + pfad, body === undefined ? {} : {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    data = await resp.json();
+  } catch { /* kein Netz oder keine JSON-Antwort: unten als Fehler */ }
+  if (resp && resp.ok) return data;
+  if (resp && resp.status === 429) return { error: "Zu viele Änderungen, bitte kurz warten.", status: 429 };
+  return { error: data.error || "Das hat nicht geklappt, bitte noch einmal versuchen.", feld: data.feld, status: resp ? resp.status : 0 };
+}
+
+async function ladeZeilen() {
+  const d = await api("/zeilen");
+  if (d.error) return false;
+  zeilen = d.zeilen; LAENDER = [...d.laender].sort((a, b) => a.localeCompare(b, "de"));
+  return true;
+}
+
+function uebernimm(zeile) {
+  const i = zeilen.findIndex(r => r.id === zeile.id);
+  if (i < 0) zeilen.push(zeile); else zeilen[i] = zeile;
+}
+
+// --- Zeilen ---------------------------------------------------------------------
+const nachPosition = (a, b) => a.position - b.position || a.id - b.id;
+const rowById = id => zeilen.find(r => r.id === id);
+const scoped = () => zeilen.filter(r => r.quelle === ui.bereich && r.aktiv);
+const websiteRows = () => zeilen.filter(r => r.quelle === "website");
+const geloeschte = () => zeilen.filter(r => r.quelle === ui.bereich && !r.aktiv).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+const matches = (r, q) => !q || (r.frage + " " + r.antwort + " " + r.kategorie).toLowerCase().includes(q);
+const pickContent = r => ({ kategorie: r.kategorie, frage: r.frage, antwort: r.antwort, ausgeblendet: r.ausgeblendet });
+const anzahl = n => n ? `${n} ${n === 1 ? "Frage" : "Fragen"}` : "Keine Fragen";
+
+function categoriesOf(rows) {
+  const order = [];
+  for (const r of [...rows].sort(nachPosition)) if (!order.includes(r.kategorie)) order.push(r.kategorie);
+  return order;
+}
+
+// Wörter, die sich zwischen Allgemein und Ländern unterscheiden.
+function words() {
+  return ui.bereich === "land"
+    ? { kat: "Land", neu: "", name: "", wahl: "Land wählen", suche: "Land oder Frage suchen" }
+    : { kat: "Kategorie", neu: "Neue Kategorie …", name: "Name der neuen Kategorie", wahl: "Kategorie wählen", suche: "Fragen durchsuchen" };
+}
+
+// --- Formularfelder ---------------------------------------------------------------
+const NEW_KAT = "__neu";
+
+// Kategorie wählen oder eine neue benennen. Länder kommen nur aus der festen Liste der Reiseländer;
+// hängt eine Frage an etwas anderem, bleibt dieser Wert wählbar, bis sie einem Land zugeordnet ist.
+function katFieldHtml(value) {
+  const w = words(), land = ui.bereich === "land";
+  const cats = land ? [...(value && !LAENDER.includes(value) ? [value] : []), ...LAENDER] : categoriesOf(scoped());
+  const isNew = !land && !!value && !cats.includes(value);
+  return `<div class="katf"><label class="field">${w.kat}<select data-f="kategorie" data-kat>${value === "" ? `<option value="" disabled selected hidden>${w.wahl}</option>` : ""}${cats.map(c =>
+      `<option ${c === value ? "selected" : ""}>${esc(c)}</option>`).join("")}${w.neu ? `<option value="${NEW_KAT}" ${isNew ? "selected" : ""}>${w.neu}</option>` : ""}</select>${
+      land && value && !LAENDER.includes(value) ? `<span class="hint">„${esc(value)}“ ist kein Reiseland. Wähle hier das Land, zu dem die Frage gehört.</span>` : ""}</label>
+    <label class="field" data-katneu ${isNew ? "" : "hidden"}>${w.name}<input data-f="kategorieNeu" maxlength="100" value="${isNew ? esc(value) : ""}"></label></div>`;
+}
+
+function fieldsHtml(d) {
+  return `<label class="field">Frage<textarea class="zeile" data-f="frage" rows="1" maxlength="300">${esc(d.frage)}</textarea></label>
+    <label class="field">Antwort<textarea data-f="antwort" maxlength="4000">${esc(d.antwort)}</textarea>${
+      d.ausgeblendet && !d.antwort.trim() ? `<span class="hint">Ohne Antwort bleibt die Frage ausgeblendet.</span>` : ""}</label>
+    ${katFieldHtml(d.kategorie)}
+    <p class="err" data-fehler role="alert" hidden></p>`;
+}
+
+function readFields(root) {
+  const d = {};
+  root.querySelectorAll("[data-f]").forEach(el => d[el.dataset.f] = el.value);
+  if (d.kategorie === NEW_KAT) d.kategorie = (d.kategorieNeu || "").trim();
+  delete d.kategorieNeu;
+  return d;
+}
+
+function writeFields(root, d) {
+  root.querySelectorAll("[data-f=frage], [data-f=antwort]").forEach(el => el.value = d[el.dataset.f]);
+  autoGrow(root);
+}
+
+const draftOk = d => !!(d.frage || "").trim() && !!(d.antwort || "").trim() && !!(d.kategorie || "").trim();
+
+// Fehler vom Server am betroffenen Feld, sonst über den Knöpfen. Das Formular wird dafür nicht neu gebaut.
+function zeigeFehler(root, r) {
+  root.querySelectorAll("label.field .err").forEach(el => el.remove());
+  const allgemein = root.querySelector("[data-fehler]");
+  allgemein.hidden = true;
+  if (!r) return;
+  let feld = r.feld && root.querySelector(`[data-f="${r.feld}"]`);
+  if (feld && r.feld === "kategorie" && feld.value === NEW_KAT) feld = root.querySelector("[data-f=kategorieNeu]");
+  if (feld) { feld.insertAdjacentHTML("afterend", `<span class="err" role="alert">${esc(r.error)}</span>`); feld.focus(); }
+  else { allgemein.textContent = r.error; allgemein.hidden = false; }
+}
+
+document.addEventListener("change", e => {
+  if (!e.target.matches("[data-kat]")) return;
+  const neu = e.target.closest(".katf").querySelector("[data-katneu]");
+  neu.hidden = e.target.value !== NEW_KAT;
+  if (!neu.hidden) neu.querySelector("input").focus();
+});
+// „Frage anlegen“ erst, wenn Frage, Antwort und Kategorie stehen.
+function syncCreate() {
+  const b = document.querySelector("[data-create]");
+  if (b && !b.dataset.busy) b.disabled = !draftOk(readFields(b.closest("[data-new-form]")));
+}
+document.addEventListener("input", syncCreate);
+document.addEventListener("change", syncCreate);
+
+// --- Was geht bei einer Änderung verloren? -------------------------------------
+const LINK_RE = /(https?:\/\/[^\s)]+|www\.[^\s)]+|[\w.+-]+@[\w-]+\.[\w.]+)/g;
+const linksIn = text => [...new Set((text || "").match(LINK_RE) || [])];
+
+// Liefert die Folgen in Produktsprache. Leere Liste heißt: nichts Destruktives.
+function analyze(oldRow, newRow) {
+  const frage = `„${oldRow.frage}“`;
+  if (oldRow.ausgeblendet && (!newRow || newRow.ausgeblendet)) return []; // Leon kennt sie ohnehin nicht
+  if (!newRow) return [{ kind: "delete", text: `Leon beantwortet ${frage} ab sofort nicht mehr.` }];
+  const out = [];
+  if (newRow.ausgeblendet && !oldRow.ausgeblendet) out.push({ kind: "hide",
+    text: `Leon beantwortet ${frage} nicht mehr, bis du sie wieder einblendest.` });
+  for (const l of linksIn(oldRow.antwort)) {
+    if (!(newRow.antwort || "").includes(l)) out.push({ kind: "link",
+      text: `Leon nennt ${l.includes("@") ? "diese Adresse" : "diesen Link"} danach nicht mehr:`, link: l });
+  }
+  const a = (oldRow.antwort || "").length, b = (newRow.antwort || "").length;
+  if (a > 60 && b < a * 0.5) out.push({ kind: "short",
+    text: `Die Antwort wird um ${Math.round(100 - (b / a) * 100)} % kürzer.` });
+  return out;
+}
+
+// --- Wortweiser Vergleich -------------------------------------------------------
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Links dürfen nach / # ? umbrechen statt mitten im Wort.
+function escTok(t) {
+  const e = esc(t), link = LINK_RE.test(t);
+  LINK_RE.lastIndex = 0;
+  return link ? e.replace(/(?<!\/)\/(?!\/)/g, "/<wbr>").replace(/([?#])/g, "$1<wbr>").replace(/@/g, "<wbr>@").replace(/-/g, "‑") : e;
+}
+
+// Der Spiegelstrich bleibt stehen, steht aber außerhalb der Markierung, sonst verschmilzt er mit ihr.
+function bullets(html) { return html.replace(/(^|\n)(<(?:del|ins)[^>]*>)- /g, "$1- $2"); }
+
+function lcsLen(x, y) {
+  let prev = new Uint16Array(y.length + 1);
+  for (const t of x) {
+    const cur = new Uint16Array(y.length + 1);
+    for (let j = 0; j < y.length; j++) cur[j + 1] = t === y[j] ? prev[j] + 1 : Math.max(prev[j + 1], cur[j]);
+    prev = cur;
+  }
+  return prev[y.length];
+}
+
+// Hat b mit a kaum noch Wörter gemeinsam? Dann ist ein wortweiser Vergleich nur Rauschen.
+function isRewrite(a, b) {
+  const wa = (a || "").split(/\s+/).filter(Boolean), wb = (b || "").split(/\s+/).filter(Boolean);
+  return wa.length > 0 && wb.length > 0 && (2 * lcsLen(wa, wb)) / (wa.length + wb.length) < 0.5;
+}
+
+const LEGEND = `<span class="l-del">Rot</span> fällt weg, <span class="l-ins">Grün</span> kommt dazu.`;
+
+function linkify(t, lost = []) {
+  return (t || "").split(/(\s+)/).map(tok => lost.some(l => tok.includes(l)) ? `<strong class="lost">${escTok(tok).replace("://", "://<wbr>")}</strong>` : escTok(tok)).join("");
+}
+const plainHtml = t => linkify((t || "").trim());
+
+// Im Verlauf: bei Neufassung nur die alte Fassung zeigen, neutral, statt die jetzige jedes Mal rot zu wiederholen.
+function restoreDiffHtml(cur, old) {
+  if (!cur.trim() || !old.trim() || isRewrite(cur, old))
+    return `<div class="diff"><span class="blk-label">So lautete die Antwort damals:</span><span class="blk neutral">${old.trim() ? plainHtml(old) : "(keine Antwort)"}</span></div>`;
+  return changeHtml(cur, old);
+}
+
+// Vorher/Nachher an einer Stelle: wortweise mit Farblegende, oder bei Neufassung zwei beschriftete Blöcke.
+function changeHtml(a, b) {
+  const lost = linksIn(a).filter(l => !(b || "").includes(l));
+  if (isRewrite(a, b)) return `<div class="diff"><span class="blk-label">Bisher</span><del class="blk">${linkify((a || "").trim(), lost)}</del><span class="blk-label">Neu</span><ins class="blk">${plainHtml(b)}</ins></div>`;
+  return `<div><p class="legend">${LEGEND}</p><div class="diff">${wordDiff(a, b)}</div></div>`;
+}
+
+function wordDiff(a, b) {
+  const x = (a || "").split(/(\s+)/), y = (b || "").split(/(\s+)/);
+  const n = x.length, m = y.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = x[i] === y[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  let i = 0, j = 0, html = "";
+  while (i < n && j < m) {
+    if (x[i] === y[j]) { html += escTok(x[i]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) html += `<del>${escTok(x[i++])}</del>`;
+    else html += `<ins>${escTok(y[j++])}</ins>`;
+  }
+  while (i < n) html += `<del>${escTok(x[i++])}</del>`;
+  while (j < m) html += `<ins>${escTok(y[j++])}</ins>`;
+  return bullets(html.replace(/<\/del><del>/g, "").replace(/<\/ins><ins>/g, "").replace(/^\s+/, ""));
+}
+
+// Überschrift einer Warnung: sagt schon, was wegfällt.
+function folgenTitle(folgen) {
+  const k = new Set(folgen.map(f => f.kind));
+  if (k.has("delete")) return "Frage löschen?";
+  if (k.has("hide")) return "Frage ausblenden?";
+  if (k.size === 1 && k.has("link")) return folgen.length > 1 ? "Links fallen weg" : "Ein Link fällt weg";
+  if (k.size === 1 && k.has("short")) return "Die Antwort wird viel kürzer";
+  return "Leons Antwort verliert etwas";
+}
+
+// Eine Folge als HTML; ein Link steht auf eigener Zeile, damit er nicht mitten im Satz umbricht.
+function folgeHtml(f) {
+  return esc(f.text) + (f.link ? `<span class="lnk">${escTok(f.link).replace("://", "://<wbr>")}</span>` : "");
+}
+
+function fmtDay(iso) {
+  const d = new Date(iso), p = n => String(n).padStart(2, "0");
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+// Textfelder so hoch wie ihr Inhalt, damit nichts mitten in der Zeile abreißt.
+function autoGrow(root = document) {
+  root.querySelectorAll("textarea").forEach(t => { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; });
+}
+document.addEventListener("input", e => {
+  if (!e.target.matches("textarea")) return;
+  if (e.target.matches(".zeile") && /[\r\n]/.test(e.target.value)) e.target.value = e.target.value.replace(/\s*[\r\n]+\s*/g, " ");
+  autoGrow(e.target.parentElement);
+});
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("textarea.zeile")) e.preventDefault(); });
+
+function zeige(el, offset = 16) {
+  if (!el) return;
+  const r = el.getBoundingClientRect(), oben = document.querySelector(".tools").offsetHeight + offset;
+  if (r.top < oben || r.bottom > innerHeight) scrollTo(0, scrollY + r.top - oben);
+}
+
+// Website-Antworten sind Markdown von /Infos: gerendert und gesäubert, Links in neuem Reiter.
+function lesetext(md) {
+  if (!window.marked || !window.DOMPurify) return { html: esc(md), plain: true };
+  return { html: DOMPurify.sanitize(marked.parse(md), { ADD_ATTR: ["target"] }), plain: false };
+}
+if (window.DOMPurify) DOMPurify.addHook("afterSanitizeAttributes", n => {
+  if (n.tagName === "A") { n.setAttribute("target", "_blank"); n.setAttribute("rel", "noopener noreferrer"); }
+});
+
+// --- Anzeige ---------------------------------------------------------------------
+const BEREICHE = [["intern", "Allgemein"], ["land", "Länder"]];
+
+function render() {
+  document.getElementById("tabs").innerHTML = BEREICHE.map(([k, l]) =>
+    `<button role="tab" data-bereich="${k}" aria-selected="${ui.bereich === k}">${l}</button>`).join("");
+  document.getElementById("suche").placeholder = words().suche;
+  document.getElementById("suche").setAttribute("aria-label", words().suche);
+  renderNeu(); renderCats();
+}
+
+function renderNeu() {
+  document.getElementById("neu-form").innerHTML = ui.neu ? `<section class="neu" data-new-form>
+    <h2>Neue Frage</h2>
+    <div class="form">${fieldsHtml(ui.neu)}</div>
+    <div class="actions"><button class="primary" data-create disabled>Frage anlegen</button><button data-cancel-new>Abbrechen</button></div>
+  </section>` : "";
+  document.getElementById("neu").disabled = !!ui.neu;
+  autoGrow();
+}
+
+function catHtml(key, name, items, open, inner, leer = "") {
+  return `<div class="cat"><button class="cat-head" data-cat="${esc(key)}" aria-expanded="${open}">
+      <span class="name">${esc(name)}</span><span class="n">${anzahl(items.length)}</span><span class="chev" aria-hidden="true">›</span></button>
+    ${open ? `<div class="qs">${items.map(inner).join("") || leer}</div>` : ""}</div>`;
+}
+
+function renderCats() {
+  const q = ui.query.trim().toLowerCase(), land = ui.bereich === "land";
+  const rows = scoped().filter(r => matches(r, q));
+  const von = cat => rows.filter(r => r.kategorie === cat).sort(nachPosition);
+  const editierbar = cat => catHtml(cat, cat, von(cat), !!q || ui.cat === cat, itemHtml,
+    `<div class="del-row"><div class="muted">Noch keine Fragen zu ${esc(cat)}</div><button data-newhere="${esc(cat)}">Frage anlegen</button></div>`);
+
+  // Länder alphabetisch, weil man sie am Namen sucht; alle Reiseländer, auch die noch ohne Frage.
+  const namen = land
+    ? LAENDER.filter(l => rows.some(r => r.kategorie === l) || !q || l.toLowerCase().includes(q))
+    : categoriesOf(rows);
+  const cats = namen.map(editierbar).join("");
+  // Fragen, die an keinem Reiseland hängen (etwa ein Tippfehler): eigene Gruppe am Ende.
+  const fremd = land ? [...new Set(rows.map(r => r.kategorie))].filter(k => !LAENDER.includes(k)).sort((a, b) => a.localeCompare(b, "de")).map(editierbar).join("") : "";
+
+  const del = q ? [] : geloeschte();
+  const web = land ? [] : websiteRows().filter(r => matches(r, q));
+  const webCats = categoriesOf(web).map(cat => catHtml("w:" + cat, cat, web.filter(r => r.kategorie === cat).sort(nachPosition),
+    !!q || ui.cat === "w:" + cat, readHtml)).join("");
+
+  document.getElementById("cats").innerHTML =
+    (cats ? `<div class="list">${cats}</div>` : fremd || webCats ? "" : `<p class="muted">Keine Frage passt zu „${esc(ui.query.trim())}“.</p>`)
+    + (del.length ? `<div class="list"><div class="cat"><button class="cat-head gone" data-delcat aria-expanded="${ui.delOpen}">
+        <span class="name">Gelöscht</span><span class="n">${anzahl(del.length)}</span><span class="chev" aria-hidden="true">›</span></button>
+      ${ui.delOpen ? `<div class="qs">${del.map(r => `<div class="del-row"><div>${esc(r.frage)}
+        <div class="muted small">${land ? esc(r.kategorie) + ", gelöscht" : "Gelöscht"} am ${fmtDay(r.updated_at)}</div></div>
+        <button data-undelete="${r.id}">Wiederherstellen</button></div>`).join("")}</div>` : ""}</div></div>` : "")
+    + (fremd ? `<section class="extra"><h2>Kein Reiseland</h2>
+        <p class="muted">Diese Fragen stehen unter einem Namen, der kein Reiseland ist, deshalb findet Leon sie nicht.</p>
+        <div class="list">${fremd}</div></section>` : "")
+    + (webCats ? `<section class="extra web" data-website><h2>Von der Website</h2>
+        <p class="muted">Leon kennt diese Fragen von <span class="nowrap">chamaeleon-reisen.de/Infos</span>, geändert werden sie dort.</p>
+        <div class="list">${webCats}</div></section>` : "");
+  autoGrow();
+}
+
+// Website-Frage: aufklappen zum Lesen, kein Formular.
+function readHtml(r) {
+  const open = ui.open === r.id, text = open && lesetext(r.antwort);
+  return `<div class="item ${open ? "open" : ""}" data-item="${r.id}">
+    <button class="q-head" data-toggle="${r.id}" aria-expanded="${open}">
+      <span class="q">${esc(r.frage)}</span><span class="chev" aria-hidden="true">›</span></button>
+    ${open ? `<div class="read ${text.plain ? "plain" : ""}">${text.html}<p class="muted small">Nur lesbar. Diese Antwort wird auf der Website gepflegt.</p></div>` : ""}</div>`;
+}
+
+function itemHtml(r) {
+  const open = ui.open === r.id;
+  return `<div class="item ${open ? "open" : ""} ${r.ausgeblendet ? "hidden-faq" : ""}" data-item="${r.id}">
+    <button class="q-head" data-toggle="${r.id}" aria-expanded="${open}">
+      <span class="q">${esc(r.frage)}${r.ausgeblendet ? " (ausgeblendet)" : ""}</span><span class="chev" aria-hidden="true">›</span></button>
+    ${open ? `<div class="body">
+      <div class="form">${fieldsHtml(r)}</div>
+      <div class="actions">
+        <button class="primary" data-save="${r.id}">Speichern</button>
+        <button data-cancel="${r.id}">Abbrechen</button>
+        <span class="sec"><button class="link" data-hide="${r.id}" ${r.ausgeblendet && !r.antwort.trim() ? "disabled" : ""}>${r.ausgeblendet ? "Wieder einblenden" : "Ausblenden"}</button>
+        <button class="link danger-text" data-delete="${r.id}">Löschen</button></span>
+      </div>
+      ${verlaufHtml(r)}
+    </div>` : ""}
+  </div>`;
+}
+
+// Jede Fassung galt bis geaendert_am; die nächstältere sagt, seit wann.
+function fassungLabel(vs, i) {
+  const bis = fmtDay(vs[i].geaendert_am), von = vs[i + 1] && fmtDay(vs[i + 1].geaendert_am);
+  return !von ? `Bis ${bis}` : von === bis ? `Am ${bis}` : `${von} bis ${bis}`;
+}
+
+function fassungHtml(r, vs, i) {
+  const v = vs[i], anders = [];
+  if (v.frage !== r.frage) anders.push(`Die Frage lautete: ${esc(v.frage)}`);
+  if (v.kategorie !== r.kategorie) anders.push(`${words().kat}: ${esc(v.kategorie)}`);
+  if (v.ausgeblendet !== r.ausgeblendet) anders.push(v.ausgeblendet ? "Die Frage war ausgeblendet." : "Die Frage war eingeblendet.");
+  return `<div class="ver"><strong>${fassungLabel(vs, i)}</strong>
+    ${anders.map(t => `<p class="small">${t}</p>`).join("")}
+    ${v.antwort !== r.antwort ? restoreDiffHtml(r.antwort, v.antwort) : ""}
+    <button data-restore="${v.id}">Diese Fassung wiederherstellen</button></div>`;
+}
+
+// Die früheren Fassungen lädt erst das Aufklappen.
+function verlaufHtml(r) {
+  const vs = ui.fassungen;
+  return `<div class="verlauf" data-versions>
+    <button class="link flush" data-verlauf aria-expanded="${ui.verlauf}">Frühere Fassungen <span class="chev" aria-hidden="true">›</span></button>
+    ${!ui.verlauf ? "" : vs === null ? `<p class="muted small">Die früheren Fassungen werden geladen …</p>`
+      : vs.error ? `<p class="err small">${esc(vs.error)}</p>`
+      : vs.length ? vs.map((_, i) => fassungHtml(r, vs, i)).join("")
+      : `<p class="muted small">Diese Frage wurde noch nicht geändert.</p>`}</div>`;
+}
+
+// Liste neu zeichnen, ohne den getippten Text der offenen Frage zu verlieren.
+function renderOffenBehalten() {
+  const el = itemEl(ui.open), keep = el && el.querySelector(".form") && readFields(el);
+  renderCats();
+  if (keep && itemEl(ui.open)) writeFields(itemEl(ui.open), keep);
+}
+
+function gate(oldRow, newRow, verb, onConfirm) {
+  const folgen = analyze(oldRow, newRow);
+  if (!folgen.length) return onConfirm();
+  const diff = newRow && newRow.antwort !== oldRow.antwort
+    ? changeHtml(oldRow.antwort, newRow.antwort)
+    : !newRow ? `<div><span class="blk-label">Diese Antwort fällt weg</span><div class="diff"><del class="plain">${plainHtml(oldRow.antwort)}</del></div></div>` : "";
+  const items = folgen.map(folgeHtml);
+  document.getElementById("dlg-body").innerHTML = `
+    <h2>${folgenTitle(folgen)}</h2>
+    ${newRow ? `<p>Betrifft „${esc(oldRow.frage)}“</p>` : ""}
+    ${items.length === 1 ? `<p class="folge">${items[0]}</p>` : `<ul class="folgen">${items.map(t => `<li>${t}</li>`).join("")}</ul>`}
+    ${diff}
+    <p class="muted small">${newRow ? "Die jetzige Fassung bleibt unter „Frühere Fassungen“ erhalten."
+      : "Die Frage steht danach unter „Gelöscht“ und lässt sich dort wiederherstellen."}</p>
+    <div class="actions"><button id="dlg-no">Zurück zum Bearbeiten</button><button class="danger" id="dlg-yes">${verb}</button></div>`;
+  const dlg = document.getElementById("dlg");
+  dlg.showModal(); dlg.focus();
+  document.getElementById("dlg-no").onclick = () => dlg.close();
+  document.getElementById("dlg-yes").onclick = () => { dlg.close(); onConfirm(); };
+}
+
+// aktion: { label, fn } als Textknopf, etwa „Rückgängig“.
+function toast(msg, aktion) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `<span>${esc(msg)}</span>${aktion ? `<button class="link" id="toast-aktion">${aktion.label}</button>` : ""}`;
+  t.hidden = false;
+  if (aktion) document.getElementById("toast-aktion").onclick = () => { t.hidden = true; aktion.fn(); };
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, aktion ? 9000 : 5000);
+}
+
+// Nach einem Schreiben: Zeile übernehmen und sagen, was jetzt gilt. Hat das Laden nicht geklappt,
+// kennt Leon den neuen Stand noch nicht; dann steht statt „Rückgängig“ der Knopf „Jetzt laden“.
+function fertig(r, msg, zurueck) {
+  uebernimm(r.zeile);
+  if (r.geladen === false) return toast("Gespeichert. Leon antwortet erst nach dem nächsten Laden so.", { label: "Jetzt laden", fn: jetztLaden });
+  toast(msg, zurueck && { label: "Rückgängig", fn: zurueck });
+}
+
+async function jetztLaden() {
+  const r = await api("/laden", {});
+  toast(r.geladen ? "Geladen. Leon antwortet jetzt so." : r.error || "Das Laden hat nicht geklappt, bitte später noch einmal versuchen.",
+    r.geladen ? null : { label: "Jetzt laden", fn: jetztLaden });
+}
+
+// „Rückgängig“ für Ändern, Ausblenden und Wiederherstellen einer Fassung: der Eintrag,
+// den dieses Schreiben in der Historie angelegt hat, kommt zurück.
+function zurueckZu(r) {
+  return r.historie_id && (async () => {
+    const z = await api(`/zeilen/${r.zeile.id}/verlauf/${r.historie_id}`, { updated_at: r.zeile.updated_at });
+    if (z.error) return toast(z.error);
+    uebernimm(z.zeile); ui.fassungen = null; ui.verlauf = false; render(); toast("Rückgängig gemacht.");
+  });
+}
+
+async function einfach(pfad, msg) {
+  const r = await api(pfad, {});
+  if (r.error) return toast(r.error);
+  uebernimm(r.zeile); render(); toast(msg);
+}
+
+// Während der Anfrage ruht der Knopf, damit ein Doppelklick nicht zweimal schreibt.
+async function mit(b, fn) {
+  b.disabled = true; b.dataset.busy = "1";
+  try { await fn(); } finally { if (b.isConnected) { b.disabled = false; delete b.dataset.busy; syncCreate(); } }
+}
+
+const itemEl = id => document.querySelector(`[data-item="${id}"]`);
+
+// Der Stand auf der Seite war veraltet: neu laden, den getippten Text im Formular behalten.
+async function veraltet(id, r) {
+  const keep = itemEl(id) && readFields(itemEl(id));
+  await ladeZeilen();
+  const da = rowById(id);
+  if (!da || !da.aktiv) { ui.open = null; render(); return toast("Diese Frage wurde inzwischen gelöscht."); }
+  ui.fassungen = null; ui.verlauf = false; renderCats();
+  if (keep && itemEl(id)) {
+    writeFields(itemEl(id), keep);
+    zeigeFehler(itemEl(id), { error: `${r.error} Dein Text steht noch hier. Prüfe ihn und speichere noch einmal.` });
+  } else toast(r.error);
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  const ds = b.dataset;
+  const id = +(ds.toggle || ds.save || ds.cancel || ds.hide || ds.delete || 0);
+  if (ds.bereich) {
+    Object.assign(ui, { bereich: ds.bereich, cat: null, open: null, neu: null, query: "", verlauf: false, fassungen: null, delOpen: false });
+    document.getElementById("suche").value = ""; render();
+  }
+  else if ("cat" in ds) { ui.cat = ui.cat === ds.cat ? null : ds.cat; ui.open = null; renderCats(); }
+  else if ("delcat" in ds) { ui.delOpen = !ui.delOpen; renderCats(); }
+  else if (ds.toggle) { ui.open = ui.open === id ? null : id; ui.verlauf = false; ui.fassungen = null; renderCats(); if (ui.open) zeige(itemEl(id)); }
+  else if (ds.cancel) { ui.open = null; renderCats(); }
+  else if ("verlauf" in ds) {
+    ui.verlauf = !ui.verlauf; renderOffenBehalten();
+    const offen = ui.open;
+    if (ui.verlauf && ui.fassungen === null) api(`/zeilen/${offen}/verlauf`).then(r => {
+      if (ui.open !== offen) return;
+      ui.fassungen = r.error ? r : r.fassungen; renderOffenBehalten();
+    });
+  }
+  else if (ds.save) {
+    const old = rowById(id), neu = { ...old, ...readFields(itemEl(id)) };
+    zeigeFehler(itemEl(id), null);
+    gate(old, neu, "Trotzdem speichern", () => mit(b, async () => {
+      // Immer alle Inhaltsfelder: der Server vergleicht sie mit seinem Stand.
+      const r = await api(`/zeilen/${id}`, { ...pickContent(neu), updated_at: old.updated_at });
+      if (r.status === 409 || r.status === 404) return veraltet(id, r);
+      if (r.error) return zeigeFehler(itemEl(id), r);
+      ui.open = null; if (!ui.query) ui.cat = r.zeile.kategorie;
+      fertig(r, r.zeile.ausgeblendet ? "Gespeichert." : "Gespeichert. Leon antwortet ab sofort so.", zurueckZu(r)); render();
+    }));
+  } else if (ds.hide) {
+    const old = rowById(id);
+    gate(old, { ...old, ausgeblendet: !old.ausgeblendet }, "Ausblenden", () => mit(b, async () => {
+      const r = await api(`/zeilen/${id}`, { ...pickContent(old), ausgeblendet: !old.ausgeblendet, updated_at: old.updated_at });
+      if (r.status === 409 || r.status === 404) return veraltet(id, r);
+      if (r.error) return zeigeFehler(itemEl(id), r);
+      ui.fassungen = null; ui.verlauf = false;
+      fertig(r, old.ausgeblendet ? "Wieder eingeblendet." : "Ausgeblendet.", zurueckZu(r)); render();
+    }));
+  } else if (ds.delete) {
+    const old = rowById(id);
+    gate(old, null, "Löschen", () => mit(b, async () => {
+      const r = await api(`/zeilen/${id}/loeschen`, {});
+      if (r.error) return zeigeFehler(itemEl(id), r);
+      ui.open = null;
+      fertig(r, "Gelöscht.", () => einfach(`/zeilen/${id}/wiederherstellen`, "Wiederhergestellt.")); render();
+    }));
+  } else if (ds.restore) {
+    const old = rowById(ui.open), v = ui.fassungen.find(x => x.id === +ds.restore);
+    gate(old, { ...old, ...pickContent(v) }, "Trotzdem wiederherstellen", () => mit(b, async () => {
+      const r = await api(`/zeilen/${old.id}/verlauf/${v.id}`, { updated_at: old.updated_at });
+      if (r.status === 409) return veraltet(old.id, r);
+      if (r.error) return zeigeFehler(itemEl(old.id), r);
+      ui.fassungen = null; ui.verlauf = false; if (!ui.query) ui.cat = r.zeile.kategorie;
+      fertig(r, "Frühere Fassung wiederhergestellt.", zurueckZu(r)); render();
+    }));
+  } else if (ds.undelete) {
+    mit(b, async () => {
+      const r = await api(`/zeilen/${ds.undelete}/wiederherstellen`, {});
+      if (r.error) return toast(r.error);
+      ui.cat = r.zeile.kategorie;
+      fertig(r, r.zeile.ausgeblendet ? "Wiederhergestellt." : "Wiederhergestellt. Leon beantwortet die Frage wieder."); render();
+      zeige(itemEl(r.zeile.id));
+    });
+  } else if (b.id === "neu" || ds.newhere) {
+    ui.neu = { frage: "", antwort: "", kategorie: ds.newhere || (ui.cat && !ui.cat.startsWith("w:") ? ui.cat : "") };
+    renderNeu(); scrollTo(0, 0); document.querySelector("[data-new-form] [data-f=frage]").focus();
+  } else if ("cancelNew" in ds) { ui.neu = null; renderNeu(); }
+  else if ("create" in ds) {
+    const form = document.querySelector("[data-new-form]");
+    zeigeFehler(form, null);
+    mit(b, async () => {
+      const r = await api("/zeilen", { quelle: ui.bereich, ...readFields(form) });
+      if (r.error) return zeigeFehler(form, r);
+      Object.assign(ui, { neu: null, query: "", cat: r.zeile.kategorie, open: null });
+      document.getElementById("suche").value = "";
+      fertig(r, "Angelegt. Leon beantwortet die Frage ab sofort.", () => einfach(`/zeilen/${r.zeile.id}/loeschen`, "Rückgängig gemacht.")); render();
+      zeige(itemEl(r.zeile.id));
+    });
+  } else if ("retry" in ds) start();
+});
+document.getElementById("suche").addEventListener("input", e => { ui.query = e.target.value; ui.open = null; renderCats(); });
+
+async function start() {
+  document.getElementById("cats").innerHTML = `<p class="muted">Die Fragen werden geladen …</p>`;
+  if (await ladeZeilen()) { document.getElementById("neu").disabled = false; return render(); }
+  document.getElementById("cats").innerHTML = `<div class="lade"><p>Die Fragen konnten nicht geladen werden.</p><button data-retry>Noch einmal versuchen</button></div>`;
+}
+start();
+</script>
+</body>
+</html>

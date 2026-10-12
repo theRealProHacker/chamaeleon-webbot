@@ -1162,6 +1162,11 @@ def _faq_antwort(aufruf, schreibend: bool = True):
 
 
 @auth_required
+def admin_faq_seite():
+    return send_from_directory("static/admin", "faq.html")
+
+
+@auth_required
 def admin_faq_zeilen():
     return _faq_antwort(lambda f, _: f.editor_zeilen(), schreibend=False)
 
@@ -1233,7 +1238,8 @@ routes = [
     ("/admin/sitemap", admin_sitemap_post, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/admin/faq-sync", admin_faq_sync_get, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/faq-sync", admin_faq_sync_post, ["POST"], rate_limit.ADMIN_LIMIT),
-    # FAQ-Editor (docs/designs/admin-faq-editor.md); die Seite selbst folgt.
+    # FAQ-Editor (docs/designs/admin-faq-editor.md).
+    ("/admin/faq", admin_faq_seite, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/faq/zeilen", admin_faq_zeilen, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/faq/zeilen", admin_faq_anlegen, ["POST"], rate_limit.FAQ_EDIT_LIMIT),
     ("/admin/faq/zeilen/<int:id>", admin_faq_aendern, ["POST"], rate_limit.FAQ_EDIT_LIMIT),

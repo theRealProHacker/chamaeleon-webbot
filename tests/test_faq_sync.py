@@ -455,3 +455,40 @@ def test_replace_nur_mit_pflege_verwerfen():
     assert faq_sync.replace_gesperrt(["faq_sync.py", "import", "--replace"])
     assert not faq_sync.replace_gesperrt(["faq_sync.py", "import-laender", "--replace", "--pflege-verwerfen"])
     assert not faq_sync.replace_gesperrt(["faq_sync.py", "export"])
+
+
+def test_zwei_reiter_der_zweite_bekommt_409(monkeypatch):
+    # Der ganze Weg Route -> faq_sync gegen eine Attrappe mit Filtern und Trigger:
+    # speichern, mit altem Stand speichern (409), mit neuem Stand speichern.
+    from flask import Flask
+
+    import dashboard
+    from faq_attrappe import attrappe
+
+    db = attrappe([_z(1), _z(2)])
+    monkeypatch.setattr(faq_sync, "_supabase", lambda: type("S", (), {"table": staticmethod(db["table"])}))
+    monkeypatch.setattr(faq_sync, "load", lambda: True)
+    monkeypatch.setattr(dashboard, "API_USERNAME", "dev")
+    monkeypatch.setattr(dashboard, "API_PASSWORD", "dev")
+    app = Flask(__name__)
+    for pfad, view, methoden, _ in dashboard.routes:
+        if pfad.startswith("/admin/faq/"):
+            app.add_url_rule(pfad, view_func=view, methods=methoden)
+    client, auth = app.test_client(), {"Authorization": "Basic ZGV2OmRldg=="}
+
+    def speichern(antwort, stand):
+        return client.post("/admin/faq/zeilen/1", headers=auth, json={"antwort": antwort, "updated_at": stand})
+
+    erster = speichern("Erste.", "t0")
+    assert erster.status_code == 200
+    assert speichern("Zweite.", "t0").status_code == 409
+    neu = erster.get_json()
+    assert speichern("Zweite.", neu["zeile"]["updated_at"]).status_code == 200
+    assert db["faq"][0]["antwort"] == "Zweite."
+    # "Rueckgaengig" des ersten Speicherns waere jetzt veraltet; mit frischem Stand holt es "Ja." zurueck.
+    stand = client.get("/admin/faq/zeilen", headers=auth).get_json()["zeilen"][0]["updated_at"]
+    zurueck = client.post(f"/admin/faq/zeilen/1/verlauf/{neu['historie_id']}", headers=auth, json={"updated_at": stand})
+    assert zurueck.status_code == 200 and db["faq"][0]["antwort"] == "Ja."
+    assert [f["antwort"] for f in client.get("/admin/faq/zeilen/1/verlauf", headers=auth).get_json()["fassungen"]] == [
+        "Zweite.", "Erste.", "Ja."
+    ]
