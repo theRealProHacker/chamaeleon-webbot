@@ -230,7 +230,7 @@
   <div id="cats"><p class="muted">Die Fragen werden geladen …</p></div>
 </main>
 
-<dialog id="dlg" tabindex="-1"><div class="dlg" id="dlg-body"></div></dialog>
+<dialog id="dlg" tabindex="-1" aria-labelledby="dlg-titel"><div class="dlg" id="dlg-body"></div></dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"
@@ -501,12 +501,27 @@ if (window.DOMPurify) DOMPurify.addHook("afterSanitizeAttributes", n => {
 // --- Anzeige ---------------------------------------------------------------------
 const BEREICHE = [["intern", "Allgemein"], ["land", "Länder"]];
 
-function render() {
+// Neuzeichnen ersetzt die Knoepfe; wer mit der Tastatur arbeitet, soll danach
+// auf demselben Knopf oder Feld stehen und nicht am Seitenanfang.
+function fokusBehalten(zeichne) {
+  const a = document.activeElement, attr = a && a !== document.body && [...a.attributes].find(x => x.name.startsWith("data-") && x.name !== "data-busy");
+  const item = a && a.closest && a.closest("[data-item]"), id = item && item.dataset.item;
+  const ort = id ? `[data-item="${id}"] ` : a && a.closest && a.closest("[data-new-form]") ? "[data-new-form] " : "";
+  const sel = !a || a === document.body ? "" : a.id ? "#" + a.id : attr ? `${ort}[${attr.name}="${CSS.escape(attr.value)}"]` : "";
+  zeichne();
+  if (!sel || document.activeElement !== document.body) return;
+  const ziel = document.querySelector(sel) || (id && document.querySelector(`[data-toggle="${id}"]`));
+  if (ziel) ziel.focus({ preventScroll: true });
+}
+const render = () => fokusBehalten(zeichne);
+const renderCats = () => fokusBehalten(zeichneCats);
+
+function zeichne() {
   document.getElementById("tabs").innerHTML = BEREICHE.map(([k, l]) =>
     `<button role="tab" data-bereich="${k}" aria-selected="${ui.bereich === k}">${l}</button>`).join("");
   document.getElementById("suche").placeholder = words().suche;
   document.getElementById("suche").setAttribute("aria-label", words().suche);
-  renderNeu(); renderCats();
+  renderNeu(); zeichneCats();
 }
 
 function renderNeu() {
@@ -525,7 +540,7 @@ function catHtml(key, name, items, open, inner, leer = "") {
     ${open ? `<div class="qs">${items.map(inner).join("") || leer}</div>` : ""}</div>`;
 }
 
-function renderCats() {
+function zeichneCats() {
   const q = ui.query.trim().toLowerCase(), land = ui.bereich === "land";
   const rows = scoped().filter(r => matches(r, q));
   const von = cat => rows.filter(r => r.kategorie === cat).sort(nachPosition);
@@ -631,7 +646,7 @@ function gate(oldRow, newRow, verb, onConfirm) {
     : !newRow ? `<div><span class="blk-label">Diese Antwort fällt weg</span><div class="diff"><del class="plain">${plainHtml(oldRow.antwort)}</del></div></div>` : "";
   const items = folgen.map(folgeHtml);
   document.getElementById("dlg-body").innerHTML = `
-    <h2>${folgenTitle(folgen)}</h2>
+    <h2 id="dlg-titel">${folgenTitle(folgen)}</h2>
     ${newRow ? `<p>Betrifft „${esc(oldRow.frage)}“</p>` : ""}
     ${items.length === 1 ? `<p class="folge">${items[0]}</p>` : `<ul class="folgen">${items.map(t => `<li>${t}</li>`).join("")}</ul>`}
     ${diff}
