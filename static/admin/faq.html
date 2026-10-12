@@ -197,6 +197,7 @@
   .read.plain { white-space: pre-wrap; }
   .del-row { display: flex; gap: var(--space-3); align-items: center; padding: 10px var(--space-4) 10px var(--space-6); }
   .del-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .leer { overflow-wrap: anywhere; }
   .lade { display: grid; gap: var(--space-3); justify-items: start; padding-top: var(--space-3); }
   dialog:focus { outline: none; }
   dialog { border: 0; border-radius: 12px; padding: 0; width: min(560px, calc(100vw - 32px)); box-shadow: var(--shadow-l); color: var(--text); }
@@ -568,7 +569,7 @@ function zeichneCats() {
     !!q || ui.cat === "w:" + cat, readHtml)).join("");
 
   document.getElementById("cats").innerHTML =
-    (cats ? `<div class="list">${cats}</div>` : fremd || webCats ? "" : `<p class="muted">Keine Frage passt zu „${esc(ui.query.trim())}“.</p>`)
+    (cats ? `<div class="list">${cats}</div>` : fremd || webCats ? "" : `<p class="muted leer">${q ? `Keine Frage passt zu „${esc(ui.query.trim())}“.` : "Noch keine Fragen."}</p>`)
     + (del.length ? `<div class="list"><div class="cat"><button class="cat-head gone" data-delcat aria-expanded="${ui.delOpen}">
         <span class="name">Gelöscht</span><span class="n">${anzahl(del.length)}</span><span class="chev" aria-hidden="true">›</span></button>
       ${ui.delOpen ? `<div class="qs">${del.map(r => `<div class="del-row"><div>${esc(r.frage)}
@@ -672,7 +673,11 @@ function toast(msg, aktion) {
   t.innerHTML = `<span>${esc(msg)}</span>${aktion ? `<button class="link" id="toast-aktion">${aktion.label}</button>` : ""}`;
   t.hidden = false;
   if (aktion) document.getElementById("toast-aktion").onclick = () => { t.hidden = true; aktion.fn(); };
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, aktion ? 9000 : 5000);
+  // Wer auf den Hinweis zeigt oder mit der Tastatur darin steht, bekommt die Zeit, "Rückgängig" zu erreichen.
+  const weg = () => { clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, aktion ? 9000 : 5000); };
+  t.onmouseenter = t.onfocusin = () => clearTimeout(toast.t);
+  t.onmouseleave = t.onfocusout = weg;
+  weg();
 }
 
 // Nach einem Schreiben: Zeile übernehmen und sagen, was jetzt gilt. Hat das Laden nicht geklappt,
