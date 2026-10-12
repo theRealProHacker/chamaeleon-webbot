@@ -288,3 +288,19 @@ Die Kürzel (F1–F11, W5, D13) stammen aus dem gelöschten Plan:
       und `test_laender_fragen_gibt_es_noch`. Regelmäßig `python faq_sync.py export` und
       committen (Eval-Schlüssel nachziehen, nie löschen), oder ein Hinweis unter /admin,
       wenn Supabase und Snapshot auseinanderliegen. Plan: docs/designs/admin-faq-editor.md (R10).
+
+## FAQ-Editor (aus /design-review, 2026-10-12)
+Zwei unabhängige Bildprüfungen und eine Quelltext-Prüfung von static/admin/faq.html.
+Behoben sind Fokusverlust, einschleusbare Knöpfe im Website-Lesetext, Telefon-Zielgrößen
+und abgeschnittene lange Fragen. Bewusst offen, weil es Entscheidungen der Variante A sind:
+- [ ] **Pflichtprobe an der echten Tabelle.** Speichern 200, veralteter Reiter 409, Speichern 200
+      an der Testfrage „TEST bitte ignorieren“ (Italien, `ausgeblendet: true`). Die Attrappe
+      (tests/faq_attrappe.py) belegt die Logik, nicht den Filter auf `updated_at` in PostgREST.
+- [ ] **Inhalt scheint unter der angehefteten Suchzeile durch** (Verlauf statt fester Kante).
+- [ ] **Offene Frage steht doppelt:** fett im Zeilenkopf und gleich darunter im Feld „Frage“.
+- [ ] **Getönte Vergleichsblöcke ohne Innenabstand** (im Lab so entschieden).
+- [ ] **Hinweis unten liegt auf dem Telefon über der angehefteten Speichern-Zeile.**
+- [ ] **Reiter ohne volles Tab-Muster** (kein `tabpanel`, keine Pfeiltasten).
+- [ ] **Farb-Tokens weichen vom Dashboard ab** (`--danger`, `--accent-soft`); eine gemeinsame Quelle fehlt.
+- [ ] **Bindestriche in Links werden in Vergleichen zu geschützten Bindestrichen:** eine dort
+      kopierte Adresse funktioniert nicht.
