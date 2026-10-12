@@ -337,7 +337,7 @@ function zeigeFehler(root, r) {
   const allgemein = root.querySelector("[data-fehler]");
   allgemein.hidden = true;
   if (!r) return;
-  let feld = r.feld && root.querySelector(`[data-f="${r.feld}"]`);
+  let feld = ["frage", "antwort", "kategorie"].includes(r.feld) && root.querySelector(`[data-f="${r.feld}"]`);
   if (feld && r.feld === "kategorie" && feld.value === NEW_KAT) feld = root.querySelector("[data-f=kategorieNeu]");
   if (feld) { feld.insertAdjacentHTML("afterend", `<span class="err" role="alert">${esc(r.error)}</span>`); feld.focus(); }
   else { allgemein.textContent = r.error; allgemein.hidden = false; }
@@ -388,7 +388,7 @@ function esc(s) {
 function escTok(t) {
   const e = esc(t), link = LINK_RE.test(t);
   LINK_RE.lastIndex = 0;
-  return link ? e.replace(/(?<!\/)\/(?!\/)/g, "/<wbr>").replace(/([?#])/g, "$1<wbr>").replace(/@/g, "<wbr>@").replace(/-/g, "‑") : e;
+  return link ? e.replace(/(?<!\/)\/(?!\/)/g, "/<wbr>").replace(/(\?|(?<!&)#)/g, "$1<wbr>").replace(/@/g, "<wbr>@").replace(/-/g, "‑") : e;
 }
 
 // Der Spiegelstrich bleibt stehen, steht aber außerhalb der Markierung, sonst verschmilzt er mit ihr.
@@ -489,7 +489,10 @@ function zeige(el, offset = 16) {
 // Website-Antworten sind Markdown von /Infos: gerendert und gesäubert, Links in neuem Reiter.
 function lesetext(md) {
   if (!window.marked || !window.DOMPurify) return { html: esc(md), plain: true };
-  return { html: DOMPurify.sanitize(marked.parse(md), { ADD_ATTR: ["target"] }), plain: false };
+  // /Infos ist fremder Inhalt: keine data-Attribute, ids, Klassen oder Formularelemente,
+  // sonst wuerde ein <button data-delete="12"> dort zu einem echten Loeschknopf.
+  return { html: DOMPurify.sanitize(marked.parse(md), { ADD_ATTR: ["target"], ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: ["id", "class", "style", "name"], FORBID_TAGS: ["button", "form", "input", "select", "textarea", "style", "dialog"] }), plain: false };
 }
 if (window.DOMPurify) DOMPurify.addHook("afterSanitizeAttributes", n => {
   if (n.tagName === "A") { n.setAttribute("target", "_blank"); n.setAttribute("rel", "noopener noreferrer"); }
@@ -702,7 +705,7 @@ async function veraltet(id, r) {
 }
 
 document.addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  const b = e.target.closest("button"); if (!b || b.disabled || b.closest(".read")) return;
   const ds = b.dataset;
   const id = +(ds.toggle || ds.save || ds.cancel || ds.hide || ds.delete || 0);
   if (ds.bereich) {
