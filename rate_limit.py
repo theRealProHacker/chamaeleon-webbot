@@ -12,6 +12,9 @@ The rejection is rendered per endpoint, because flask-limiter rejects in
 - ``/kunde/auth`` → JSON ``{"authenticated": false}`` with status 429, **and the
   Kunden-Modus binding is cleared**. Skipping that unbind would make the
   endpoint fail open, which is exploitable from a shared egress IP.
+- everything else (/admin, /dashboard, the FAQ editor) → JSON ``{"error": …}``
+  with status 429. Those pages parse JSON; a 200 SSE body there would look
+  like a successful save.
 
 In-memory storage is correct only with a single worker process
 (WEB_CONCURRENCY=1, as deployed); with more workers the counters would not be
@@ -49,6 +52,10 @@ DASHBOARD_LIMIT = "300 per hour"
 # Admin actions kick off real work: a travel-index rebuild, a sitemap write, and
 # a PAID classification run. Tight on purpose.
 ADMIN_LIMIT = "30 per hour"
+
+# Schreibende Routen des FAQ-Editors (/admin/faq/…): eine Pflege-Sitzung
+# speichert weit oefter als 30-mal je Stunde, und ein Buero teilt sich eine IP.
+FAQ_EDIT_LIMIT = "300 per hour"
 
 # Flask endpoint names of the auth routes, mapped to the module that owns each
 # one's bindings. A 429 on either must still clear that binding — see
@@ -152,6 +159,15 @@ def _on_rate_limit(_exc: RateLimitExceeded) -> Response:
         # text/event-stream body would read as "not logged in" or throw.
         return Response(
             json.dumps({"authenticated": False}),
+            status=429,
+            mimetype="application/json",
+        )
+
+    if request.path != "/chat/stream":
+        # /admin, /dashboard und der FAQ-Editor lesen JSON. Ein 200 mit
+        # SSE-Rumpf saehe dort wie ein Erfolg aus, obwohl nichts geschah.
+        return Response(
+            json.dumps({"error": "Zu viele Anfragen, bitte kurz warten."}, ensure_ascii=False),
             status=429,
             mimetype="application/json",
         )

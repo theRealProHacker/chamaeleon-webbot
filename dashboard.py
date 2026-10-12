@@ -1140,6 +1140,67 @@ def admin_faq_sync_post():
     return jsonify(result), (200 if result["ok"] else 400)
 
 
+def _faq_antwort(aufruf, schreibend: bool = True):
+    """Editor-Route: aufruf(faq_sync, rumpf) -> JSON, Fehler als Satz fuer die Seite."""
+    import faq_sync
+
+    rumpf = None
+    if schreibend:
+        # JSON-Rumpf Pflicht: ein Formular auf einer fremden Seite kann kein
+        # application/json senden, ein fremdes fetch scheitert an der Vorabanfrage.
+        rumpf = request.get_json(silent=True) if request.is_json else None
+        if not isinstance(rumpf, dict):
+            return jsonify({"error": "Die Anfrage war unvollständig. Bitte die Seite neu laden."}), 400
+    try:
+        ergebnis = aufruf(faq_sync, rumpf)
+    except Exception as e:  # Supabase nicht erreichbar: nie ein nacktes 500
+        print(f"[faq-editor] {request.path} failed: {e}")
+        satz = "Speichern hat nicht geklappt" if schreibend else "Laden hat nicht geklappt"
+        return jsonify({"error": f"{satz}, bitte noch einmal versuchen."}), 502
+    status = ergebnis.pop("status", 200)
+    return jsonify(ergebnis), status
+
+
+@auth_required
+def admin_faq_zeilen():
+    return _faq_antwort(lambda f, _: f.editor_zeilen(), schreibend=False)
+
+
+@auth_required
+def admin_faq_anlegen():
+    return _faq_antwort(lambda f, d: f.anlegen(d))
+
+
+@auth_required
+def admin_faq_aendern(id: int):
+    return _faq_antwort(lambda f, d: f.aendern(id, d, d.get("updated_at")))
+
+
+@auth_required
+def admin_faq_loeschen(id: int):
+    return _faq_antwort(lambda f, _: f.loeschen(id))
+
+
+@auth_required
+def admin_faq_wiederherstellen(id: int):
+    return _faq_antwort(lambda f, _: f.wiederherstellen(id))
+
+
+@auth_required
+def admin_faq_verlauf(id: int):
+    return _faq_antwort(lambda f, _: f.verlauf(id), schreibend=False)
+
+
+@auth_required
+def admin_faq_fassung_zurueck(id: int, hid: int):
+    return _faq_antwort(lambda f, d: f.fassung_zurueck(id, hid, d.get("updated_at")))
+
+
+@auth_required
+def admin_faq_laden():
+    return _faq_antwort(lambda f, _: f.laden())
+
+
 # (path, view, methods, limit). The limit is applied in app.py, where the
 # Limiter lives. Every route here was previously unthrottled: `default_limits`
 # is empty, so a route without its own decorator has no limit at all — see the
@@ -1172,4 +1233,23 @@ routes = [
     ("/admin/sitemap", admin_sitemap_post, ["POST"], rate_limit.ADMIN_LIMIT),
     ("/admin/faq-sync", admin_faq_sync_get, ["GET"], rate_limit.DASHBOARD_LIMIT),
     ("/admin/faq-sync", admin_faq_sync_post, ["POST"], rate_limit.ADMIN_LIMIT),
+    # FAQ-Editor (docs/designs/admin-faq-editor.md); die Seite selbst folgt.
+    ("/admin/faq/zeilen", admin_faq_zeilen, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    ("/admin/faq/zeilen", admin_faq_anlegen, ["POST"], rate_limit.FAQ_EDIT_LIMIT),
+    ("/admin/faq/zeilen/<int:id>", admin_faq_aendern, ["POST"], rate_limit.FAQ_EDIT_LIMIT),
+    ("/admin/faq/zeilen/<int:id>/loeschen", admin_faq_loeschen, ["POST"], rate_limit.FAQ_EDIT_LIMIT),
+    (
+        "/admin/faq/zeilen/<int:id>/wiederherstellen",
+        admin_faq_wiederherstellen,
+        ["POST"],
+        rate_limit.FAQ_EDIT_LIMIT,
+    ),
+    ("/admin/faq/zeilen/<int:id>/verlauf", admin_faq_verlauf, ["GET"], rate_limit.DASHBOARD_LIMIT),
+    (
+        "/admin/faq/zeilen/<int:id>/verlauf/<int:hid>",
+        admin_faq_fassung_zurueck,
+        ["POST"],
+        rate_limit.FAQ_EDIT_LIMIT,
+    ),
+    ("/admin/faq/laden", admin_faq_laden, ["POST"], rate_limit.FAQ_EDIT_LIMIT),
 ]

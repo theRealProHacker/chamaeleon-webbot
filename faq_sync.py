@@ -11,6 +11,9 @@ blendet der Owner eine Zeile per ``ausgeblendet`` aus; der Sync aendert das nie.
     python faq_sync.py sync [--force]       /Infos -> website-Zeilen
     python faq_sync.py export               aktive Zeilen -> faqs/snapshot.json
 
+--replace bricht ohne --pflege-verwerfen immer ab: es verwirft die Pflege aus
+dem Editor unter /admin/faq (Funktionen unten ab editor_zeilen).
+
 Laufzeit: agent_base rendert beim Import den committeten Snapshot (Grundstand,
 auch fuer Tests und Evals); der Serverstart und der naechtliche Sync laden per
 ``load()`` aus Supabase. Scheitert das, bleibt der aktuelle Stand im Speicher.
@@ -309,6 +312,224 @@ def sync(force: bool = False) -> dict:
     return ergebnis
 
 
+# ── Editor unter /admin/faq (Plan: docs/designs/admin-faq-editor.md) ──
+# Jede schreibende Funktion nimmt _lock, liest die Zeilen frisch, prueft,
+# schreibt und laedt. Ergebnis ist ein dict fuer die Route: {ok, zeile, geladen,
+# historie_id} oder {error, feld, status} mit einem Satz fuer die Seite.
+
+HISTORY = "faq_history"
+EDITOR_FELDER = "id,quelle,kategorie,frage,antwort,position,aktiv,ausgeblendet,updated_at"
+INHALT = ("kategorie", "frage", "antwort", "ausgeblendet")
+MAX_FRAGE = 300
+MAX_ANTWORT = 4000  # jede intern-Antwort steht in jedem Chat-Prompt
+
+
+def _fehler(satz: str, feld: str | None = None, status: int = 400) -> dict:
+    return {"error": satz, "feld": feld, "status": status}
+
+
+def _sichtbar(r: dict) -> bool:
+    """Leon kennt die Zeile (dieselbe Bedingung wie in load())."""
+    return r["aktiv"] and not r["ausgeblendet"]
+
+
+def _alle() -> list[dict]:
+    return _supabase().table(TABLE).select(EDITOR_FELDER).order("position").order("id").execute().data
+
+
+def _naechste_position(alle: list[dict], quelle: str) -> int:
+    # Hoechste Position der Quelle + 1, geloeschte und ausgeblendete mitgezaehlt:
+    # sonst teilt sich eine wiederhergestellte Zeile die Position mit einer neuen.
+    start = LAND_POSITION if quelle == "land" else 0
+    return max((r["position"] for r in alle if r["quelle"] == quelle), default=start - 1) + 1
+
+
+def _neu(d: dict, alt: dict) -> dict:
+    """alt mit den Inhaltsfeldern aus d; Text getrimmt."""
+    neu = dict(alt)
+    for feld in INHALT:
+        if feld in d:
+            neu[feld] = d[feld].strip() if isinstance(d[feld], str) else d[feld]
+    return neu
+
+
+def _pruefen(neu: dict, alt: dict | None, alle: list[dict]) -> dict | None:
+    """Fehler-dict mit deutschem Satz oder None. alt ist None beim Anlegen."""
+    if neu["quelle"] not in ("intern", "land"):
+        return _fehler("Hier lassen sich nur interne Fragen und Länder-Fragen bearbeiten.")
+    if not isinstance(neu["ausgeblendet"], bool):
+        return _fehler("Ausblenden muss ja oder nein sein.", "ausgeblendet")
+    land = neu["quelle"] == "land"
+    for feld, name in (("kategorie", "ein Land" if land else "eine Kategorie"), ("frage", "eine Frage")):
+        wert = neu[feld]
+        if not isinstance(wert, str) or not wert:
+            return _fehler(f"Bitte {name} angeben.", feld)
+        # Ein Zeilenumbruch zerbraeche "**F: …**" und "## …" im Prompt.
+        if "\n" in wert or "\r" in wert:
+            return _fehler("Bitte ohne Zeilenumbruch schreiben.", feld)
+    if len(neu["frage"]) > MAX_FRAGE:
+        return _fehler(f"Die Frage ist zu lang (höchstens {MAX_FRAGE} Zeichen).", "frage")
+    if not isinstance(neu["antwort"], str):
+        return _fehler("Bitte eine Antwort schreiben.", "antwort")
+    if len(neu["antwort"]) > MAX_ANTWORT:
+        return _fehler(f"Die Antwort ist zu lang (höchstens {MAX_ANTWORT} Zeichen).", "antwort")
+    # Leer nur, solange die Zeile ausgeblendet ist und bleibt (importierte Notizen).
+    leer_ok = neu["ausgeblendet"] and (alt is None or alt["ausgeblendet"])
+    if not neu["antwort"] and not leer_ok:
+        return _fehler("Bitte eine Antwort schreiben. Ohne Antwort bleibt die Frage ausgeblendet.", "antwort")
+    # Vorhandene Zeilen mit anderem Wert (Tippfehler aus dem Table Editor) bleiben bearbeitbar.
+    if land and (alt is None or neu["kategorie"] != alt["kategorie"]) and neu["kategorie"] not in LAENDER:
+        return _fehler("Dieses Land gibt es nicht. Bitte eines aus der Liste wählen.", "kategorie")
+    andere = [r for r in alle if _sichtbar(r) and r["id"] != neu.get("id")]
+    if _sichtbar(neu):
+        # Schluesselraum von general_faq_data bzw. laender_faq_data: die zweite
+        # Zeile mit derselben Frage wuerde die erste still ersetzen.
+        raum = (
+            [r for r in andere if r["quelle"] == "land" and r["kategorie"] == neu["kategorie"]]
+            if land
+            else [r for r in andere if r["quelle"] in ("intern", "website")]
+        )
+        if any(r["frage"] == neu["frage"] for r in raum):
+            return _fehler("Diese Frage gibt es schon. Bitte die vorhandene Frage ändern.", "frage")
+    elif alt and alt["quelle"] == "intern" and _sichtbar(alt) and not any(r["quelle"] == "intern" for r in andere):
+        # Ohne sichtbare intern-Zeile scheitert load() und Leon bliebe unbemerkt alt.
+        return _fehler("Das ist die letzte sichtbare allgemeine Frage. Leon braucht mindestens eine.")
+    return None
+
+
+def _fertig(zeile: dict, historie_id: int | None) -> dict:
+    return {"ok": True, "zeile": zeile, "geladen": load(), "historie_id": historie_id}
+
+
+def _schreiben(id: int, neu_aus, updated_at: str | None = None, geloescht_ok: bool = False) -> dict:
+    """Gemeinsamer Weg aller Updates. neu_aus(alt, alle) -> Zielzustand oder Fehler-dict."""
+    with _lock:
+        alle = _alle()
+        alt = next((r for r in alle if r["id"] == id), None)
+        if not alt:
+            return _fehler("Diese Frage gibt es nicht mehr.", status=404)
+        if not alt["aktiv"] and not geloescht_ok:
+            # Sonst verschoebe jede Aenderung das "Geloescht am" (updated_at).
+            return _fehler("Diese Frage ist gelöscht. Bitte erst wiederherstellen.")
+        neu = neu_aus(alt, alle)
+        if fehler := neu if "error" in neu else _pruefen(neu, alt, alle):
+            return fehler
+        patch = {k: neu[k] for k in (*INHALT, "aktiv", "position") if neu[k] != alt[k]}
+        if not patch:
+            return {"ok": True, "zeile": alt, "geladen": True, "historie_id": None}
+        abfrage = _supabase().table(TABLE).update(patch).eq("id", id)
+        if updated_at is not None:
+            abfrage = abfrage.eq("updated_at", updated_at)
+        daten = abfrage.execute().data
+        if not daten:
+            return _fehler("Diese Frage wurde inzwischen geändert.", status=409)
+        # Der Eintrag, den der Trigger fuer genau dieses Update angelegt hat.
+        historie = (
+            _supabase().table(HISTORY).select("id").eq("faq_id", id)
+            .order("id", desc=True).limit(1).execute().data
+        )
+        return _fertig(daten[0], historie[0]["id"] if historie else None)
+
+
+def _stand_fehlt(updated_at) -> dict | None:
+    if not isinstance(updated_at, str) or not updated_at:
+        return _fehler("Bitte die Seite neu laden und noch einmal speichern.")
+    return None
+
+
+def editor_zeilen() -> dict:
+    """Alles, was die Seite zeigt: intern und land ganz, website nur, was Leon kennt."""
+    zeilen = [r for r in _alle() if r["quelle"] != "website" or _sichtbar(r)]
+    return {"zeilen": zeilen, "laender": LAENDER}
+
+
+def anlegen(d: dict) -> dict:
+    with _lock:
+        alle = _alle()
+        leer = {"quelle": d.get("quelle"), "kategorie": "", "frage": "", "antwort": "", "ausgeblendet": False, "aktiv": True}
+        neu = _neu(d, leer)
+        if fehler := _pruefen(neu, None, alle):
+            return fehler
+        neu |= {"extern_id": None, "position": _naechste_position(alle, neu["quelle"])}
+        return _fertig(_supabase().table(TABLE).insert(neu).execute().data[0], None)
+
+
+def aendern(id: int, d: dict, updated_at: str) -> dict:
+    """Inhalt aendern, auch Ausblenden. quelle aendert sich nie."""
+
+    def neu_aus(alt, alle):
+        if d.get("quelle", alt["quelle"]) != alt["quelle"]:
+            return _fehler("Eine Frage kann nicht zwischen Allgemein und Länder wechseln.")
+        neu = _neu(d, alt)
+        if neu["kategorie"] != alt["kategorie"]:
+            neu["position"] = _naechste_position(alle, alt["quelle"])  # ans Ende der Zielkategorie
+        return neu
+
+    return _stand_fehlt(updated_at) or _schreiben(id, neu_aus, updated_at)
+
+
+def loeschen(id: int) -> dict:
+    """Loeschen = aktiv false: umkehrbar, die frueheren Fassungen bleiben an der Frage."""
+    return _schreiben(id, lambda alt, alle: alt | {"aktiv": False}, geloescht_ok=True)
+
+
+def wiederherstellen(id: int) -> dict:
+    return _schreiben(id, lambda alt, alle: alt | {"aktiv": True}, geloescht_ok=True)
+
+
+def fassung_zurueck(id: int, historie_id: int, updated_at: str) -> dict:
+    """Inhalt einer frueheren Fassung zurueckholen; nie aktiv, quelle oder id."""
+
+    def neu_aus(alt, alle):
+        eintrag = _supabase().table(HISTORY).select("faq_id,alt").eq("id", historie_id).execute().data
+        if not eintrag or eintrag[0]["faq_id"] != id:
+            return _fehler("Diese frühere Fassung gehört nicht zu dieser Frage.", status=404)
+        frueher = eintrag[0]["alt"]
+        neu = alt | {feld: frueher[feld] for feld in INHALT}
+        if neu["kategorie"] != alt["kategorie"]:
+            neu["position"] = frueher["position"]  # der alte Platz ist frei: neue bekommen Maximum + 1
+        return neu
+
+    return _stand_fehlt(updated_at) or _schreiben(id, neu_aus, updated_at)
+
+
+def verlauf(id: int) -> dict:
+    """Fruehere Fassungen einer Frage, neueste zuerst."""
+    zeile = _supabase().table(TABLE).select(EDITOR_FELDER).eq("id", id).execute().data
+    if not zeile:
+        return _fehler("Diese Frage gibt es nicht mehr.", status=404)
+    eintraege = (
+        _supabase().table(HISTORY).select("id,alt,geaendert_am").eq("faq_id", id)
+        .order("id", desc=True).execute().data
+    )
+    fassungen, danach = [], zeile[0]
+    for e in eintraege:
+        # Loeschen, Wiederherstellen und Umsortieren aendern den Inhalt nicht:
+        # solche Eintraege waeren inhaltsgleiche "Fassungen".
+        if any(e["alt"][feld] != danach[feld] for feld in INHALT):
+            fassungen.append({"id": e["id"], "geaendert_am": e["geaendert_am"]} | {f: e["alt"][f] for f in INHALT})
+        danach = e["alt"]
+    return {"ok": True, "fassungen": fassungen}
+
+
+def laden() -> dict:
+    """load() unter der Sperre, fuer "Jetzt laden" nach einem gescheiterten Laden."""
+    with _lock:
+        return {"ok": True, "geladen": load(), "stand": status.get("load")}
+
+
+PFLEGE_VERWERFEN = (
+    "Abbruch: --replace löscht alle Zeilen dieser Quelle und legt sie mit neuen ids an.\n"
+    "Alles, was unter /admin/faq gepflegt wurde, geht verloren, und die früheren\n"
+    "Fassungen hängen danach an keiner Frage mehr. Wenn das gewollt ist:\n"
+    "zusätzlich --pflege-verwerfen angeben."
+)
+
+
+def replace_gesperrt(argv: list[str]) -> bool:
+    return "--replace" in argv and "--pflege-verwerfen" not in argv
+
+
 def import_md(replace: bool = False) -> int:
     """Einmalig: faqs/allgemein.md -> intern-Zeilen, mit Rundlauf-Pruefung."""
     with open("faqs/allgemein.md", encoding="utf-8") as f:
@@ -386,6 +607,8 @@ def export() -> int:
 
 if __name__ == "__main__":
     befehl = sys.argv[1] if len(sys.argv) > 1 else ""
+    if replace_gesperrt(sys.argv):
+        sys.exit(PFLEGE_VERWERFEN)
     if befehl == "import":
         print(f"{import_md('--replace' in sys.argv)} intern-Zeilen importiert")
     elif befehl == "import-laender":
