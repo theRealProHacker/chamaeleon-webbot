@@ -4,7 +4,7 @@ Bildet nach, was sql/faq.sql tut: ids aus der Identity, der Trigger schreibt
 bei jedem UPDATE die alte Zeile nach faq_history und setzt updated_at. Fuer
 Tests, die den ganzen Weg Route -> faq_sync gehen, und fuer die lokale Seite:
 
-    python tests/faq_attrappe.py        http://dev:dev@127.0.0.1:8766/admin/faq
+    python tests/faq_attrappe.py        http://127.0.0.1:8766/admin/faq (Login dev/dev)
 
 Die echte Tabelle wird dabei nie angefasst. Was die Attrappe nicht belegt:
 dass PostgREST den Filter auf updated_at genauso trifft.
