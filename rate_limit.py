@@ -37,6 +37,9 @@ import time
 from flask import Response, request
 from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
+from limits import parse
+from limits.storage import MemoryStorage
+from limits.strategies import MovingWindowRateLimiter
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from db_logging import log_messages, log_queue
@@ -56,6 +59,13 @@ ADMIN_LIMIT = "30 per hour"
 # Schreibende Routen des FAQ-Editors (/admin/faq/…): eine Pflege-Sitzung
 # speichert weit oefter als 30-mal je Stunde, und ein Buero teilt sich eine IP.
 FAQ_EDIT_LIMIT = "300 per hour"
+
+# Passolution-Abrufe (Einreisebestimmungen) je Person: eingeloggt die
+# Kundennummer, sonst die IP. Owner 2026-10-21: 30 am Tag bremst Abuser und
+# trifft echte Gäste kaum; kein Kurzzeitfenster, kein globales Limit, im
+# Agentur-Modus gar keins. Gezählt werden nur erfolgreiche Abrufe — Cache-
+# Treffer und Fehlschläge (503, Timeout) kosten kein Kontingent.
+PASSOLUTION_LIMITS = "30 per day"
 
 # Flask endpoint names of the auth routes, mapped to the module that owns each
 # one's bindings. A 429 on either must still clear that binding — see
@@ -119,13 +129,45 @@ _SSE_HEADERS = {
 }
 
 
+_LOOPBACK = ("127.0.0.1", "::1")
+
+
 def is_loopback() -> bool:
     """True for local requests (dev), which are exempt from rate limiting.
 
     Behind the Railway proxy remote_addr is the real client IP (never
     loopback), so production traffic is never exempt.
     """
-    return request.remote_addr in ("127.0.0.1", "::1")
+    return request.remote_addr in _LOOPBACK
+
+# Eigener Zähler neben flask-limiter: das Passolution-Tool läuft im
+# SSE-Generator, ohne Request-Kontext, und zählt nur nach einem Erfolg. Wie
+# oben In-Memory, also nur mit einem Worker richtig.
+_passolution_limit = parse(PASSOLUTION_LIMITS)
+_passolution_speicher = MemoryStorage()
+_passolution_zaehler = MovingWindowRateLimiter(_passolution_speicher)
+
+
+def passolution_schluessel(client_ip: str, kunden_id: str = "", agentur_id: str = "") -> str:
+    """Zählschlüssel für ``passolution_erlaubt``/``passolution_gezaehlt``.
+
+    ``kunde:<nr>`` im Kunden-Modus, sonst die IP. ``""`` heißt ausgenommen:
+    Agentur-Modus (O6), lokal oder Eval (``client_ip`` leer oder Loopback).
+    """
+    if agentur_id or not client_ip or client_ip in _LOOPBACK:
+        return ""
+    return f"kunde:{kunden_id}" if kunden_id else client_ip
+
+
+def passolution_erlaubt(schluessel: str) -> bool:
+    """True, solange ``schluessel`` noch Kontingent hat. Zählt nicht."""
+    return not schluessel or _passolution_zaehler.test(_passolution_limit, schluessel)
+
+
+def passolution_gezaehlt(schluessel: str) -> None:
+    """Einen erfolgreichen Abruf für ``schluessel`` zählen."""
+    if schluessel:
+        _passolution_zaehler.hit(_passolution_limit, schluessel)
 
 
 def _log_rejected_turn() -> None:
