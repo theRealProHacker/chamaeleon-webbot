@@ -790,6 +790,23 @@ def einreise_bloecke(roh: str) -> str | None:
     return "\n".join(zeilen)
 
 
+def nationalitaeten(unterlagen: object) -> list[str]:
+    """Staatsangehörigkeiten (ISO2) aus dem neuesten Einreise-PDF der Buchung.
+
+    Nur die Codes, ohne Namen oder Geburtsdaten; Reihenfolge wie im PDF.
+    ``[]`` ohne PDF, wenn es nicht lesbar ist oder keine Angabe trägt — dann
+    fragt Leon nach. Die Nationalität des Buchers aus ``/get/adresse`` ist
+    bewusst keine Quelle (Owner 2026-10-21, O5).
+    """
+    eintrag = dokumente_nach_slug(unterlagen).get("einreisebestimmungen")
+    inhalt = lesen(eintrag)[0] if eintrag else None
+    ergebnis = []
+    for nation in _NATION.findall(inhalt or ""):
+        if len(nation) == 2 and nation not in ergebnis:
+            ergebnis.append(nation)
+    return ergebnis
+
+
 def _nicht_gegliedert(eintrag: dict) -> str:
     dok_id = str(eintrag.get("id") or "")
     if dok_id not in _gemeldete_gliederung:

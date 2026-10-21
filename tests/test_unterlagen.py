@@ -492,6 +492,25 @@ def test_einreisebestimmungen_ein_block_je_nationalitaet(monkeypatch):
         assert draussen not in antwort, draussen
 
 
+def test_nationalitaeten_aus_dem_neuesten_einreise_pdf(monkeypatch):
+    aufrufe = fake_get(monkeypatch, fixture_bytes("einreisebestimmungen.pdf"))
+    unterlagen = [
+        eintrag(1, "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf", LINK + "-alt"),
+        eintrag(2, "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf"),
+        eintrag(3, "Teilnehmerdaten.pdf"),
+    ]
+    assert ul.nationalitaeten(unterlagen) == ["DE", "AT"]
+    assert [a["url"] for a in aufrufe] == [LINK]
+
+
+def test_nationalitaeten_ohne_pdf_oder_bei_ausfall_leer(monkeypatch):
+    aufrufe = fake_get(monkeypatch, requests.ConnectionError("weg"))
+    assert ul.nationalitaeten([eintrag(1, "Reiseunterlagen.pdf")]) == []
+    assert ul.nationalitaeten(None) == []
+    assert aufrufe == []
+    assert ul.nationalitaeten([eintrag(2, "Einreisebestimmungen.pdf")]) == []
+
+
 def test_einreisebestimmungen_ohne_personenzeile_nicht_gegliedert():
     assert ul.einreise_bloecke("Einreisebestimmungen\nZielland: Namibia\nVisum nötig.") is None
 
