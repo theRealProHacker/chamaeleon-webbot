@@ -45,6 +45,15 @@ model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.1
 )
 
+# Nur für das Nachfassen nach einer leeren Antwort (siehe _NACHFASS): ohne
+# Thinking kann ein Zug nicht nur aus Gedanken bestehen.
+model_ohne_denken = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=GEMINI_API_KEY,
+    temperature=0.1,
+    thinking_budget=0,
+)
+
 
 @tool(description=visa_tool_description)
 def visa_tool(country: str) -> str:
@@ -454,6 +463,24 @@ _MAX_VORFALL_ZEILEN = 5
 
 _RETRY_ZEITBUDGET_S = 6.0
 
+# Leere Antworten sind Züge, die nur aus Thinking bestehen: finish_reason STOP,
+# output_tokens == reasoning-Tokens (nachgestellt 2026-10-22 mit Prod-Verläufen,
+# 91 Fallbacks seit 08-05). Ein identischer Neustart kommt bei temperature=0.1
+# oft identisch leer zurück, und nach langen Tool-Läufen (9-14 s) gab es wegen
+# des 6-s-Budgets gar keinen. Deshalb wird nachgefasst statt neu gestartet: der
+# Stand samt Tool-Ergebnissen bleibt, nur die leere Nachricht fällt weg.
+_NACHFASS = (
+    "(Hinweis an dich: Deine letzte Antwort war leer. Antworte jetzt direkt auf "
+    "die letzte Nachricht des Gastes, mit dem, was du schon weißt oder nachgeschlagen hast.)"
+)
+
+# Nachfassen kostet ohne Thinking rund 1 s; das Widget bricht nach 30 s ab.
+_NACHFASS_ZEITBUDGET_S = 25.0
+
+# Auch ein kaputter Tool-Aufruf ohne Text ist kein Endzustand: mit dem Hinweis
+# ist die Eingabe eine andere. SAFETY & Co. bleiben endgültig.
+_NACHFASSBARE_FINISH_REASONS = {"", "MALFORMED_FUNCTION_CALL"}
+
 EMPTY_ANSWER_FALLBACK = (
     "Entschuldige, da ist mir gerade keine Antwort gelungen. "
     "Stell mir die Frage gerne noch einmal."
@@ -735,6 +762,10 @@ def call_stream(
     try:
         start = time.monotonic()
         angestossen = False
+        nachgefasst = False
+        # Was dieser Turn erzeugt, über alle Versuche: Nachfassen setzt auf dem
+        # Stand des vorigen Laufs auf, dessen Tool-Aufrufe sollen mitgespeichert werden.
+        turn_basis = len(chat_history)
         for versuch in range(1, _MAX_VERSUCHE + 1):
             tool_aufgerufen = False
             # Ab hier beginnt, was DIESER Lauf erzeugt. Davor liegen Verlauf und
@@ -844,6 +875,7 @@ def call_stream(
                 chat_history = [
                     SystemMessage(content=system_prompt)
                 ] + convert_messages_to_langchain(messages)
+                turn_basis = len(chat_history)
                 continue
 
             # Get the final response and extract the reply
@@ -883,15 +915,34 @@ def call_stream(
                 f"usage={getattr(letzte, 'usage_metadata', None)}"
             )
 
-            if grund_letzte or verstrichen > _RETRY_ZEITBUDGET_S:
+            if (
+                grund_letzte not in _NACHFASSBARE_FINISH_REASONS
+                or verstrichen > _NACHFASS_ZEITBUDGET_S
+            ):
                 break
+
+            stand = list(letztes_event["messages"]) if letztes_event else chat_history
+            if stand and stand[-1] is letzte and not isinstance(
+                letzte, (SystemMessage, HumanMessage, ToolMessage)
+            ):
+                stand = stand[:-1]
+            chat_history = stand + [HumanMessage(content=_NACHFASS)]
+            # Ein zweiter Zug mit Thinking nur, solange er billig ist; danach
+            # ohne, damit er sicher Text liefert.
+            if nachgefasst or verstrichen > _RETRY_ZEITBUDGET_S:
+                agent_executor = create_react_agent(model_ohne_denken, tools=tools)
+            nachgefasst = True
+
+        if nachgefasst and reply.strip():
+            print(f"[agent] leere Antwort durch Nachfassen gerettet, versuch={versuch}")
 
         # Tool-Historie speichern, VOR dem response-yield: danach wäre sie beim
         # Abbruch durch den Client (30-s-Abort des Widgets) verloren, gerade bei
-        # den langsamen, tool-lastigen Turns. Nur der letzte Versuch zählt; ohne
+        # den langsamen, tool-lastigen Turns. Gespeichert wird, worauf die Antwort
+        # aufbaut (bei Nachfassen auch die Tools des leeren Laufs); ohne
         # Antwort wird nichts erinnert, ein alter Eintrag des Turns fällt weg.
         if session_id:
-            neue = letztes_event["messages"][basis:] if letztes_event else []
+            neue = letztes_event["messages"][turn_basis:] if letztes_event else []
             verlauf = _tool_verlauf(neue, tool_names) if reply.strip() else []
             tool_history.save(
                 tool_history._store,

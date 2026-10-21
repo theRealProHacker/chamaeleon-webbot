@@ -314,12 +314,14 @@ def test_call_stream_fuegt_gespeicherte_turns_wieder_ein(monkeypatch):
     assert eingabe[3].tool_call_id == "call-1"
 
 
-def test_retry_speichert_nur_den_letzten_versuch(monkeypatch):
+def test_nachfassen_speichert_die_tool_schritte_beider_versuche(monkeypatch):
+    """Nach einer leeren Antwort wird auf dem Stand weitergemacht, nicht neu
+    gestartet: die Antwort stützt sich auf Ergebnis A UND B, also zählen beide."""
     _frischer_store(monkeypatch)
     _stub_executor(
         monkeypatch,
         [
-            [  # Versuch 1: Tool-Call A, aber leere Endantwort → Retry
+            [  # Versuch 1: Tool-Call A, aber leere Endantwort → Nachfassen
                 _ai_mit_toolcall("call-A", name="visa_tool"),
                 _toolmsg("call-A", "Ergebnis A", name="visa_tool"),
                 AIMessage(content=""),
@@ -343,7 +345,7 @@ def test_retry_speichert_nur_den_letzten_versuch(monkeypatch):
         if eintrag["typ"] == "ai_tool_calls"
         for tc in eintrag["tool_calls"]
     ]
-    assert ids == ["call-B"], f"nur der letzte Versuch zählt, gespeichert: {ids}"
+    assert ids == ["call-A", "call-B"], f"beide Versuche zählen, gespeichert: {ids}"
 
 
 def test_ohne_session_id_wird_nichts_gespeichert_und_nichts_eingefuegt(monkeypatch):

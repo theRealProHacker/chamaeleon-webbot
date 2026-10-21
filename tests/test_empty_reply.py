@@ -280,7 +280,7 @@ def test_normales_stop_wird_weiterhin_wiederholt(monkeypatch):
 
 def test_zeitbudget_stoppt_weitere_versuche(monkeypatch):
     """Ein langsamer Lauf darf den 30-Sekunden-Abbruch des Widgets nicht reißen."""
-    uhr = iter([0.0, agent._RETRY_ZEITBUDGET_S + 1.0, 99.0, 99.0])
+    uhr = iter([0.0, agent._NACHFASS_ZEITBUDGET_S + 1.0, 99.0, 99.0])
     monkeypatch.setattr(agent.time, "monotonic", lambda: next(uhr))
     executor, events = _run(monkeypatch, ["", "", ""])
     assert executor.runs == 1, "nach Überschreiten des Budgets kein weiterer Lauf"
@@ -317,7 +317,8 @@ def test_vorfallzeilen_sind_pro_versuch_gedeckelt(monkeypatch, capsys):
         for i in range(12)
     ]
     _run_stream(monkeypatch, [viele])
-    assert len(_vorfall_zeilen(capsys)) == agent._MAX_VORFALL_ZEILEN
+    erster = [z for z in _vorfall_zeilen(capsys) if "versuch=1/" in z]
+    assert len(erster) == agent._MAX_VORFALL_ZEILEN
 
 
 # --- Widget-Begrüßung vor der ersten Frage ------------------------------------
@@ -373,3 +374,95 @@ def test_modell_bekommt_die_begruessung_nicht_als_verlauf(monkeypatch):
     list(agent.call_stream([{"role": "assistant", "content": KUNDE_GRUSS}, FRAGE], "/"))
     typen = [type(m).__name__ for m in gesehen[0]]
     assert typen == ["SystemMessage", "HumanMessage"]
+
+
+# --- Nachfassen statt Neustart ------------------------------------------------
+#
+# Nachgestellt mit Prod-Verläufen (2026-10-22): leere Antworten sind reine
+# Thinking-Züge (STOP, output_tokens == reasoning). Nach langen Tool-Läufen gab
+# es wegen des 6-s-Budgets keinen zweiten Versuch, ein identischer Neustart kam
+# oft identisch leer zurück.
+
+
+def test_nachfassen_setzt_auf_dem_stand_auf(monkeypatch):
+    """Tool-Ergebnisse bleiben, die leere Nachricht fällt weg, ein Hinweis kommt dazu."""
+    tool_zug = _Msg(
+        "",
+        finish_reason="STOP",
+        tool_calls=[{"name": "termine_tool", "args": {"url_path": "/irland"}, "id": "t1"}],
+        msg_id="m0",
+    )
+    ergebnis = agent.ToolMessage(content="Termine", tool_call_id="t1")
+    leer = _Msg("", finish_reason="STOP", msg_id="m1")
+    eingaben = []
+
+    class _Ex:
+        runs = 0
+
+        def stream(self, state, stream_mode="values"):
+            eingaben.append(list(state["messages"]))
+            self.runs += 1
+            neu = [tool_zug, ergebnis, leer] if self.runs == 1 else [_Msg("Alles klar!")]
+            yield {"messages": list(state["messages"]) + neu}
+
+    executor = _Ex()
+    monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
+    events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
+
+    assert executor.runs == 2
+    zweite = eingaben[1]
+    assert tool_zug in zweite and ergebnis in zweite, "Tool-Ergebnisse müssen bleiben"
+    assert leer not in zweite, "die leere Nachricht darf nicht mitgehen"
+    assert isinstance(zweite[-1], agent.HumanMessage)
+    assert "Alles klar!" in _reply(events)
+
+
+def test_langsamer_leerer_lauf_wird_ohne_thinking_nachgefasst(monkeypatch):
+    """9-14 s Thinking nach Tools: früher kein zweiter Versuch, jetzt einer ohne Thinking."""
+    uhr = iter([0.0, agent._RETRY_ZEITBUDGET_S + 4.0] + [11.0] * 10)
+    monkeypatch.setattr(agent.time, "monotonic", lambda: next(uhr))
+    executor = _Executor(["", "Deine nächste Reise ist die Éire-Reise."])
+    modelle = []
+
+    def _graph(model, tools):
+        modelle.append(model)
+        return executor
+
+    monkeypatch.setattr(agent, "create_react_agent", _graph)
+    events = list(
+        agent.call_stream([{"role": "user", "content": "Wann geht's los?"}], "/")
+    )
+    assert executor.runs == 2
+    assert modelle == [agent.model, agent.model_ohne_denken]
+    assert "Éire" in _reply(events)
+
+
+def test_dritter_versuch_laeuft_ohne_thinking(monkeypatch):
+    executor = _Executor(["", "", "Alles klar!"])
+    modelle = []
+
+    def _graph(model, tools):
+        modelle.append(model)
+        return executor
+
+    monkeypatch.setattr(agent, "create_react_agent", _graph)
+    events = list(agent.call_stream([{"role": "user", "content": "okay"}], "/"))
+    assert executor.runs == 3
+    assert modelle == [agent.model, agent.model_ohne_denken]
+    assert "Alles klar!" in _reply(events)
+
+
+def test_malformed_ohne_text_wird_nachgefasst(monkeypatch):
+    kaputt = _Msg("", finish_reason="MALFORMED_FUNCTION_CALL", msg_id="m1")
+    executor = _Executor([""])
+
+    def _stream(state, stream_mode="values"):
+        executor.runs += 1
+        letzte = kaputt if executor.runs == 1 else _Msg("Alles klar!", finish_reason="STOP")
+        yield {"messages": list(state["messages"]) + [letzte]}
+
+    executor.stream = _stream
+    monkeypatch.setattr(agent, "create_react_agent", lambda *a, **kw: executor)
+    events = list(agent.call_stream([{"role": "user", "content": "Hallo"}], "/"))
+    assert executor.runs == 2
+    assert "Alles klar!" in _reply(events)
