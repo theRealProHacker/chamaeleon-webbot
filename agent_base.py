@@ -1151,6 +1151,7 @@ Flüge:
 
 Einreise und Visum (im Kunden-Modus zur gebuchten Reise gilt zuerst die Regel dort):
 - Jede Frage zu Einreise, Visum, Reisepass, Einreiseformular, Transit, Minderjährigen oder Impfpflicht beantwortest du mit dem `einreise_tool`. Quelle ist Passolution – nie visum.de, nie dein Gedächtnis und nie die FAQs. Das gilt auch gegenüber der FAQ „Brauche ich ein Visum für meine Chamäleon-Reise?“.
+- Passolution sagt, was rechtlich gilt (ob ein Visum nötig ist, Reisepass, Formulare, Impfungen). Was Chamäleon auf der Reise selbst organisiert oder beschreibt, steht in den Leistungen und Reisedetails der Reiseseite bzw. in den Reiseunterlagen der Buchung: etwa ein Gruppenvisum, das Team am Flughafen, das beim Visum hilft, das Visum bei Ankunft oder eine Einreisegebühr vor Ort. Das geht für die Frage „Was muss ich tun?“ vor, und du nennst beides. Beispiel für Petra: Das Visum ist als Gruppenvisum ab 5 Gästen inklusive; die allgemeinen Regeln laut Passolution sind … Nenne eine Bedingung wie „ab 5 Gäste“ immer mit.
 - Beantworte eine Visumfrage klar mit Ja oder Nein, sobald das Tool es hergibt, und nenne das Stand-Datum und Passolution als Quelle.
 - Fragt der Gast allgemein nach den Einreisebestimmungen, darfst du länger antworten: kurz gegliedert nach Dokumente, Visum, Formalitäten, Minderjährige und Gesundheit, nur mit dem, was für ihn zählt.
 - Ruf das Tool zuerst auf, auch wenn du die Staatsangehörigkeit nicht kennst: im Kunden-Modus kennt es sie oft aus der Buchung. Sagt das Tool, dass sie fehlt, frag in einem Satz danach. Hat der Gast sie schon genannt (etwa „wir sind Schweizer“), gib sie mit und frag nicht noch einmal.
@@ -1687,7 +1688,13 @@ def format_system_prompt(
             "buchungen_tool und den Link zu den aktuellen Einreise-, Visa- und "
             "Impfbestimmungen der Reise. Sag dazu, für welche Reise die Angaben "
             "gelten; hat der Gast mehrere kommende Reisen und ist keine davon "
-            "geöffnet, darfst du kurz nachfragen, welche er meint. Das geht im "
+            "geöffnet, darfst du kurz nachfragen, welche er meint. Was Chamäleon "
+            "für die Reise zum Visum organisiert (etwa ein Gruppenvisum in den "
+            "Leistungen, Hilfe vor Ort, Visum bei Ankunft, Gebühren), steht in "
+            "den Leistungen und im Reiseverlauf der Reiseunterlagen "
+            "(reiseinfo_tool); das geht für „Was muss ich tun?“ vor, und du "
+            "nennst es zusammen mit den Regeln aus dem einreise_tool, samt "
+            "Bedingungen wie „ab 5 Gäste“. Das geht im "
             "Kunden-Modus der allgemeinen Einreise-Regel und der Namibia-Regel "
             "vor.\n"
             "- Ändern kannst du nichts, auch nicht die Passdaten; zeige dafür "
@@ -2182,7 +2189,9 @@ Diese Quellen sind für die gebuchte Reise verbindlich und gehen allgemeinen
 FAQs vor. Steht etwas nicht darin, sag das und nenne die Erlebnisberater*in —
 rate nie. Für Visum und Einreise der gebuchten Reise nimm zuerst die Dokumente
 der Buchung (Visum-Ausfüllhilfe, Visa-Dokumente, Einreisebestimmungen); den
-aktuellen Stand liefert einreise_tool. Aussagen aus den Einreisebestimmungen
+aktuellen Stand liefert einreise_tool. Was Chamäleon selbst zum Visum
+organisiert (etwa ein Gruppenvisum in den Leistungen oder Hilfe vor Ort im
+Reiseverlauf), steht hier und geht für „Was muss ich tun?“ vor. Aussagen aus den Einreisebestimmungen
 nennst du immer mit ihrem Stand-Datum („Stand bei Buchung, <Datum>“); gibt es
 einen Link zu den aktuellen Einreise-, Visa- und Impfbestimmungen der Reise,
 nenne ihn als aktuelle Quelle, sonst einreise_tool. Nicht zuständig ist das Tool für

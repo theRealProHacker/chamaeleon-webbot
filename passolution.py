@@ -75,8 +75,11 @@ Reisedokumente, Einreiseformulare, Minderjährige, Transit und Impfpflicht,
 je Reiseland und Staatsangehörigkeit, mit Stand-Datum je Abschnitt.
 
 Nutze es bei JEDER Frage zu Einreise, Visum, Reisepass, Einreiseformular,
-Transit, Minderjährigen oder Impfpflicht. Es ist die einzige Quelle dafür,
-nicht visum.de, nicht die FAQs und nicht dein Gedächtnis.
+Transit, Minderjährigen oder Impfpflicht. Für die Regeln ist es die einzige
+Quelle, nicht visum.de, nicht die FAQs und nicht dein Gedächtnis. Was
+Chamäleon auf der Reise selbst organisiert (etwa ein Gruppenvisum oder Hilfe
+beim Visum vor Ort), steht in den Leistungen und Reisedetails der Reise und
+kommt dazu.
 
 Parameter (beide optional, ISO2-Codes durch Komma getrennt):
 - laender: die Reiseländer, zum Beispiel CO für Kolumbien oder BW,NA,ZW. Leer
@@ -426,6 +429,73 @@ def _gebuchte_reise(kunden_id: str, reise_vorgang: str) -> dict | None:
     return buchung
 
 
+# Was Chamäleon selbst zum Visum organisiert oder beschreibt, steht in einzelnen
+# Zeilen: „Gruppenvisum (ab 5 Gäste)“ in den Leistungen von Petra, die Hilfe
+# des Teams am Flughafen Kairo und die Einreisegebühr nach Guatemala in den
+# Reisedetails (gemessen 2026-10-22). Nur diese Zeilen gehen mit, nie die
+# Seite: nur mit Prompt rief Gemini die Leistungen nie ab und schickte den
+# Petra-Gast zum E-Visum (Eval 2026-10-22, 0 von 3). Ohne „Visa“: das träfe
+# auch die Kreditkarte („Visa und Mastercard“).
+_CHAMAELEON_VISUM = re.compile(
+    r"visum|einreisegebühr|ausreisegebühr|arrival card|touristenkarte", re.IGNORECASE
+)
+MAX_ZEILE = 400
+MAX_CHAMAELEON_ZEICHEN = 1_500
+CHAMAELEON_KOPF = (
+    "Was Chamäleon auf dieser Reise selbst zum Visum organisiert oder "
+    "beschreibt ({quelle}). Das geht für „Was muss ich tun?“ vor: nenne es "
+    "zuerst, mit Bedingungen wie „ab 5 Gäste“, und danach die Regeln laut "
+    "Passolution."
+)
+
+
+def _visum_zeilen(texte: list[str]) -> list[str]:
+    """Die Zeilen aus ``texte``, die vom Visum oder Gebühren an der Grenze sprechen."""
+    zeilen: list[str] = []
+    laenge = 0
+    for text in texte:
+        for zeile in str(text or "").split("\n"):
+            zeile = re.sub(r"\s+", " ", zeile.replace("*", "")).strip(" -")
+            if not zeile or not _CHAMAELEON_VISUM.search(zeile) or zeile in zeilen:
+                continue
+            zeile = zeile[:MAX_ZEILE]
+            if laenge + len(zeile) > MAX_CHAMAELEON_ZEICHEN:
+                return zeilen
+            zeilen.append(zeile)
+            laenge += len(zeile)
+    return zeilen
+
+
+def chamaeleon_zum_visum_seite(seitenpfad: str) -> list[str]:
+    """Visum-Zeilen aus Leistungen und Reisedetails der Reiseseite. Wirft nie."""
+    try:
+        _titel, markdown = agent_base.seite_markdown(seitenpfad)
+        return _visum_zeilen(
+            [agent_base.seiten_abschnitt(markdown, a) or "" for a in ("leistungen", "reisedetails")]
+        )
+    except Exception as e:
+        print(f"[passolution] reiseseite failed: {type(e).__name__}")
+        return []
+
+
+def chamaeleon_zum_visum_buchung(buchung: dict) -> list[str]:
+    """Visum-Zeilen aus Leistungen und Reiseverlauf der Reiseunterlagen
+    (sonst Reisebestätigung) der Buchung. Wirft nie."""
+    try:
+        haupt = unterlagen.quelle_auto(buchung.get("unterlagen"))
+        inhalt = unterlagen.lesen(haupt)[0] if haupt else None
+        gl = unterlagen.gliedern(inhalt) if inhalt else None
+        if not gl:
+            return []
+        return _visum_zeilen(
+            [t["text"] for t in gl["abschnitte"].get("leistungen", [])]
+            + [t["text"] for t in gl["tage"]]
+        )
+    except Exception as e:
+        print(f"[passolution] unterlagen failed: {type(e).__name__}")
+        return []
+
+
 def einreise_antwort(
     laender: str,
     nationalitaeten: str,
@@ -514,6 +584,13 @@ def einreise_antwort(
         kopf.append(f"Persönlicher, laufend aktualisierter Link zu den Bestimmungen der Reise: {tripurl}")
     if buchung is not None:
         kopf += _visa_dokumente(buchung)
+        chamaeleon, quelle = chamaeleon_zum_visum_buchung(buchung), "Reiseunterlagen der Buchung"
+    elif seitenpfad:
+        chamaeleon, quelle = chamaeleon_zum_visum_seite(seitenpfad), f"Reiseseite {seitenpfad}"
+    else:
+        chamaeleon, quelle = [], ""
+    if chamaeleon:
+        kopf += ["", CHAMAELEON_KOPF.format(quelle=quelle)] + [f"- {z}" for z in chamaeleon]
     return "\n".join(hinweise + kopf + ["", text])
 
 

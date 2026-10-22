@@ -1,5 +1,6 @@
 """Verhaltens-Eval: Einreise und Visum aus Passolution (Design
-passolution-einreise, §7 Fälle 1–6 und 5a).
+passolution-einreise, §7 Fälle 1–6 und 5a; 7–9: was Chamäleon selbst zum
+Visum organisiert, steht neben den Passolution-Regeln).
 
 Jeder Fall ist ein Live-Aufruf von Gemini. Passolution ist gemockt: die
 Antworten sind echte Bodies aus tests/fixtures/passolution/ (nur Länderregeln),
@@ -46,10 +47,17 @@ _HOST = "https://unterlagen.chamaeleon-reisen.de/eval/"
 
 KOLUMBIEN = "/Amerika/Kolumbien/San-Agustin"
 CAPRIVI = "/Afrika/Botswana-Namibia/Caprivi"
+# Live-Reiseseiten (Website-Tool ungemockt): Petra führt „Gruppenvisum (ab 5
+# Gäste)“ in den Leistungen, Nofretete die Hilfe des Teams am Flughafen Kairo
+# in den Reisedetails (gemessen 2026-10-22).
+PETRA = "/Asien/Jordanien/Petra"
+NOFRETETE = "/Afrika/Aegypten/Nofretete"
 KUNDEN_ID = "TEST_KUNDE_EINREISE"
 BN = "9900002"
 KUNDEN_ENDPOINT = f"https://www.chamaeleon-reisen.de/MeinChamaeleon/Reise?VRRVORGANG={BN}"
 TRIPURL = "https://travel-details.eu/de?tid=TEST-TEST-0001"
+# Erfundene Reiseunterlagen einer Petra-Buchung als Text (kein echter Kunde).
+REISEUNTERLAGEN_JOPET = {"id": "15", "name": "Reiseunterlagen.pdf", "link": _HOST + "reiseunterlagen_jopet.txt"}
 
 AUSFUELLHILFE = {"id": "13", "name": "Visum Ausfüllhilfen.pdf", "link": _HOST + "visum_ausfuellhilfen.pdf"}
 EINREISE = {"id": "12", "name": "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf",
@@ -94,10 +102,13 @@ def passolution_gemockt(monkeypatch, ausfall: bool = False) -> list:
 
     monkeypatch.setattr(passolution, "_abrufen", abrufen, raising=False)
     monkeypatch.setattr(passolution, "_tripurl_daten", lambda tid: None, raising=False)
-    monkeypatch.setattr(passolution, "_reise_laender", lambda code: ["NA"], raising=False)
+    monkeypatch.setattr(
+        passolution, "_reise_laender", lambda code: ["JO"] if code == "JOPET" else ["NA"], raising=False
+    )
+    seiten = {"Caprivi": ["BW", "NA", "ZW"], "Kolumbien/": ["CO"], "Jordanien/": ["JO"], "Aegypten/": ["EG"]}
     monkeypatch.setattr(
         passolution, "laender_der_seite",
-        lambda pfad: ["BW", "NA", "ZW"] if "Caprivi" in pfad else (["CO"] if "Kolumbien/" in pfad else []),
+        lambda pfad: next((codes for teil, codes in seiten.items() if teil in pfad), []),
         raising=False,
     )
     return abrufe
@@ -107,11 +118,14 @@ def _datum(tage: int) -> str:
     return (datetime.date.today() + datetime.timedelta(days=tage)).strftime("%Y-%m-%d 00:00:00")
 
 
-def buchung_einrichten(monkeypatch, eintraege: list, tripurl: str = "") -> None:
-    """Erfundene, eigene Namibia-Buchung in 40 Tagen; PDFs aus den Fixtures."""
-    eingebettet = {"vorgang": BN, "vonDat": _datum(40), "bisDat": _datum(52), "reiseCode": "NAWDH"}
+def buchung_einrichten(
+    monkeypatch, eintraege: list, tripurl: str = "",
+    reise_code: str = "NAWDH", titel: str = "Namibia – Zauber der Weite",
+) -> None:
+    """Erfundene, eigene Buchung in 40 Tagen (Standard Namibia); PDFs aus den Fixtures."""
+    eingebettet = {"vorgang": BN, "vonDat": _datum(40), "bisDat": _datum(52), "reiseCode": reise_code}
     roh = dict(
-        eingebettet, status="OK", beschreibungen=[{"titel": "Namibia – Zauber der Weite"}],
+        eingebettet, status="OK", beschreibungen=[{"titel": titel}],
         persAdult=2, flugdaten=[], tripurl=tripurl,
         unterlagen=[dict(e, beschreibung="") for e in eintraege],
     )
@@ -124,6 +138,16 @@ def buchung_einrichten(monkeypatch, eintraege: list, tripurl: str = "") -> None:
             return f.read()
 
     monkeypatch.setattr(unterlagen, "_laden", laden)
+    # Text-Fixtures (.txt) statt PDF: an pypdf vorbei, direkt als Text.
+    original = unterlagen.text
+
+    def text(dok_id, link):
+        if link.endswith(".txt"):
+            with open(os.path.join(_UNTERLAGEN, link.rsplit("/", 1)[1]), encoding="utf-8") as f:
+                return f.read()
+        return original(dok_id, link)
+
+    monkeypatch.setattr(unterlagen, "text", text)
 
 
 def website(verlauf: list, endpoint: str) -> str:
@@ -195,3 +219,52 @@ def test_6_ausfall_verweist_auf_reiseseite(monkeypatch):
     assert re.search(r"San-Agustin|Reiseseite|Erlebnisberat", reply), reply
     assert "visum.de" not in reply, reply
     assert not re.search(r"Fehler", reply), reply
+
+
+# Ein Antrag als Hauptweg: „beantrage … e-Visum“, „über das Portal … beantragen“.
+# Passolution nennt E-Visum und Visum bei Ankunft; das darf dastehen, aber
+# nicht vor dem Gruppenvisum als das, was der Gast tun soll.
+ANTRAG = re.compile(r"beantrag|\be-?visum|eservices", re.IGNORECASE)
+
+
+def _gruppenvisum_zuerst(reply: str) -> None:
+    gruppe = re.search(r"Gruppenvisum", reply, re.IGNORECASE)
+    assert gruppe, reply
+    # „ab 5 Gäste“, „sofern mindestens 5 Gäste teilnehmen“, „ab fünf Reisenden“.
+    assert re.search(r"\b(5|fünf)\s+(Gäst|Gaest|Teilnehm|Reisend|Person)", reply, re.IGNORECASE), reply
+    antrag = ANTRAG.search(reply)
+    assert not antrag or antrag.start() > gruppe.start(), reply
+
+
+def test_7_petra_gruppenvisum_neben_passolution(monkeypatch):
+    passolution_gemockt(monkeypatch)
+    reply = website(_frage("Brauche ich ein Visum für Jordanien? Wir sind Deutsche."), PETRA)
+    _gruppenvisum_zuerst(reply)
+    assert not NACH_NATIONALITAET.search(reply), reply
+    assert "visum.de" not in reply, reply
+
+
+def test_8_nofretete_hilfe_in_kairo_und_regeln(monkeypatch):
+    passolution_gemockt(monkeypatch)
+    reply = website(_frage("Brauche ich ein Visum für Ägypten? Wir sind Deutsche."), NOFRETETE)
+    # Die Hilfe vor Ort, nicht nur Passolutions „Visum bei Ankunft“.
+    assert re.search(r"Partneragentur|Mitarbeiter|Team|behilflich|in Empfang|empfängt|hilft", reply, re.I), reply
+    assert re.search(r"Passolution", reply), reply
+    assert not NACH_NATIONALITAET.search(reply), reply
+    assert "visum.de" not in reply, reply
+
+
+def test_9_kunde_jopet_gruppenvisum_aus_den_unterlagen(monkeypatch):
+    passolution_gemockt(monkeypatch)
+    monkeypatch.setattr(
+        passolution, "_tripurl_daten",
+        lambda tid: {"destinations": ["JO"], "nationalities": ["DE"]}, raising=False,
+    )
+    buchung_einrichten(
+        monkeypatch, [REISEUNTERLAGEN_JOPET], tripurl=TRIPURL,
+        reise_code="JOPET", titel="Jordanien – Petra",
+    )
+    reply = call(_frage("Brauche ich ein Visum für Jordanien?"), KUNDEN_ENDPOINT, kunden_id=KUNDEN_ID)
+    _gruppenvisum_zuerst(reply)
+    assert not NACH_NATIONALITAET.search(reply), reply
+    assert "visum.de" not in reply, reply

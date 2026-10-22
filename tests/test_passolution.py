@@ -23,8 +23,10 @@ CAPRIVI = (
 @pytest.fixture(autouse=True)
 def frischer_cache():
     passolution.laender_der_seite.cache_clear()
+    agent_base.seite_markdown.cache_clear()
     yield
     passolution.laender_der_seite.cache_clear()
+    agent_base.seite_markdown.cache_clear()
 
 
 def seite(monkeypatch, antwort):
@@ -280,3 +282,50 @@ def test_reiseseite_ergaenzt_laender_aus_der_url(api, monkeypatch, zaehler):
     assert aufrufe[0][1]["countries"] == "BW,NA,ZW"
     passolution.einreise_antwort("CO", "DE", endpoint="/Afrika/Botswana-Namibia/Caprivi")
     assert aufrufe[1][1]["countries"] == "CO"  # fremdes Land bleibt allein
+
+
+# --- Was Chamäleon selbst zum Visum organisiert ------------------------------
+
+PETRA = (
+    '<main><div data-passolution-covid-info=\'{"laendercodes": "JO"}\'></div>'
+    "<h2>Reiseverlauf</h2><p>Tag 1: Amman</p>"
+    "<h2>Leistungen</h2><ul><li>7 Übernachtungen</li><li>Gruppenvisum (ab 5 Gäste)</li></ul>"
+    "<h2>Termine &amp; Preise</h2><p>Visum ist hier nicht gemeint</p></main>"
+)
+
+
+def test_reiseseite_nennt_gruppenvisum_vor_den_regeln(api, monkeypatch, zaehler):
+    api(_antwort(200, _body("all_text_ca_eg_jo_de.json")))
+    seite(monkeypatch, PETRA)
+    text = passolution.einreise_antwort("", "DE", endpoint="/Asien/Jordanien/Petra")
+    assert "- Gruppenvisum (ab 5 Gäste)" in text and "Termine" not in text.split("## ")[0]
+    assert text.index("Gruppenvisum") < text.index("## Jordanien (JO)")
+
+
+def test_reiseseite_ohne_visumzeile_und_ausfall_ohne_block(api, monkeypatch, zaehler):
+    api(_antwort(200, _body("all_text_co_de.json")), _antwort(200, _body("all_text_co_de.json")))
+    seite(monkeypatch, '<main><h2>Leistungen</h2><ul><li>Flug</li></ul></main>')
+    text = passolution.einreise_antwort("CO", "DE", endpoint="/Amerika/Kolumbien/San-Agustin")
+    assert "selbst zum Visum" not in text and "## Kolumbien (CO)" in text
+    agent_base.seite_markdown.cache_clear()
+    seite(monkeypatch, requests.ConnectionError("weg"))
+    text = passolution.einreise_antwort("CO", "DE", endpoint="/Amerika/Kolumbien/Andere")
+    assert "selbst zum Visum" not in text and "## Kolumbien (CO)" in text
+
+
+def test_kunde_gruppenvisum_aus_den_reiseunterlagen(api, kunde, monkeypatch, zaehler):
+    with open(os.path.join(os.path.dirname(_FIX), "unterlagen", "reiseunterlagen_jopet.txt"), encoding="utf-8") as f:
+        jopet = f.read()
+    kunde["unterlagen"] = [{"id": "15", "name": "Reiseunterlagen.pdf",
+                            "link": "https://unterlagen.chamaeleon-reisen.de/x/ru.pdf"}]
+    monkeypatch.setattr(unterlagen, "lesen", lambda eintrag: (jopet, ""))
+    api(_antwort(200, _body("travel_details_synthetisch.json")), _antwort(200, _body("all_text_ca_eg_jo_de.json")))
+    text = _kunden_antwort()
+    assert "Reiseunterlagen der Buchung" in text and "- Gruppenvisum (ab 5 Gäste)" in text
+
+
+def test_visum_zeilen_gedeckelt():
+    zeilen = passolution._visum_zeilen([f"Visum {i} " + "x" * 1000 for i in range(5)])
+    assert len(zeilen) == 3 and sum(map(len, zeilen)) <= passolution.MAX_CHAMAELEON_ZEICHEN
+    assert passolution._visum_zeilen(["**Gruppenvisum** (ab 5 Gäste)", "Flug"]) == ["Gruppenvisum (ab 5 Gäste)"]
+    assert all(len(z) <= passolution.MAX_ZEILE for z in zeilen)
