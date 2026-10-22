@@ -118,7 +118,7 @@ Design: `docs/designs/unterlagen-tripurl-leon2.md`. Code: `unterlagen.py`.
 
 ## What reaches Gemini (the boundary that matters)
 
-In Kunden-Modus exactly four things go into the model request:
+In Kunden-Modus exactly five things go into the model request:
 
 1. **The system prompt's `kunden_modus_block`** — instruction text (read-only
    access, when to call which tool, what to defer to the Erlebnisberater). Since
@@ -140,6 +140,20 @@ In Kunden-Modus exactly four things go into the model request:
    Hop 1 above). That does **not** widen this boundary: the index holds the public
    website catalogue, so the substituted value is public data keyed by a code the
    booking already supplied — the same one field, more readable.
+5. **The `einreise_tool` result** (since 2026-10-22, `passolution.py`) — the
+   Passolution entry/visa/health text per destination × nationality, headed
+   "… – für Staatsangehörige XX", with the label of the booked trip it applies
+   to, plus what Chamäleon organises for the visa (from the trip's Leistungen).
+   The
+   travellers' nationality is resolved **server-side** inside the tool closure:
+   first from the booking's TripURL (`GET /travel-details/{tid}`, `nationalities`),
+   else from the "Einreisebestimmungen Zeitpunkt der Reiseanmeldung.pdf"
+   (`unterlagen.nationalitaeten`, ISO2 only, no names or dates of birth), else the
+   bot asks. It is never sent as a value or tool parameter; the model sees only
+   the labelled rule text, as with the Einreise-PDF blocks before. The booker's
+   `/get/adresse.nationalitaet` stays outside the whitelist (Owner 2026-10-21).
+   Passolution itself receives only country and nationality ISO2 codes and the
+   language — no IP, name or booking number.
 
 ### Structurally excluded from Gemini
 

@@ -231,16 +231,6 @@ Die Kürzel (T-A, T-B, D21, A0–A4) stammen aus dem gelöschten Plan:
 Die Kürzel (F1–F11, W5, D13) stammen aus dem gelöschten Plan:
 `git show 58737df^:docs/kundenfeedback-2026-09-plan.md`.
 
-- [ ] **Passolution-API als Stufe 2 (Eng-Review 2026-09-27, D8).** Das Design
-      `docs/designs/unterlagen-tripurl-leon2.md` verlinkt die TripURL nur. Die
-      Passolution Dataservice API (`api.passolution.eu/api/v2`,
-      `/content/all/text?lang=de&countries=..&nat=..`, Fließtext, kein
-      Visum-JSON) braucht einen Bearer-Token, den Passolution auf Anfrage
-      ausstellt (kein Self-Service). Owner-Entscheidung 2026-09-27: vorerst
-      nur verlinken, kein Token anfragen, keine Mail an Johannes. Wieder
-      aufnehmen erst, wenn das Verlinken nicht reicht. Start: Token in `.env`, `passolution_tool(land, nat)` neben `visa_tool`,
-      Nationalität DE angenommen. Alternative im Zwei-Wochen-Fenster: TripURL
-      headless rendern (geprüft 2026-09-27, Vue-App, Schnellübersicht je Land).
 - [ ] **Passdaten-Eintragen und Doppel-Buchungsnummer (Eng-Review 2026-09-27,
       D10).** (a) Rund zehn MeinChamäleon-Chats seit Juli: Gäste finden das
       Feld für ihre Passdaten nicht, der Bot antwortet inkonsistent
