@@ -29,8 +29,6 @@ from agent_base import (
     berater_tool_description,
     termine_tool_base,
     termine_tool_description,
-    visa_tool_base,
-    visa_tool_description,
     website_tool_description,
     website_tool_multi,
 )
@@ -54,12 +52,6 @@ model_ohne_denken = ChatGoogleGenerativeAI(
     temperature=0.1,
     thinking_budget=0,
 )
-
-
-@tool(description=visa_tool_description)
-def visa_tool(country: str) -> str:
-    """LangChain tool wrapper for the visa tool."""
-    return visa_tool_base(country)
 
 
 @tool(description=website_tool_description)
@@ -738,7 +730,7 @@ def call_stream(
     recommendations = set[str]()
 
     # Einreise und Visum: Passolution statt visum.de (Design
-    # passolution-einreise). Ersetzt visa_tool in der Liste; zwei Tools für
+    # passolution-einreise). Ersetzt das frühere visa_tool; zwei Tools für
     # dieselbe Frage änderten die Toolwahl von Gemini.
     tools = [
         passolution.make_einreise_tool(
