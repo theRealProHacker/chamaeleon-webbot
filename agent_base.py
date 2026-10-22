@@ -40,6 +40,17 @@ trip_sites: list[str] = []
 all_countries: dict[str, str] = {}
 
 
+def umlaute(url_teil: str) -> str:
+    """URL-Schreibweise eines Landes -> Name (Suedafrika -> Südafrika)."""
+    return (
+        url_teil.replace("ae", "ä")
+        .replace("Ae", "Ä")
+        .replace("ue", "ü")
+        .replace("aü", "aue")
+        .replace("oss", "oß")
+    )
+
+
 def _parse_sitemap(text: str) -> tuple[list[str], list[str], dict[str, str]]:
     """Parse sitemap text into (all_sites, trip_sites, all_countries).
 
@@ -58,13 +69,7 @@ def _parse_sitemap(text: str) -> tuple[list[str], list[str], dict[str, str]]:
                 parsed_trips.append(line)
             elif recording_trip_sites and line.count("/") == 2:
                 country = line.split("/")[-1]
-                parsed_countries[country] = (
-                    country.replace("ae", "ä")
-                    .replace("Ae", "Ä")
-                    .replace("ue", "ü")
-                    .replace("aü", "aue")
-                    .replace("oss", "oß")
-                )
+                parsed_countries[country] = umlaute(country)
         elif line == "## Reiseziele":
             recording_trip_sites = True
         elif line == "## Nachhaltigkeit":
@@ -1781,7 +1786,7 @@ def format_system_prompt(
     laenderspezifische_faqs = ""
     if countries:
         laenderspezifische_faqs += (
-            "Diese Länder wurden im Chatverlauf erkannt und hier sind ihre FAQs, "
+            "Diese Länder wurden im Chatverlauf oder auf der aktuellen Seite erkannt und hier sind ihre FAQs, "
             "auf die du auch durch das country_faq_tool hättest zugreifen können.\n"
             f"{nur_auf_frage}\n\n"
         )

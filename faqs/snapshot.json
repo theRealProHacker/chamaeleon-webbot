@@ -304,6 +304,14 @@
   "position": 37
  },
  {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Reiseunterlagen & Flüge",
+  "frage": "Kann ich bei Reisen mit Singapore Airlines (Borneo, Neuseeland, Komodo) Sitzplätze reservieren?",
+  "antwort": "Bei allen Reisen mit Singapore Airlines (SQ) – [Borneo](/Asien/Singapur-Malaysia/Borneo) (MYBOR), [Neuseeland](/Ozeanien/Neuseeland/Queen-Charlotte) (NZQUE) und [Komodo](/Asien/Indonesien/Komodo) (IDKOM) – können wir in der Economy Class leider keine Sitzplatzreservierungen vornehmen. In der Premium Economy und der Business Class reservieren wir deine Sitzplätze kostenfrei.",
+  "position": 38
+ },
+ {
   "quelle": "website",
   "extern_id": "CHA-T-FAQ-35",
   "kategorie": "Buchung deiner Chamäleon-Reise",
@@ -2500,7 +2508,7 @@
   "extern_id": null,
   "kategorie": "Malaysia",
   "frage": "Ist eine Sitzplatzreservierung möglich?",
-  "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
+  "antwort": "In der Economy ist keine vorzeitige Sitzplatzreservierung möglich. In Premium Economy und Business Class ist es möglich.",
   "position": 2235
  },
  {
@@ -2508,7 +2516,7 @@
   "extern_id": null,
   "kategorie": "Malaysia",
   "frage": "Was kostet eine Sitzplatzreservierung?",
-  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzp",
+  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Business Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
   "position": 2236
  },
  {
@@ -2580,7 +2588,7 @@
   "extern_id": null,
   "kategorie": "Neuseeland",
   "frage": "Ist eine Sitzplatzreservierung möglich?",
-  "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
+  "antwort": "In der Economy ist keine vorzeitige Sitzplatzreservierung möglich. In Premium Economy und Business Class ist es möglich.",
   "position": 2245
  },
  {
@@ -2588,7 +2596,7 @@
   "extern_id": null,
   "kategorie": "Neuseeland",
   "frage": "Was kostet eine Sitzplatzreservierung?",
-  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
+  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Business Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
   "position": 2246
  },
  {
@@ -2812,7 +2820,7 @@
   "extern_id": null,
   "kategorie": "Indonesien",
   "frage": "Ist eine Sitzplatzreservierung möglich?",
-  "antwort": "In der Economy ist keine vorzeitige Sitzplatzresrevierung möglich. In Premium Economy und Business Class ist es möglich.",
+  "antwort": "In der Economy ist keine vorzeitige Sitzplatzreservierung möglich. In Premium Economy und Business Class ist es möglich.",
   "position": 2274
  },
  {
@@ -2820,7 +2828,7 @@
   "extern_id": null,
   "kategorie": "Indonesien",
   "frage": "Was kostet eine Sitzplatzreservierung?",
-  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Businss Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
+  "antwort": "Eine Sitzplatzreservierung in der Premium Economy und Business Class ist kostenfrei vorab möglich. In Economy ist keine vorzeitige Sitzplatzreservierung möglich.",
   "position": 2275
  },
  {

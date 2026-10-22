@@ -147,7 +147,21 @@ EXPECTED_KEYWORDS_GENERAL_FAQ = {
         "vorgangsnummer",
         "erlebnisberatung@chamaeleon-reisen.de",
     ],
+    "Kann ich bei Reisen mit Singapore Airlines (Borneo, Neuseeland, Komodo) Sitzplätze reservieren?": [
+        "economy",
+        "premium economy",
+        "business",
+        "kostenfrei",
+    ],
 }
+
+# Singapore-Airlines-Reisen: Auf der Reiseseite, ohne dass der Gast das Land
+# nennt, sagte Leon "ab 20 € pro Person" (Website-FAQ) statt Economy nein.
+SQ_REISESEITEN = [
+    "/Asien/Singapur-Malaysia/Borneo",
+    "/Ozeanien/Neuseeland/Queen-Charlotte",
+    "/Asien/Indonesien/Komodo",
+]
 
 COUNTRY_EXPECTED_KEYWORDS = {
     # === AFRIKA ===
@@ -720,6 +734,14 @@ def test_allgemein(frage):
 )
 def test_land(frage):
     _pruefe(frage, COUNTRY_EXPECTED_KEYWORDS[frage])
+
+
+@live
+@pytest.mark.parametrize("seite", SQ_REISESEITEN)
+def test_sitzplatz_singapore_airlines(seite):
+    reply = call([{"role": "user", "content": "Kann ich Sitzplätze für den Flug reservieren?"}], seite)
+    fehlend = [k for k in ["economy", "premium economy", "business", "kostenfrei"] if not keyword_matches(k, reply)]
+    assert not fehlend and "20 €" not in reply, f"fehlt {fehlend}\n--- reply ---\n{reply}"
 
 
 # --- Ohne Netz: die Fragen gibt es noch --------------------------------------

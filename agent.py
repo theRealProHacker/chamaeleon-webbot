@@ -681,10 +681,14 @@ def call_stream(
     """
     messages, gruss_vorname, begruesst = begruessung_abtrennen(messages)
 
-    # Detect countries
+    # Detect countries: im Chat oder im Laender-Teil der Seite
+    # (/Asien/Singapur-Malaysia/Borneo -> Malaysia). Ohne die Seite fehlte auf
+    # den Singapore-Airlines-Reisen die Sitzplatz-FAQ, Leon sagte "ab 20 €".
+    teile = endpoint.split("/")
+    seiten_land = agent_base.umlaute(teile[2]).replace("-", " ") if len(teile) > 2 else ""
     detected_countries: list[str] = []
     for country in agent_base.laender_faqs:  # zur Laufzeit: faq_sync.load() bindet neu
-        if any(country in msg["content"] for msg in messages):
+        if country in seiten_land or any(country in msg["content"] for msg in messages):
             detected_countries.append(country)
 
     # Welche Reise die MeinChamäleon-Links meinen, wird HIER entschieden, nicht
