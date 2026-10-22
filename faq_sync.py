@@ -147,22 +147,36 @@ def fragen_antworten(rows: list[dict]) -> dict[str, str]:
     return {r["frage"]: r["antwort"] for r in rows if r["quelle"] in ("website", "intern")}
 
 
+# Visumfragen der Laender-FAQs sieht Gemini nie (Owner 2026-10-21, O7):
+# Einreise und Visum kommen nur aus Passolution (einreise_tool), und die
+# FAQ-Antworten widersprachen dem (visum.de, feste Aussagen ohne Stand).
+# Gemessen am Snapshot 2026-10-22: alle 12 Treffer sind echte Visumfragen,
+# keine Visa-Kreditkarte darunter.
+_VISUMFRAGE = re.compile(r"vis[au]", re.IGNORECASE)
+
+
 def laender(rows: list[dict]) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
-    """land-Zeilen -> (Land -> Markdown fuer Tool und Prompt, Land -> {Frage: Antwort})."""
+    """land-Zeilen -> (Land -> Markdown fuer Tool und Prompt, Land -> {Frage: Antwort}).
+
+    Visumfragen fehlen nur im Markdown, also bei Gemini; ``daten`` behaelt sie
+    fuer chat_quality und die Tests.
+    """
     faqs = {land: f"# {land}" for land in LAENDER}
     daten: dict[str, dict[str, str]] = {land: {} for land in LAENDER}
     for r in sorted(rows, key=lambda r: r["position"]):
         if r["quelle"] != "land":
             continue
         land = r["kategorie"]
-        faqs[land] = faqs.get(land, f"# {land}") + f"\n\n## {r['frage']}\n\n{r['antwort']}"
+        faqs.setdefault(land, f"# {land}")
+        if not _VISUMFRAGE.search(r["frage"]):
+            faqs[land] += f"\n\n## {r['frage']}\n\n{r['antwort']}"
         daten.setdefault(land, {})[r["frage"]] = r["antwort"]
     return faqs, daten
 
 
 # Bewusst ausgeblendete Zeile: Visum-Fragen sind seit Sept. 2026 absichtlich
-# nicht in den Laender-FAQs (visum.de-Tool und allgemeine FAQs decken sie ab).
-VISUM_HINWEIS = "Nicht einblenden: Visum-Fragen sind seit Sept. 2026 bewusst nicht in den Länder-FAQs (visum.de-Tool)."
+# nicht in den Laender-FAQs (Passolution-Tool und allgemeine FAQs decken sie ab).
+VISUM_HINWEIS = "Nicht einblenden: Visum-Fragen sind seit Sept. 2026 bewusst nicht in den Länder-FAQs (Passolution-Tool)."
 
 
 def parse_laender_csv() -> tuple[dict[str, dict[str, str]], list[tuple[str, str, str]]]:

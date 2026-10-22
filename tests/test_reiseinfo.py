@@ -576,7 +576,8 @@ def test_einreisebestimmungen_nennen_die_aktuelle_quelle(monkeypatch):
     ])
     text = ab.reiseinfo_tool_base(kunden_id="472325", abschnitt="dokument:einreisebestimmungen")
     assert "Stand bei Buchung" in text
-    assert "visum.de" in text  # Fixture-Buchung ohne tripurl
+    # Fixture-Buchung ohne tripurl: der aktuelle Stand kommt aus Passolution.
+    assert "einreise_tool" in text and "visum.de" not in text
 
 
 def test_einreisebestimmungen_mit_tripurl_bis_reiseende(monkeypatch):

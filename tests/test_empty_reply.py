@@ -190,7 +190,7 @@ def test_log_nennt_toolname_und_gebundene_tools(monkeypatch, capsys):
     _run_stream(monkeypatch, [[kaputt], [kaputt, gut]])
     zeile = _vorfall_zeilen(capsys)[0]
     assert "termine_tool" in zeile, "der Toolname ist der Hebel zur Ursache"
-    assert "visa_tool" in zeile, "die gebundenen Tools müssen im Log stehen"
+    assert "einreise_tool" in zeile, "die gebundenen Tools müssen im Log stehen"
     # Zählerstand beim ERSTEN Auftauchen des Vorfalls, nicht am Turn-Ende:
     # System-Prompt und Frage plus der kaputte Zug.
     assert "nachrichten=3" in zeile

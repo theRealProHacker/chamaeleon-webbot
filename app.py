@@ -147,6 +147,10 @@ def chat_stream():
 
     logging_messages[0]["timestamp"] = time.time()
 
+    # Wie is_agentur: im Generator gibt es keinen Request-Kontext mehr. Nach
+    # ProxyFix die echte IP; lokal "" (vom Passolution-Kontingent ausgenommen).
+    client_ip = "" if rate_limit.is_loopback() else (request.remote_addr or "")
+
     def generate():
         # Dedup für tool_call-Events: stream_mode="values" liefert historische
         # Calls mit jedem Event erneut (siehe kundendaten.filter_new_tool_calls).
@@ -162,6 +166,7 @@ def chat_stream():
                 kunden_id,
                 agentur_id,
                 session_id=session_id,
+                client_ip=client_ip,
             ):
                 # "Tool gefeuert" beobachtbar machen (stdout, nicht Supabase):
                 # nur Toolname + session_id, nie Argumente oder Kundendaten.

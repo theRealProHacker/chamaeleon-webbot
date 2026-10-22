@@ -1,0 +1,1 @@
+{"data":{"tid":"TEST-TEST-0001","trip_name":"Testreise","destinations":["ZA","SZ"],"destinations_list":[{"code":"ZA","type":"travel"},{"code":"SZ","type":"travel"}],"nationalities":["CH"],"nationalities_meta":[{"code":"CH","inherent":true,"added_by_user":false}],"travel":{"with_minors":false},"start_date":"2099-01-10","end_date":"2099-01-24","reference_id":null}}

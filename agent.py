@@ -36,6 +36,7 @@ from agent_base import (
 )
 from agenturdaten import make_buchungen_agentur_tool
 import kundendaten
+import passolution
 import unterlagen
 from kundendaten import make_buchungen_tool
 import tool_history
@@ -660,6 +661,7 @@ def call_stream(
     kunden_id: str = "",
     agentur_id: str = "",
     session_id: str = "",
+    client_ip: str = "",
 ):
     """
     Streaming version of the call function that yields events during processing.
@@ -679,6 +681,8 @@ def call_stream(
             header mirror and never unlocks booking data.
         session_id: Chat session of the widget; keys the tool history
             (tool_history.py). "" switches it off: nothing saved, nothing replayed.
+        client_ip: Real client IP, read by app.py inside the request context.
+            Only keys the Passolution quota; "" (local, eval) is exempt.
 
     Yields:
         dict: Events with 'type' and 'data' keys
@@ -733,8 +737,13 @@ def call_stream(
     # Initialize recommendation containers
     recommendations = set[str]()
 
+    # Einreise und Visum: Passolution statt visum.de (Design
+    # passolution-einreise). Ersetzt visa_tool in der Liste; zwei Tools für
+    # dieselbe Frage änderten die Toolwahl von Gemini.
     tools = [
-        visa_tool,
+        passolution.make_einreise_tool(
+            endpoint, kunden_id, agentur_id, client_ip, reise_vorgang, reise_label
+        ),
         chamaeleon_website_tool,
         country_faq_tool,
         termine_tool,
@@ -1022,6 +1031,7 @@ def call(
     page_content: str = "",
     kunden_id: str = "",
     agentur_id: str = "",
+    client_ip: str = "",
 ) -> str:
     """
     Main function to process messages and generate responses using LangChain/LangGraph.
@@ -1051,6 +1061,7 @@ def call(
         page_content,
         kunden_id,
         agentur_id,
+        client_ip=client_ip,
     ):
         if event["type"] == "response":
             return event["data"]["reply"]

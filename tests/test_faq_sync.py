@@ -93,9 +93,18 @@ def test_laender_csv_rundlauf():
 
 
 def test_laender_ohne_frage_bleiben():
-    faqs, daten = laender(land_zeilen({"Namibia": {"Visum?": "Ja."}}))
-    assert faqs["Namibia"] == "# Namibia\n\n## Visum?\n\nJa."
+    # Frage war "Visum?": die blendet O7 jetzt aus, siehe den Test darunter.
+    faqs, daten = laender(land_zeilen({"Namibia": {"Strom?": "Ja."}}))
+    assert faqs["Namibia"] == "# Namibia\n\n## Strom?\n\nJa."
     assert faqs["USA"] == "# USA" and daten["USA"] == {}
+
+
+def test_visumfragen_sieht_gemini_nicht():
+    # O7: Einreise und Visum nur aus Passolution. Die Daten behalten sie.
+    faqs, daten = laender(land_zeilen({"Ägypten": {
+        "E-Visum oder Visa on arrival?": "Visa on arrival.", "Strom?": "230 V."}}))
+    assert faqs["Ägypten"] == "# Ägypten\n\n## Strom?\n\n230 V."
+    assert "E-Visum oder Visa on arrival?" in daten["Ägypten"]
 
 
 def test_render_beide_ohne_laender():

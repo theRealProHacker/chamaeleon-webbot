@@ -217,8 +217,8 @@ def test_gespeicherter_turn_wird_vor_der_assistant_antwort_eingefuegt():
 
 def test_mehrere_tool_schritte_bleiben_in_reihenfolge():
     verlauf = [
-        {"typ": "ai_tool_calls", "tool_calls": [{"name": "visa_tool", "args": {"country": "Namibia"}, "id": "c1"}]},
-        {"typ": "tool", "tool_call_id": "c1", "name": "visa_tool", "content": "Visum frei."},
+        {"typ": "ai_tool_calls", "tool_calls": [{"name": "einreise_tool", "args": {"laender": "NA"}, "id": "c1"}]},
+        {"typ": "tool", "tool_call_id": "c1", "name": "einreise_tool", "content": "Visum frei."},
         {"typ": "ai_tool_calls", "tool_calls": [{"name": "termine_tool", "args": {"url_path": "/x"}, "id": "c2"}]},
         {"typ": "tool", "tool_call_id": "c2", "name": "termine_tool", "content": "3 Termine."},
     ]
@@ -251,8 +251,8 @@ def test_call_stream_speichert_den_tool_verlauf(monkeypatch):
     _stub_executor(
         monkeypatch,
         [[
-            _ai_mit_toolcall("call-9", name="visa_tool", args={"country": "Namibia"}),
-            _toolmsg("call-9", "Visum: bei Einreise, kostenlos.", name="visa_tool"),
+            _ai_mit_toolcall("call-9", name="einreise_tool", args={"laender": "NA"}),
+            _toolmsg("call-9", "Visum: bei Einreise, kostenlos.", name="einreise_tool"),
             AIMessage(content="Du bekommst das Visum bei der Einreise."),
         ]],
     )
@@ -265,8 +265,8 @@ def test_call_stream_speichert_den_tool_verlauf(monkeypatch):
     typen = [e["typ"] for e in geladen[2]]
     assert typen == ["ai_tool_calls", "tool"]
     (tc,) = geladen[2][0]["tool_calls"]
-    assert tc["name"] == "visa_tool"
-    assert tc["args"] == {"country": "Namibia"}
+    assert tc["name"] == "einreise_tool"
+    assert tc["args"] == {"laender": "NA"}
     assert tc["id"] == "call-9"
     assert geladen[2][1]["tool_call_id"] == "call-9"
     assert "Visum" in geladen[2][1]["content"]
@@ -322,13 +322,13 @@ def test_nachfassen_speichert_die_tool_schritte_beider_versuche(monkeypatch):
         monkeypatch,
         [
             [  # Versuch 1: Tool-Call A, aber leere Endantwort → Nachfassen
-                _ai_mit_toolcall("call-A", name="visa_tool"),
-                _toolmsg("call-A", "Ergebnis A", name="visa_tool"),
+                _ai_mit_toolcall("call-A", name="einreise_tool"),
+                _toolmsg("call-A", "Ergebnis A", name="einreise_tool"),
                 AIMessage(content=""),
             ],
             [  # Versuch 2: Tool-Call B, gute Antwort
-                _ai_mit_toolcall("call-B", name="visa_tool"),
-                _toolmsg("call-B", "Ergebnis B", name="visa_tool"),
+                _ai_mit_toolcall("call-B", name="einreise_tool"),
+                _toolmsg("call-B", "Ergebnis B", name="einreise_tool"),
                 AIMessage(content="Hier die Antwort."),
             ],
         ],
@@ -378,11 +378,11 @@ def test_turn_kappe_streicht_ganze_gruppen_nie_einzelne_eintraege(monkeypatch):
         {
             "typ": "ai_tool_calls",
             "tool_calls": [
-                {"name": "visa_tool", "args": {}, "id": "neu-1"},
+                {"name": "einreise_tool", "args": {}, "id": "neu-1"},
                 {"name": "country_faq_tool", "args": {}, "id": "neu-2"},
             ],
         },
-        {"typ": "tool", "tool_call_id": "neu-1", "name": "visa_tool", "content": "a"},
+        {"typ": "tool", "tool_call_id": "neu-1", "name": "einreise_tool", "content": "a"},
         {"typ": "tool", "tool_call_id": "neu-2", "name": "country_faq_tool", "content": "b"},
     ]
     tool_history.save(store, "s1", "", 1, verlauf)
@@ -414,11 +414,11 @@ def test_termine_wird_paarweise_nicht_gespeichert(monkeypatch):
                 content="",
                 tool_calls=[
                     {"name": "termine_tool", "args": {"url_path": "/x"}, "id": "t1", "type": "tool_call"},
-                    {"name": "visa_tool", "args": {"country": "Peru"}, "id": "v1", "type": "tool_call"},
+                    {"name": "einreise_tool", "args": {"country": "Peru"}, "id": "v1", "type": "tool_call"},
                 ],
             ),
             _toolmsg("t1", "3 Plätze frei.", name="termine_tool"),
-            _toolmsg("v1", "Visumfrei.", name="visa_tool"),
+            _toolmsg("v1", "Visumfrei.", name="einreise_tool"),
             _ai_mit_toolcall("t2", name="termine_tool"),
             _toolmsg("t2", "Noch 2 Plätze.", name="termine_tool"),
             AIMessage(content="Visumfrei, und es gibt noch Plätze."),
@@ -443,8 +443,8 @@ def test_ergebnis_traegt_die_berliner_uhrzeit(monkeypatch):
     _stub_executor(
         monkeypatch,
         [[
-            _ai_mit_toolcall("v1", name="visa_tool"),
-            _toolmsg("v1", "Visumfrei.", name="visa_tool"),
+            _ai_mit_toolcall("v1", name="einreise_tool"),
+            _toolmsg("v1", "Visumfrei.", name="einreise_tool"),
             AIMessage(content="Visumfrei."),
         ]],
     )
@@ -456,10 +456,10 @@ def test_ergebnis_traegt_die_berliner_uhrzeit(monkeypatch):
 def test_begruessung_zaehlt_nicht_als_turn(monkeypatch):
     """Prod-Form: das Widget schickt seine Begrüßung als erste Assistant-Nachricht."""
     store = _frischer_store(monkeypatch)
-    tool_history.save(store, "s-g", "", 1, _verlauf(name="visa_tool"), fingerprint="Visum Peru?")
+    tool_history.save(store, "s-g", "", 1, _verlauf(name="einreise_tool"), fingerprint="Visum Peru?")
     executor = _stub_executor(
         monkeypatch,
-        [[_ai_mit_toolcall("v2", name="visa_tool"), _toolmsg("v2", "x", name="visa_tool"), AIMessage(content="Ja.")]],
+        [[_ai_mit_toolcall("v2", name="einreise_tool"), _toolmsg("v2", "x", name="einreise_tool"), AIMessage(content="Ja.")]],
     )
     msgs = [
         {"role": "assistant", "content": "<p>Hallo Anna! Ich bin Leon.</p>"},
@@ -477,7 +477,7 @@ def test_begruessung_zaehlt_nicht_als_turn(monkeypatch):
 
 def test_replay_wird_nicht_erneut_gespeichert_und_nicht_gemeldet(monkeypatch):
     store = _frischer_store(monkeypatch)
-    tool_history.save(store, "s-r", "", 1, _verlauf("alt", name="visa_tool"))
+    tool_history.save(store, "s-r", "", 1, _verlauf("alt", name="einreise_tool"))
     _stub_executor(monkeypatch, [[AIMessage(content="1.990 €.")]])
     events = list(agent.call_stream(MSGS_ZWEI_TURNS, "/", session_id="s-r"))
     assert not [e for e in events if e["type"] == "tool_call"]
@@ -486,7 +486,7 @@ def test_replay_wird_nicht_erneut_gespeichert_und_nicht_gemeldet(monkeypatch):
 
 def test_fail_open_bei_abgelehnter_replay_form(monkeypatch):
     store = _frischer_store(monkeypatch)
-    tool_history.save(store, "s-f", "", 1, _verlauf(name="visa_tool"))
+    tool_history.save(store, "s-f", "", 1, _verlauf(name="einreise_tool"))
 
     class _Lehnt:
         gesehene_eingaben = []
@@ -508,7 +508,7 @@ def test_fail_open_bei_abgelehnter_replay_form(monkeypatch):
 def test_kein_fail_open_bei_transientem_fehler(monkeypatch):
     """429/5xx würden im zweiten Lauf nur jeden Tool-Aufruf doppelt ausführen."""
     store = _frischer_store(monkeypatch)
-    tool_history.save(store, "s-5", "", 1, _verlauf(name="visa_tool"))
+    tool_history.save(store, "s-5", "", 1, _verlauf(name="einreise_tool"))
 
     class _Faellt:
         laeufe = 0
@@ -528,10 +528,10 @@ def test_kein_fail_open_bei_transientem_fehler(monkeypatch):
 def test_schalter_aus_heisst_verhalten_wie_heute(monkeypatch):
     monkeypatch.setattr(agent, "TOOL_HISTORY_ENABLED", False)
     store = _frischer_store(monkeypatch)
-    tool_history.save(store, "s-a", "", 1, _verlauf(name="visa_tool"))
+    tool_history.save(store, "s-a", "", 1, _verlauf(name="einreise_tool"))
     executor = _stub_executor(
         monkeypatch,
-        [[_ai_mit_toolcall("n", name="visa_tool"), _toolmsg("n", "x", name="visa_tool"), AIMessage(content="Ja.")]],
+        [[_ai_mit_toolcall("n", name="einreise_tool"), _toolmsg("n", "x", name="einreise_tool"), AIMessage(content="Ja.")]],
     )
     list(agent.call_stream(MSGS_ZWEI_TURNS, "/", session_id="s-a"))
     (eingabe,) = executor.gesehene_eingaben

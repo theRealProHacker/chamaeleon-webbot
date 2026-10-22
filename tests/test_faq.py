@@ -8,7 +8,7 @@ richtig beantwortet.
 
 Die Fragen und Schluesselwoerter sind die von damals, woertlich. Gestrichen
 sind nur die 41 Fragen, die es in den FAQs nicht mehr gibt (ueberwiegend
-Visum — absichtlich entfernt, siehe faqs/allgemein.md und das visum.de-Tool),
+Visum — absichtlich entfernt, siehe faqs/allgemein.md und das Passolution-Tool),
 und zwei allgemeine Fragen tragen ihren neuen Wortlaut. Schluesselwoerter
 pruefen die ANTWORT, nicht den FAQ-Text: "airline" darf fehlen, wo die FAQ
 "Lufthansa" schreibt.
@@ -153,10 +153,13 @@ COUNTRY_EXPECTED_KEYWORDS = {
     # === AFRIKA ===
     # Ägypten
     "Ägypten: Kann ich ab/bis Hamburg fliegen?": ["egypt air", "hamburg", "nein"],
+    # Visumfragen der Laender-FAQs sieht Gemini seit O7 nicht mehr (faq_sync):
+    # die Antwort kommt aus Passolution (einreise_tool), Schluesselwoerter aus
+    # tests/fixtures/passolution/all_text_ca_eg_jo_de.json. „Kairo, Mitarbeiter“
+    # stand nur in der FAQ und faellt damit weg.
     "Ägypten: E-Visum oder Visa on arrival?": [
-        "visa on arrival",
-        "kairo",
-        "mitarbeiter",
+        "(visum bei ankunft|visa on arrival)",
+        "(e-visum|online)",
     ],
     "Ägypten: Kann ich von Hurghada ohne Umstieg in Kairo zurück nach Deutschland fliegen?": [
         "nein",
@@ -194,10 +197,11 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "außerhalb",
         "nicht gerne",
     ],
+    # Seit Passolution fragt Leon erst nach der Staatsangehoerigkeit; _pruefe
+    # antwortet „Deutsche“. „österreichische“ faellt deshalb weg.
     "Botswana: Brauche ich ein Visum für Botswana?": [
         "kein visum",
         "deutsche",
-        "österreichische",
     ],
     "Botswana: Ist eine Dreierbelegung für Reisen nach Namibia möglich?": [
         "doppel",
@@ -380,9 +384,10 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "neoprenanzüge",
     ],
     # Kanada
+    # Passolution statt FAQ (O7): „elektronische Einreisegenehmigung“.
     "Kanada: Brauche ich für Kanada ein Visum?": [
         "eta",
-        "elektronische reisegenehmigung",
+        "elektronische (reise|einreise)genehmigung",
         "1-3 tage",
     ],
     "Kanada: CAROC: Sind die Wanderungen anstrengend?": [
@@ -426,10 +431,11 @@ COUNTRY_EXPECTED_KEYWORDS = {
         "dringend empfohlen",
         "gelbfieber",
     ],
+    # Passolution statt FAQ (O7): kein visum.de-Link mehr, dafuer 90 Tage.
     "Kolumbien: Brauche ich für Kolumbien ein Visum?": [
         "kein visum",
-        "online-formular",
-        r"visum\.de/partner/chamaeleon",
+        "90 tage",
+        "(formular|pre-registro|migracion)",
     ],
     "Kolumbien: Was ist die beste Reisezeit für Kolumbien?": [
         "(ganzjährig|ganze jahr)",
@@ -511,10 +517,11 @@ COUNTRY_EXPECTED_KEYWORDS = {
     "Japan: Geld wechseln?": ["flughafen", "kreditkarte", "währungswechsel"],
     "Japan: JPKYO: Kann man Wanderung auf Pilgerweg aussetzen?": ["ja", "bus", "caf(e|é)"],
     # Jordanien
+    # Passolution statt FAQ (O7). Achtung: die FAQ sagte „Nein“, Passolution
+    # nennt biometrische Passfotos unter „Mitzuführende Dokumente“ (2026-10-22).
     "Jordanien: Brauche ich für das Visum ein Passfoto oder ähnliches?": [
-        "nein",
+        "passfoto",
         "reisepass",
-        "reiseunterlagen",
     ],
     "Jordanien: Findet die Reise statt, bzw. gibt es Sicherheitsbedenken?": [
         "sicherheit",
@@ -683,8 +690,18 @@ def _land_und_frage(schluessel: str) -> tuple[str, str]:
     return land, frage
 
 
+# Fragt Leon nach der Staatsangehoerigkeit (Einreisefragen, Passolution), ist
+# das berechtigt: dann antwortet der Gast „Deutsche“, geprueft wird der zweite Zug.
+_NACH_NATIONALITAET = re.compile(r"Staatsangeh|Nationalit", re.IGNORECASE)
+
+
 def _pruefe(frage: str, schluesselwoerter: list[str]) -> None:
-    reply = call([{"role": "user", "content": frage}], "/")
+    verlauf = [{"role": "user", "content": frage}]
+    reply = call(verlauf, "/")
+    if _NACH_NATIONALITAET.search(reply):
+        verlauf += [{"role": "assistant", "content": reply},
+                    {"role": "user", "content": "Wir sind Deutsche."}]
+        reply = call(verlauf, "/")
     fehlend = [k for k in schluesselwoerter if not keyword_matches(k, reply)]
     assert not fehlend, f"fehlt {fehlend}\n--- reply ---\n{reply}"
 

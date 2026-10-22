@@ -27,6 +27,7 @@ import common as _  # noqa: F401  (adds repo root to sys.path)
 import kundendaten
 import unterlagen
 from agent import call
+from test_einreise_eval import passolution_gemockt
 
 RUN = os.getenv("RUN_UNTERLAGEN_EVAL") == "1"
 
@@ -52,6 +53,15 @@ TEILNEHMER = {"id": "14", "name": "Teilnehmerdaten.pdf", "link": _HOST + "teilne
 
 ALLE = [RECHNUNG, REISEBESTAETIGUNG, EINREISE, AUSFUELLHILFE, TEILNEHMER, REISEUNTERLAGEN]
 OHNE_ULAS = [RECHNUNG, REISEBESTAETIGUNG, EINREISE, AUSFUELLHILFE, TEILNEHMER]
+
+
+@pytest.fixture(autouse=True)
+def _passolution(monkeypatch):
+    # Einreisefragen gehen an das einreise_tool: Passolution aus den Fixtures,
+    # die TripURL der Buchung gilt als abgelaufen (Länder aus /get/reise → NA,
+    # Staatsangehörigkeiten aus dem Einreise-PDF). Sonst liefe es live und
+    # kostete Chamäleons Kontingent.
+    passolution_gemockt(monkeypatch)
 
 
 def _datum(tage: int) -> str:
@@ -92,6 +102,8 @@ def frage(text: str) -> str:
 
 
 def test_ausfuellhilfe_vor_visum_de(buchung):
+    # Die Regeln kommen aus Passolution; zur Antrags-Frage darf der
+    # visum.de-Partnerlink stehen (O1), aber nur hinter der Ausfüllhilfe.
     buchung(ALLE)
     reply = frage("Wie beantrage ich das Visum für Namibia?")
     assert AUSFUELLHILFE["link"] in reply, reply
@@ -145,7 +157,7 @@ def test_einreise_mit_stand_datum(buchung):
     daraus, dann mit Stand-Datum, und immer mit einer aktuellen Quelle."""
     buchung(ALLE)
     reply = frage("Welche Einreisebestimmungen gelten laut meinen Unterlagen für Namibia?")
-    assert TRIPURL in reply or "visum.de" in reply, reply
+    assert TRIPURL in reply or "Passolution" in reply, reply
     if re.search(r"Reiseanmeldung|bei Buchung|laut (deinen|den) Unterlagen", reply, re.I):
         assert "03.02.2026" in reply, reply
 
