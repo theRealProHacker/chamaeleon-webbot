@@ -318,6 +318,10 @@ def new_month_cache() -> dict:
     return {
         "aggregates": {},
         "chats": {},
+        # When each month's transcripts were read. Separate from `last_fetched`:
+        # the aggregate refresh bumps that every five minutes, so a shared clock
+        # kept the running month's chat list frozen at its first read.
+        "chats_fetched": {},
         "row_counts": {},
         "current_month": month_key(current_month_start()),
         "last_fetched": 0.0,
@@ -384,6 +388,8 @@ def rollover(cache: dict) -> None:
         return
     ensure_loaded(cache)
     refresh_current_month(cache)
+    # Its transcripts may predate the month's last chats; the next open rereads.
+    cache["chats"].pop(cache["current_month"], None)
     cache["current_month"] = new_month
     cache["aggregates"].setdefault(new_month, month_aggregate.empty_aggregate(new_month))
     refresh_current_month(cache)
@@ -405,7 +411,11 @@ def all_time_aggregate(cache: dict) -> MonthAggregate:
 
 def cached_chats(cache: dict, key: MonthKey) -> list[ChatDetail]:
     cached = cache["chats"].get(key)
-    if cached is not None and not (key == cache["current_month"] and cache_expired(cache)):
+    stale = (
+        key == cache["current_month"]
+        and time.time() - cache["chats_fetched"].get(key, 0.0) > EXPIRY_SECONDS
+    )
+    if cached is not None and not stale:
         return cached
     rows, _count = fetch_month_chats(key)
     details = analyse_chats(rows)
@@ -420,6 +430,7 @@ def cached_chats(cache: dict, key: MonthKey) -> list[ChatDetail]:
 def store_chats(cache: dict, key: MonthKey, details: list[ChatDetail]) -> None:
     chats = cache["chats"]
     chats[key] = details
+    cache["chats_fetched"][key] = time.time()
     while len(chats) > MAX_CACHED_TRANSCRIPT_MONTHS:
         for oldest in sorted(chats):
             if oldest != key and oldest != cache["current_month"]:
