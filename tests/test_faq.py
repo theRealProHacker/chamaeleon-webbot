@@ -744,6 +744,18 @@ def test_sitzplatz_singapore_airlines(seite):
     assert not fehlend and "20 €" not in reply, f"fehlt {fehlend}\n--- reply ---\n{reply}"
 
 
+# Chat vom 2026-10-20: Leon nannte fuer die 17. Reise die 400 € der Legende,
+# die gibt es aber nur fuer die 11.; danach gibt es keine Ermaessigung mehr.
+@live
+@pytest.mark.parametrize("frage", [
+    "was bekomme ich als ermäßigung bei der buchung der 17. reise?",
+    "Welchen Club-Gutschein gibt es ab der 15. Reise?",
+])
+def test_club_nach_der_elften_reise(frage):
+    reply = call([{"role": "user", "content": frage}], "/Club")
+    assert keyword_matches(r"kein(e|en)? weitere|nicht mehr|keine? (ermäßigung|gutschein)", reply), reply
+
+
 # --- Ohne Netz: die Fragen gibt es noch --------------------------------------
 #
 # Das war frueher eine Pruefung beim Import, die bei jedem FAQ-Umbau die ganze

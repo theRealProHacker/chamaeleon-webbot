@@ -312,6 +312,14 @@
   "position": 38
  },
  {
+  "quelle": "intern",
+  "extern_id": null,
+  "kategorie": "Buchung & Bezahlung",
+  "frage": "Welche Gutscheine gibt es im Chamäleon Club ab welcher Reise?",
+  "antwort": "Ist deine erste, vierte, siebte oder zehnte Reise bestätigt, erreichst du eine neue Clubstufe. Mit Antritt dieser Reise erhältst du einen Gutschein für deine nächste Buchung, und wir spenden in deinem Namen 50 € an die Chamäleon Stiftung: Freund (1.–3. Reise) 100 € für die 2. Reise, Liebhaber (4.–6. Reise) 200 € für die 5. Reise, Herzensmensch (7.–9. Reise) 300 € für die 8. Reise, Legende (ab der 10. Reise) 400 € für die 11. Reise. Nach der 11. Reise gibt es keine weitere Ermäßigung: Du bleibst Legende, weitere Club-Gutscheine gibt es nicht. Pro Reise kannst du einen Gutschein einlösen. Mehr zum Chamäleon Club: https://www.chamaeleon-reisen.de/Club",
+  "position": 39
+ },
+ {
   "quelle": "website",
   "extern_id": "CHA-T-FAQ-35",
   "kategorie": "Buchung deiner Chamäleon-Reise",
