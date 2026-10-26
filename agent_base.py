@@ -1717,7 +1717,7 @@ def format_system_prompt(
             "einer Buchung gefragt wird.\n"
             "- Arbeite in zwei Schritten: erst die grobe Liste (details=false), "
             "dann gezielt mit auswahl/anzahl eingegrenzt und details=true "
-            "nachfassen. Der Zahlstand — Anzahlung, offener Betrag, bereits "
+            "nachfassen. Der Zahlstand — Anzahlung, Restzahlung, bereits "
             "eingegangen — und die Flugdaten stehen ausschließlich in der "
             "Detailansicht.\n"
             "- Steht am Ende der Antwort, dass zu einzelnen Buchungen keine "

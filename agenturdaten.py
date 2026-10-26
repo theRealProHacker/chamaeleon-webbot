@@ -613,7 +613,7 @@ def make_buchungen_agentur_tool(agentur_id: str):
           Reihenfolge erschließen — genau diese Zeile ist markiert.
         details: false = grobe Liste (Titel, Zeitraum, Buchungsnummer,
           Besteller). true = Detailansicht, zusätzlich mit Reisenden,
-          Personenzahl, Gesamtpreis, Zahlstand (Anzahlung, offener Betrag,
+          Personenzahl, Gesamtpreis, Zahlstand (Anzahlung, Restzahlung,
           bereits eingegangen), Provision, Flügen, Einzelleistungen und den
           Dokumenten der Buchung mit Links (Reiseunterlagen, Rechnung,
           Ausfüllhilfen …) samt Link zu den aktuellen Einreisebestimmungen.

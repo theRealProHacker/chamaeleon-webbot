@@ -72,7 +72,7 @@ def volle_buchung(status="OK", flugdaten=None, titel="Namibia-Reise", vorgang="1
         "preis": 8198.0,
         "anzahlungBetrag": 1640.0,
         "anzahlungDat": "2026-03-15 00:00:00",
-        "restBetrag": 6558.0,
+        "schlussZahlungBetrag": 6558.0,
         "schlussZahlungDat": "2026-07-01 00:00:00",
         "eingangBetrag": 1640.0,
         # muss draußen bleiben (Whitelist):
@@ -405,7 +405,7 @@ def test_detail_zeigt_zahlstand_und_haelt_whitelist(monkeypatch):
     # Gewollt drin:
     assert "Namibia-Reise" in text
     assert "8.198,00 €" in text  # Gesamtpreis (deutsche Notation)
-    assert "6.558,00 €" in text  # offener Betrag
+    assert "6.558,00 €" in text  # Restzahlung
     assert "fällig 01.07.2026" in text
     assert "2 Erwachsene" in text
     assert "126001" in text  # Buchungsnummer
@@ -416,6 +416,27 @@ def test_detail_zeigt_zahlstand_und_haelt_whitelist(monkeypatch):
     # Strukturell: nur GET-Pfade, überall das enge Chat-Timeout.
     assert all(c["path"].startswith("/get/") for c in calls)
     assert all(c["timeout"] == kd.TIMEOUT for c in calls)
+
+
+def test_restzahlung_ist_schlusszahlung_nicht_restbetrag():
+    """Buchung 210001 am 07.10.2026: Leon nannte 17.493,05 € als offen, auf der
+    Rechnung der Agentur standen 14.834,40 €. ``restBetrag`` rechnet Provision
+    und Steuer mit ein (gemessen 2026-10-26: Buchung 229456, 9658,40 + 1463,76
+    + 278,11 = 11400,27), die Restzahlung laut Rechnung ist
+    ``schlussZahlungBetrag``."""
+    zeilen = "\n".join(
+        kd.zahlstand_zeilen(
+            {
+                "preis": 18558.0,
+                "anzahlungBetrag": 3723.6,
+                "schlussZahlungBetrag": 14834.4,
+                "schlussZahlungDat": "2026-10-19 00:00:00",
+                "restBetrag": 17493.05,
+            }
+        )
+    )
+    assert "Restzahlung: 14.834,40 € (fällig 19.10.2026)" in zeilen
+    assert "17.493,05" not in zeilen
 
 
 UNTERLAGEN = [

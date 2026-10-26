@@ -329,7 +329,7 @@ def _detail(agt="12345", vorgang="4711", status="OK", fluege=None, **extra):
         "preis": 4200.0,
         "anzahlungBetrag": 840.0,
         "anzahlungDat": "2027-01-15 00:00:00",
-        "restBetrag": 3360.0,
+        "schlussZahlungBetrag": 3360.0,
         "schlussZahlungDat": "2027-03-20 00:00:00",
         "eingangBetrag": 840.0,
         "personen": 2,
@@ -405,7 +405,7 @@ def test_details_zeigt_den_zahlstand(monkeypatch):
     monkeypatch.setattr(agenturdaten, "_tourone_get", _api([_row()], _detail()))
     text = agenturdaten.fetch_buchungen_text("12345", details=True)
     assert "Anzahlung" in text
-    assert "Offener Betrag" in text
+    assert "Restzahlung" in text
     assert "Bereits eingegangen" in text
     assert "3.360,00" in text
 
@@ -534,7 +534,7 @@ def test_hop2_status_xx_storniert_auch_gegen_hop1(monkeypatch):
     text = agenturdaten.fetch_buchungen_text("12345", details=True)
     assert "- Status: storniert" in text
     # Zahlstand und Flüge einer stornierten Reise sind irreführend.
-    assert "Offener Betrag" not in text
+    assert "Restzahlung" not in text
     assert "LH576" not in text
 
 
@@ -644,7 +644,7 @@ def test_hop2_detail_landet_bei_seiner_eigenen_buchung(monkeypatch):
     def detail(vorgang):
         return _detail(
             vorgang=vorgang,
-            restBetrag=1111.0 if vorgang == "4711" else 2222.0,
+            schlussZahlungBetrag=1111.0 if vorgang == "4711" else 2222.0,
         )
 
     monkeypatch.setattr(agenturdaten, "_tourone_get", _api(rows, detail))
