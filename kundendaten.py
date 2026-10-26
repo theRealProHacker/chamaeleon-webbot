@@ -36,7 +36,7 @@ Whitelist — nur diese Felder erreichen jemals das Modell/den Kunden:
   reiseCode, sonst der reiseCode selbst — siehe ``_titel_aus_code``.
   Detail zusätzlich: status, persAdult/persChild/persBaby, die sechs
   FLUG_FELDER sowie der Zahlstand (preis, anzahlungBetrag/-Dat,
-  schlussZahlungBetrag/-Dat, eingangBetrag), unterlagen[] (name, beschreibung, link
+  schlussZahlungBetrag/-Dat), unterlagen[] (name, beschreibung, link
   — AUSSER Teilnehmerdaten.pdf: dafür nur der Hinweis auf den Bereich
   „Unterlagen“ in MeinChamäleon, weil es Passnummern und Geburtsdaten aller
   Mitreisenden trägt und jede Antwort im Chat-Log liegt) und tripurl.
@@ -303,9 +303,6 @@ def zahlstand_zeilen(buchung: dict) -> list[str]:
             f"- Restzahlung: {rest}"
             + (f" (fällig {fmt_datum(schluss_dat)})" if schluss_dat else "")
         )
-    eingang = fmt_euro(buchung.get("eingangBetrag"))
-    if eingang:
-        zeilen.append(f"- Bereits eingegangen: {eingang}")
     return zeilen
 
 

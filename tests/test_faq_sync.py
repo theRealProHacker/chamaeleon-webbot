@@ -112,6 +112,13 @@ def test_render_beide_ohne_laender():
     assert render_beide(rows) == ("## Kataloge\n\n**F: Wo?**\nA: Hier.",) * 2
 
 
+def test_zahlungslink_faq_nur_fuer_kunden():
+    rows = parse_md("## Bezahlung\n\n**F: Wo finde ich den Zahlungslink?**\nA: Auf der Rechnung.")
+    kunden, agentur = render_beide([dict(r, quelle="intern") for r in rows])
+    assert "Zahlungslink" in kunden
+    assert "Zahlungslink" not in agentur
+
+
 class _Abfrage:
     def __init__(self, rows):
         self.rows = rows

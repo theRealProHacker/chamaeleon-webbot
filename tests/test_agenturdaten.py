@@ -406,7 +406,7 @@ def test_details_zeigt_den_zahlstand(monkeypatch):
     text = agenturdaten.fetch_buchungen_text("12345", details=True)
     assert "Anzahlung" in text
     assert "Restzahlung" in text
-    assert "Bereits eingegangen" in text
+    assert "Bereits eingegangen" not in text  # eingangBetrag ist kein Zahlungseingang
     assert "3.360,00" in text
 
 

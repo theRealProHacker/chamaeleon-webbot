@@ -135,11 +135,20 @@ def render(rows: list[dict]) -> str:
     return "\n\n".join(teil for gruppe in gruppen.values() for teil in gruppe)
 
 
+# Der Zahlungslink steht auf der Rechnung des Kunden, nicht zwingend auf der
+# der Agentur: Leon verwies die Agentur zu Buchung 210001 auf einen Link, den
+# ihre Rechnung nicht hatte (Owner 2026-10-26).
+_NUR_KUNDEN = re.compile(r"zahlungslink", re.IGNORECASE)
+
+
 def render_beide(rows: list[dict]) -> tuple[str, str]:
     """(website + intern, nur intern) fuer Endkunden- und Agentur-Prompt."""
     # Laender-FAQs (quelle land) gehoeren nie in den allgemeinen Block.
     rows = [r for r in rows if r["quelle"] in ("website", "intern")]
-    return render(rows), render([r for r in rows if r["quelle"] == "intern"])
+    agentur = [
+        r for r in rows if r["quelle"] == "intern" and not _NUR_KUNDEN.search(r["frage"])
+    ]
+    return render(rows), render(agentur)
 
 
 def fragen_antworten(rows: list[dict]) -> dict[str, str]:
