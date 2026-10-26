@@ -363,8 +363,9 @@ def _model():
 
     from agent_base import GEMINI_API_KEY
 
+    # transport="rest": siehe agent.model, gRPC blockiert den gevent-Worker.
     return ChatGoogleGenerativeAI(
-        model=MODEL_NAME, google_api_key=GEMINI_API_KEY, temperature=0
+        model=MODEL_NAME, google_api_key=GEMINI_API_KEY, temperature=0, transport="rest"
     )
 
 

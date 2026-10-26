@@ -39,9 +39,16 @@ import unterlagen
 from kundendaten import make_buchungen_tool
 import tool_history
 
-# Initialize the model
+# transport="rest": gRPC gibt unter gunicorn -k gevent die Kontrolle nicht ab.
+# Jeder Gemini-Aufruf fror sonst den einzigen Worker samt Website ein, parallele
+# Chats liefen nacheinander und rissen den 30-s-Abbruch des Widgets (gemessen
+# 2026-10-26: drei Aufrufe 2,3/5,4/7,8 s und 7,75 s Stillstand; mit REST
+# gleichzeitig 2,0-2,3 s, kein Stillstand). Gilt für jeden Gemini-Client im Prozess.
 model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.1
+    model="gemini-2.5-flash",
+    google_api_key=GEMINI_API_KEY,
+    temperature=0.1,
+    transport="rest",
 )
 
 # Nur für das Nachfassen nach einer leeren Antwort (siehe _NACHFASS): ohne
@@ -51,6 +58,7 @@ model_ohne_denken = ChatGoogleGenerativeAI(
     google_api_key=GEMINI_API_KEY,
     temperature=0.1,
     thinking_budget=0,
+    transport="rest",
 )
 
 
