@@ -39,6 +39,7 @@ CORS(
         "https://agt.chamaeleon-reisen.de",
         "https://agt.chamdev.tourone.de",
         "https://leon.chamdev.tourone.de",
+        "https://to3-abnahme.tourone.de",
         # Allow HTTP for development
         "http://localhost",
         "http://127.0.0.1",
