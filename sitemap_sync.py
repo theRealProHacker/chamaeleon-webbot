@@ -49,6 +49,18 @@ def canonical(path: str) -> str:
     return _ALL_SUFFIX.sub("", path)
 
 
+# SEO-Landingpages, die der Bot nie kennen soll.
+with open("sitemap_ausschluss.txt", encoding="utf-8") as _f:
+    AUSSCHLUSS = {canonical(l.strip()) for l in _f if l.strip()}
+
+
+def ohne_ausschluss(text: str) -> str:
+    """Sitemap-Text ohne die Zeilen aus sitemap_ausschluss.txt."""
+    return "\n".join(
+        l for l in text.splitlines() if canonical(l.strip()) not in AUSSCHLUSS
+    )
+
+
 def _normalize(href: str) -> str | None:
     """Normalise an href to an internal path, or None if it is not one."""
     href = href.strip()
@@ -294,6 +306,7 @@ def _check_removals(would_remove: list[str]) -> tuple[list[str], list[str]]:
 def plane(live: set[str], static: list[str]) -> tuple[list[str], list[str], list[str]]:
     """(additions, dead, kept) — was ein Sync mit der Baseline macht. Prueft live."""
     additions, would_remove = compute_diff(live, static)
+    additions = [p for p in additions if canonical(p) not in AUSSCHLUSS]
     dead, kept = _check_removals(would_remove)
     verdeckt_tot, _ = _check_removals(verdeckt(live, static))
     return (

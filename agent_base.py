@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 from cachetools.func import ttl_cache
 from dotenv import load_dotenv
 
+from sitemap_sync import ohne_ausschluss
+
 # Set German locale
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
 
@@ -78,7 +80,7 @@ def _parse_sitemap(text: str) -> tuple[list[str], list[str], dict[str, str]]:
 
 
 with open("sitemap.txt", "r", encoding="utf-8") as f:
-    sitemap = f.read()
+    sitemap = ohne_ausschluss(f.read())
 
 _a, _t, _c = _parse_sitemap(sitemap)
 all_sites.extend(_a)
@@ -187,6 +189,7 @@ def apply_sitemap(new_text: str) -> str:
     so the caller can push it onto the live LangChain tool.
     """
     global sitemap, website_tool_description
+    new_text = ohne_ausschluss(new_text)
     parsed_sites, parsed_trips, parsed_countries = _parse_sitemap(new_text)
     all_sites[:] = parsed_sites
     trip_sites[:] = parsed_trips
